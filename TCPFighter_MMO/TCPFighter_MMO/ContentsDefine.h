@@ -16,6 +16,7 @@ struct st_CHARACTER
 	st_SECTOR_POS OldSector;
 
 	char chHP;
+	bool bDeleted;
 };
 
 //-----------------------------------------------------------------

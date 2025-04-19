@@ -11,5 +11,6 @@ struct st_SESSION
 	CRingBuffer* SendQ;		// 송신 큐
 	DWORD dwLastRecvTime;	// 타임아웃용 시간
 
+	SOCKADDR_IN IPPtr;
 	bool bDeleted;
 };

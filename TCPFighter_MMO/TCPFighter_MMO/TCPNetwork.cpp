@@ -3,13 +3,14 @@
 #include "TCPNetwork.h"
 #include "MessageProc.h"
 #include "Debug.h"
-#include <list>
+#include <unordered_map>
 using namespace std;
 
 SOCKET	m_ListenSocket;
 unsigned long m_IDCnt = 0;
 
-list<st_SESSION*> _sessionList;
+//list<st_SESSION*> _sessionList;
+unordered_map<SOCKET, st_SESSION*> _sessionMap;
 
 void netStartup()
 {
@@ -48,19 +49,19 @@ void netSelectIO()
 
 	FD_SET(m_ListenSocket, &readSet);
 
-	list<st_SESSION*>::iterator it;
-	for (it = _sessionList.begin(); it != _sessionList.end(); it++)
+	unordered_map<SOCKET, st_SESSION*>::iterator it;
+	for (it = _sessionMap.begin(); it != _sessionMap.end(); it++)
 	{
-		FD_SET((*it)->Socket, &readSet);
-		if ((*it)->SendQ->GetUseSize() > 0)
-			FD_SET((*it)->Socket, &writeSet);
+		FD_SET((*it).first, &readSet);
+		if ((*it).second->SendQ->GetUseSize() > 0)
+			FD_SET((*it).first, &writeSet);
 	}
 
 	timeval time;
 	time.tv_sec = 0;
 	time.tv_usec = 0;
 
-	int loopCount = _sessionList.size();
+	int loopCount = _sessionMap.size();
 
 	// accept
 	if (FD_ISSET(m_ListenSocket, &readSet))
@@ -68,7 +69,7 @@ void netSelectIO()
 		netProc_Accept();
 	}
 
-	it = _sessionList.begin();
+	it = _sessionMap.begin();
 	while (loopCount > 0)
 	{
 		int selectResult = select(0, &readSet, &writeSet, NULL, &time);
@@ -77,18 +78,21 @@ void netSelectIO()
 
 		for (int i = 0; i < selectResult; i++)
 		{
+			if ((*it).second->bDeleted)
+				continue;
+
 			//Recv
-			if (FD_ISSET((*it)->Socket, &readSet))
+			if (FD_ISSET((*it).first, &readSet))
 			{
 				--loopCount;
-				netProc_Recv(*it);
+				netProc_Recv((*it).second);
 			}
 
 			// send
-			if (FD_ISSET((*it)->Socket, &writeSet))
+			if (FD_ISSET((*it).first, &writeSet))
 			{
 				--loopCount;
-				netProc_Send(*it);
+				netProc_Send((*it).second);
 			}
 
 			it++;
@@ -128,10 +132,12 @@ void netProc_Accept()
 		session->SendQ = new CRingBuffer(PROTOCOL_MAXSIZE * 1000);
 		session->Socket = clientSocket;
 		session->bDeleted = false;
+		session->IPPtr = clientAddr;
 		session->dwLastRecvTime = timeGetTime();
 
 		// 플레이어 정보 생성
 		netPacketProc_Accept(session);
+		_sessionMap.insert({ clientSocket, session });
 	}
 }
 
@@ -240,16 +246,39 @@ void netProc_Send(st_SESSION* session)
 	session->dwLastRecvTime = timeGetTime(); 
 }
 
-void DisconnectSession(st_SESSION* pSession)
+void DisconnectSession(SOCKET socket)
 {
-	// 1. GetAroundSector로 주변 섹터 얻어옴
+	
 
 	// 2. 그 섹터의 플레이어에게 DeleteCharacter 전송
 
 	// 3. closeSocket, new-delete 과정 진행
 }
 
-void Send_UniCast(st_SESSION* Session, st_PACKET_HEADER* header, char* packet)
+void Send_UniCast(st_SESSION* pSession, st_PACKET_HEADER* header, char* packet)
 {
+	if (pSession->SendQ->GetFreeSize() < sizeof(st_PACKET_HEADER) + header->bySize)
+	{
+		// 연결끊기?
+		DisconnectSession(pSession->Socket);
+		return;
+	}
 
+	int ret = pSession->SendQ->Enqueue((char*)header, sizeof(st_PACKET_HEADER));
+	if (ret != sizeof(st_PACKET_HEADER))
+	{
+		// 연결 끊기
+		DebugBreak();
+		DisconnectSession(pSession->Socket);
+		return;
+	}
+
+	ret = pSession->SendQ->Enqueue(packet, header->bySize);
+	if (ret != header->bySize)
+	{
+		// 연결 끊기
+		DebugBreak();
+		DisconnectSession(pSession->Socket);
+		return;
+	}
 }

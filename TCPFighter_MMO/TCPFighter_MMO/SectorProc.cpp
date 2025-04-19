@@ -1,3 +1,6 @@
+#include <list>
+using namespace std;
+
 #include "TCPDefine.h"
 #include "SectorDefine.h"
 #include "ContentsDefine.h"
@@ -5,8 +8,7 @@
 #include "PacketDefine.h"
 #include "MessageCreate.h"
 #include "TCPNetwork.h"
-#include <list>
-using namespace std;
+
 
 // 한 섹터는 100 x 100 크기로,  64 x 64개의 섹터로 이루어짐
 list<st_CHARACTER*> m_Sector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
@@ -82,6 +84,14 @@ void ChangeSector(st_CHARACTER* player)
 	// 3. map, player 세팅
 	m_Sector[player->OldSector.iY][player->OldSector.iX].remove(player);
 	player->OldSector = player->CurSector;
+}
+
+void GetSectorSessions(short shX, short shY, list<st_SESSION*> pPlayerList)
+{
+	short sectorX = shX / dfSECTOR_SIZE_X;
+	short sectorY = shY / dfSECTOR_SIZE_Y;
+
+	
 }
 
 void GetSectorAround(int iSectorX, int iSectorY, st_SECTOR_AROUND* pSectorAround)
@@ -169,6 +179,62 @@ void GetUpdateSectorAround(st_CHARACTER* player, st_SECTOR_AROUND* pRemoveSector
 			pAddSector->Around[pAddSector->iCount].iX = iCurSectorX;
 			pAddSector->Around[pAddSector->iCount].iY = iCurSectorY;
 			pAddSector->iCount++;
+		}
+	}
+}
+
+void SendPacket_SectorOne(int iSectorX, int iSectorY, st_PACKET_HEADER* header, CPacket* cPacket, st_SESSION* pExceptSession)
+{
+	list<st_CHARACTER*>::iterator it;
+	list<st_CHARACTER*> pSectorPlayerList;
+
+	pSectorPlayerList = m_Sector[iSectorY][iSectorX];
+	for (it = pSectorPlayerList.begin(); it != pSectorPlayerList.end(); it++)
+	{
+		if ((*it)->pSession == pExceptSession)
+			continue;
+
+		Send_UniCast((*it)->pSession, header, (char*)cPacket);
+	}
+}
+
+void SendPacket_Around(st_CHARACTER* pCharacter, st_PACKET_HEADER* header, CPacket* cPacket, bool bSendMe)
+{
+	int iSectorX = pCharacter->shX / dfSECTOR_SIZE_X;
+	int iSectorY = pCharacter->shY / dfSECTOR_SIZE_Y;
+
+	st_SECTOR_AROUND stAround;
+
+	GetSectorAround(iSectorX, iSectorY, &stAround);
+
+	for (int i = 0; i < stAround.iCount; i++)
+	{
+		bool playerSectorFlag = false;
+		list<st_CHARACTER*>::iterator it;
+		list<st_CHARACTER*> pSectorPlayerList;
+
+		if (stAround.Around[i].iY == iSectorY && stAround.Around[i].iX)
+			playerSectorFlag = true;
+
+		pSectorPlayerList = m_Sector[stAround.Around[i].iY][stAround.Around[i].iX];
+
+		// if문 체크를 적게 하기 위해 나눠봄
+		if (playerSectorFlag)
+		{
+			for (it = pSectorPlayerList.begin(); it != pSectorPlayerList.end(); it++)
+			{
+				if (!bSendMe && (*it)->dwSessionID == pCharacter->dwSessionID)
+					continue;
+
+				Send_UniCast((*it)->pSession, header, (char*)cPacket);
+			}
+		}
+		else
+		{
+			for (it = pSectorPlayerList.begin(); it != pSectorPlayerList.end(); it++)
+			{
+				Send_UniCast((*it)->pSession, header, (char*)cPacket);
+			}
 		}
 	}
 }

@@ -12,6 +12,10 @@ unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
 
 DWORD dwCurrentTick;
 
+bool CharacterMoveCheck(short shX, short shY);
+
+void DisconnectPlayer();
+
 void Update()
 {
 	if (Skip())
@@ -26,22 +30,23 @@ void Update()
 
 	st_CHARACTER* pPlayer = nullptr;
 	unordered_map<DWORD, st_CHARACTER*>::iterator it;
-	for (it = m_CharacterMap.begin(); it != m_CharacterMap.end(); it++)
+	for (it = m_CharacterMap.begin(); it != m_CharacterMap.end();)
 	{
 		pPlayer = (*it).second;
 		it++;
 
 		if (pPlayer->chHP <= 0)
 		{
-			DisconnectSession(pPlayer->pSession);
+			DisconnectSession(pPlayer->pSession->Socket);
+			pPlayer->bDeleted = true;
 			continue;
-			// Deleted같은거 두지 말고, session쪽에 끊는걸 넘기자.
 		}
 		
 		if (dwCurrentTick - pPlayer->pSession->dwLastRecvTime > dfNETWORK_PACKET_RECV_TIMEOUT)
 		{
 			// 타임아웃
-			DisconnectSession(pPlayer->pSession);
+			DisconnectSession(pPlayer->pSession->Socket);
+			pPlayer->bDeleted = true;
 			continue;
 		}
 
@@ -102,7 +107,23 @@ void Update()
 		}
 	}
 
-	dwCurrentTick = timeGetTime();
+	DisconnectPlayer();
+}
+
+// 표시된 플레이어 map에서 삭제
+void DisconnectPlayer()
+{
+	unordered_map<DWORD, st_CHARACTER*>::iterator it;
+	for (it = m_CharacterMap.begin(); it != m_CharacterMap.end();)
+	{
+		if ((*it).second->bDeleted)
+		{
+			it = m_CharacterMap.erase(it);
+			continue;
+		}
+
+		it++;
+	}
 }
 
 bool CharacterMoveCheck(short shX, short shY)

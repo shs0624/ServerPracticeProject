@@ -1,4 +1,4 @@
 #pragma once
 
 // ÄÁÅÙÃ÷ °ü·Ã ±¸Çö
-void netPacket_CollisionCheck(st_SESSION* attacker, BYTE xRange, BYTE yRange, char damage);
+void CollisionCheck(st_CHARACTER* pExceptPlayer, char chDir, BYTE xRange, BYTE yRange, list<st_CHARACTER*> pCheckedList);

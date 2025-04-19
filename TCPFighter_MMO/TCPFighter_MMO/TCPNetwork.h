@@ -14,7 +14,9 @@ void netProc_Send(st_SESSION* session);
 // 외부 선언 - MessageProc
 void ProcessMessage(st_SESSION* session, BYTE type, CPacket* cPacket);
 
-void DisconnectSession(st_SESSION* pSession);
+void DisconnectSession(SOCKET socket);
 
 void Send_BroadCast(st_SESSION* exceptSession, st_PACKET_HEADER* header, char* packet);
-void Send_UniCast(st_SESSION* Session, st_PACKET_HEADER* header, char* packet);
+void Send_UniCast(st_SESSION* pSession, st_PACKET_HEADER* header, char* packet);
+//void SendPacket_SectorOne(int iSectorX, int iSectorY, CPacket* cPacket, st_SESSION* pExceptSession);
+//void SendPacket_Around(st_SESSION* pSession, CPacket* cPacket, bool bSendMe = false);

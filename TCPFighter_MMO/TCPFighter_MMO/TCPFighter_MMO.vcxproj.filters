@@ -28,15 +28,12 @@
     <Filter Include="Message">
       <UniqueIdentifier>{8f1c9042-cdad-4d06-948a-e5575b523e07}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Lib">
+      <UniqueIdentifier>{52e7b1bd-74ca-4ea0-a047-0a0053353a45}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="CRingBuffer.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="CSerializationBuffer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="TCPNetwork.cpp">
@@ -57,6 +54,12 @@
     <ClCompile Include="FrameProc.cpp">
       <Filter>Contents</Filter>
     </ClCompile>
+    <ClCompile Include="CRingBuffer.cpp">
+      <Filter>Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="CSerializationBuffer.cpp">
+      <Filter>Lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="NetworkProc.h">
@@ -66,15 +69,6 @@
       <Filter>소스 파일</Filter>
     </ClInclude>
     <ClInclude Include="Contents.h">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="CSerializationBuffer.h">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="CRingBuffer.h">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="PacketDefine.h">
       <Filter>소스 파일</Filter>
     </ClInclude>
     <ClInclude Include="TCPNetwork.h">
@@ -106,6 +100,15 @@
     </ClInclude>
     <ClInclude Include="FrameProc.h">
       <Filter>Contents</Filter>
+    </ClInclude>
+    <ClInclude Include="CRingBuffer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="CSerializationBuffer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="PacketDefine.h">
+      <Filter>TCP</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
