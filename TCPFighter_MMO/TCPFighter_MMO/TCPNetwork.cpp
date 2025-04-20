@@ -248,11 +248,26 @@ void netProc_Send(st_SESSION* session)
 
 void DisconnectSession(SOCKET socket)
 {
-	
+	(_sessionMap.find(socket))->second->bDeleted = true;
+}
 
-	// 2. 그 섹터의 플레이어에게 DeleteCharacter 전송
+void DisconnectDeletedSession()
+{
+	unordered_map<SOCKET, st_SESSION*>::iterator it;
+	for (it = _sessionMap.begin(); it != _sessionMap.end();)
+	{
+		if ((*it).second->bDeleted)
+		{
+			delete((*it).second->RecvQ);
+			delete((*it).second->SendQ);
+			// 3. closeSocket, new-delete 과정 진행
 
-	// 3. closeSocket, new-delete 과정 진행
+			it = _sessionMap.erase(it);
+			continue;
+		}
+
+		it++;
+	}
 }
 
 void Send_UniCast(st_SESSION* pSession, st_PACKET_HEADER* header, char* packet)

@@ -1,12 +1,17 @@
+#include <Windows.h>
+#include <list>
+#include <unordered_map>
+using namespace std;
+
 #include "FrameProc.h"
 #include "TCPDefine.h"
 #include "PacketDefine.h"
 #include "TCPNetwork.h"
 #include "SectorDefine.h"
+#include "MessageProc.h"
 #include "ContentsDefine.h"
-#include <Windows.h>
-#include <unordered_map>
-using namespace std;
+#include "SectorProc.h"
+#include "MessageCreate.h"
 
 unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
 
@@ -114,10 +119,18 @@ void Update()
 void DisconnectPlayer()
 {
 	unordered_map<DWORD, st_CHARACTER*>::iterator it;
+	CPacket csPacket(PROTOCOL_MAXSIZE);
 	for (it = m_CharacterMap.begin(); it != m_CharacterMap.end();)
 	{
 		if ((*it).second->bDeleted)
 		{
+			//그 섹터의 플레이어에게 DeleteCharacter 전송
+			st_PACKET_HEADER header;
+			mpDeleteCharacter(&header, &csPacket, (*it).first);
+
+			SendPacket_Around((*it).second, &header, &csPacket);
+			csPacket.Clear();
+			
 			it = m_CharacterMap.erase(it);
 			continue;
 		}

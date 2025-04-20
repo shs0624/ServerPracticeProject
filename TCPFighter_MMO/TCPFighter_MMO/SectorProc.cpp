@@ -4,8 +4,8 @@ using namespace std;
 #include "TCPDefine.h"
 #include "SectorDefine.h"
 #include "ContentsDefine.h"
-#include "SectorProc.h"
 #include "PacketDefine.h"
+#include "SectorProc.h"
 #include "MessageCreate.h"
 #include "TCPNetwork.h"
 
