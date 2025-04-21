@@ -40,6 +40,9 @@ void Update()
 		pPlayer = (*it).second;
 		it++;
 
+		if (pPlayer->bDeleted)
+			continue;
+
 		if (pPlayer->chHP <= 0)
 		{
 			DisconnectSession(pPlayer->pSession->Socket);

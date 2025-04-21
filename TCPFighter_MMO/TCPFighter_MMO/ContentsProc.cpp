@@ -135,6 +135,9 @@ void CollisionCheck(st_CHARACTER* pExceptPlayer, char chDir, BYTE xRange, BYTE y
 
 	for (it = m_CharacterMap.begin(); it != m_CharacterMap.end(); it++)
 	{
+		if ((*it).second->bDeleted)
+			continue;
+
 		if ((*it).second->dwSessionID == pExceptPlayer->dwSessionID)
 			continue;
 
