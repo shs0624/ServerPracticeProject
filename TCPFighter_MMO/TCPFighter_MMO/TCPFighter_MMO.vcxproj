@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -23,6 +23,7 @@
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
     <ClCompile Include="FrameProc.cpp" />
+    <ClCompile Include="LogProc.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MessageCreate.cpp" />
     <ClCompile Include="MessageProc.cpp" />
@@ -37,6 +38,7 @@
     <ClInclude Include="CSerializationBuffer.h" />
     <ClInclude Include="Debug.h" />
     <ClInclude Include="FrameProc.h" />
+    <ClInclude Include="LogProc.h" />
     <ClInclude Include="MessageCreate.h" />
     <ClInclude Include="MessageProc.h" />
     <ClInclude Include="PacketDefine.h" />

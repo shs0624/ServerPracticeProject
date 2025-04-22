@@ -15,13 +15,9 @@ void ProcessMessage(st_SESSION* session, BYTE type, CPacket* cPacket)
 		netPacketProc_MoveStop(session, cPacket);
 		break;
 	case dfPACKET_CS_ATTACK1:
-		netPacketProc_Attack1(session);
-		break;
 	case dfPACKET_CS_ATTACK2:
-		netPacketProc_Attack2(session);
-		break;
 	case dfPACKET_CS_ATTACK3:
-		netPacketProc_Attack3(session);
+		netPacketProc_Attack(session, type);
 		break;
 	case dfPACKET_CS_ECHO:
 		netPacketProc_Echo(session);

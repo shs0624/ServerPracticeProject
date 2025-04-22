@@ -13,7 +13,7 @@ using namespace std;
 // 한 섹터는 100 x 100 크기로,  64 x 64개의 섹터로 이루어짐
 list<st_CHARACTER*> m_Sector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
 
-void InitializeSector(st_CHARACTER* player)
+void SetUserToSector(st_CHARACTER* player)
 {
 	short sectorX = player->shX / dfSECTOR_SIZE_X;
 	short sectorY = player->shY / dfSECTOR_SIZE_Y;
@@ -121,6 +121,9 @@ void GetUpdateSectorAround(st_CHARACTER* player, st_SECTOR_AROUND* pRemoveSector
 	st_SECTOR_AROUND oldAround;
 	st_SECTOR_AROUND curAround;
 
+	memset(&oldAround, 0, sizeof(st_SECTOR_AROUND));
+	memset(&curAround, 0, sizeof(st_SECTOR_AROUND));
+
 	GetSectorAround(player->OldSector.iX, player->OldSector.iY, &oldAround);
 	GetSectorAround(player->CurSector.iX, player->CurSector.iY, &curAround);
 
@@ -204,6 +207,7 @@ void SendPacket_Around(st_CHARACTER* pCharacter, st_PACKET_HEADER* header, CPack
 	int iSectorY = pCharacter->shY / dfSECTOR_SIZE_Y;
 
 	st_SECTOR_AROUND stAround;
+	memset(&stAround, 0, sizeof(st_SECTOR_AROUND));
 
 	GetSectorAround(iSectorX, iSectorY, &stAround);
 

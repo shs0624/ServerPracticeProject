@@ -10,14 +10,13 @@ using namespace std;
 #include "SectorDefine.h"
 #include "MessageProc.h"
 #include "ContentsDefine.h"
+#include "ContentsProc.h"
 #include "SectorProc.h"
 #include "MessageCreate.h"
 
 unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
 
 DWORD dwCurrentTick;
-
-bool CharacterMoveCheck(short shX, short shY);
 
 void DisconnectPlayer();
 
@@ -140,17 +139,6 @@ void DisconnectPlayer()
 
 		it++;
 	}
-}
-
-bool CharacterMoveCheck(short shX, short shY)
-{
-	if (shX < dfRANGE_MOVE_LEFT || shX >= dfRANGE_MOVE_RIGHT)
-		return false;
-
-	if (shY < dfRANGE_MOVE_TOP || shY >= dfRANGE_MOVE_BOTTOM)
-		return false;
-
-	return true;
 }
 
 bool Skip()

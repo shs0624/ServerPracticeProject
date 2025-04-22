@@ -29,6 +29,18 @@ void mpMoveStop(st_PACKET_HEADER* header, CPacket* msg, DWORD id, char dir, shor
 	header->bySize = msg->GetDataSize();
 }
 
+void mpSync(st_PACKET_HEADER* header, CPacket* msg, DWORD id, short X, short Y)
+{
+	header->byCode = 0x89;
+	header->byType = dfPACKET_SC_SYNC;
+
+	(*msg) << id;
+	(*msg) << X;
+	(*msg) << Y;
+
+	header->bySize = msg->GetDataSize();
+}
+
 void mpCreateMyCharacter(st_PACKET_HEADER* header, CPacket* msg, DWORD id, char dir, short X, short Y, char HP)
 {
 	header->byCode = 0x89;
@@ -114,6 +126,16 @@ void mpDamage(st_PACKET_HEADER* header, CPacket* msg, DWORD attackerID, DWORD da
 	(*msg) << attackerID;
 	(*msg) << damagedID;
 	(*msg) << damage;
+
+	header->bySize = msg->GetDataSize();
+}
+
+void mpEcho(st_PACKET_HEADER* header, CPacket* msg, DWORD time)
+{
+	header->byCode = 0x89;
+	header->byType = dfPACKET_SC_ECHO;
+
+	(*msg) << time;
 
 	header->bySize = msg->GetDataSize();
 }

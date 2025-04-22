@@ -1,6 +1,6 @@
 #pragma once
 
-void InitializeSector(st_CHARACTER* player);
+void SetUserToSector(st_CHARACTER* player);
 
 bool UpdateSector(st_CHARACTER* player);
 

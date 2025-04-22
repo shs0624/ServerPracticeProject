@@ -60,6 +60,9 @@
     <ClCompile Include="CSerializationBuffer.cpp">
       <Filter>Lib</Filter>
     </ClCompile>
+    <ClCompile Include="LogProc.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="NetworkProc.h">
@@ -109,6 +112,9 @@
     </ClInclude>
     <ClInclude Include="PacketDefine.h">
       <Filter>TCP</Filter>
+    </ClInclude>
+    <ClInclude Include="LogProc.h">
+      <Filter>Debug</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

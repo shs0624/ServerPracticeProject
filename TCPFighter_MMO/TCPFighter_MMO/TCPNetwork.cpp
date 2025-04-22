@@ -3,6 +3,8 @@
 #include "TCPNetwork.h"
 #include "MessageProc.h"
 #include "Debug.h"
+#include "LogProc.h"
+#include <list>
 #include <unordered_map>
 using namespace std;
 
@@ -12,13 +14,16 @@ unsigned long m_IDCnt = 0;
 //list<st_SESSION*> _sessionList;
 unordered_map<SOCKET, st_SESSION*> _sessionMap;
 
+extern int g_iLogLevel;
+extern WCHAR g_szLogBuff[1024];
+
 void netStartup()
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		err_quit("Startup()");
 
-	m_ListenSocket = socket(AF_INET, SOCK_DGRAM, 0);
+	m_ListenSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if (m_ListenSocket == INVALID_SOCKET)
 		err_quit("Listen Socket Error()");
 
@@ -27,10 +32,15 @@ void netStartup()
 	if (lingerRet == SOCKET_ERROR)
 		err_quit("Linger()");
 
+	/*u_long on = 1;
+	int ioctlRet = ioctlsocket(m_ListenSocket, FIONBIO, &on);
+	if (ioctlRet == SOCKET_ERROR) 
+		err_quit("ioctlsocket()");*/
+
 	SOCKADDR_IN serverAddr;
 	ZeroMemory(&serverAddr, sizeof(SOCKADDR_IN));
 	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_port = htons(SERVER_PORT);
+	serverAddr.sin_port = htons(dfNETWORK_PORT);
 	serverAddr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
 	int bindRet = bind(m_ListenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
 	if (bindRet == SOCKET_ERROR)
@@ -39,65 +49,89 @@ void netStartup()
 	int listenRet = listen(m_ListenSocket, SOMAXCONN);
 	if (listenRet == SOCKET_ERROR)
 		err_quit("listen()");
+
+	_LOG(2, L"Server Open OK # Port : %d\n", dfNETWORK_PORT);
 }
 
 void netSelectIO()
 {
+	int loopCount = 0;
+	int mapSize = _sessionMap.size();
 	fd_set readSet, writeSet;
 	FD_ZERO(&readSet);
 	FD_ZERO(&writeSet);
 
 	FD_SET(m_ListenSocket, &readSet);
 
-	unordered_map<SOCKET, st_SESSION*>::iterator it;
-	for (it = _sessionMap.begin(); it != _sessionMap.end(); it++)
-	{
-		FD_SET((*it).first, &readSet);
-		if ((*it).second->SendQ->GetUseSize() > 0)
-			FD_SET((*it).first, &writeSet);
-	}
+	// loopCount를 구하고, 그만큼 돌며 select 진행
+	loopCount = (_sessionMap.size() / FD_SETSIZE);
+	
+	// @@shs 아예 다시짜야함
 
-	timeval time;
-	time.tv_sec = 0;
-	time.tv_usec = 0;
+	//list<st_SESSION*> selectList;
+	//unordered_map<SOCKET, st_SESSION*>::iterator it = _sessionMap.begin();
+	//for (int i = 0; i < loopCount; i++)
+	//{
+	//	FD_SET((*it).first, &readSet);
+	//	if ((*it).second->SendQ->GetUseSize() > 0)
+	//		FD_SET((*it).first, &writeSet);
+	//}
 
-	int loopCount = _sessionMap.size();
+	//
+	//for (it = _sessionMap.begin(); it != _sessionMap.end(); it++)
+	//{
+	//	FD_SET((*it).first, &readSet);
+	//	if ((*it).second->SendQ->GetUseSize() > 0)
+	//		FD_SET((*it).first, &writeSet);
 
-	// accept
-	if (FD_ISSET(m_ListenSocket, &readSet))
-	{
-		netProc_Accept();
-	}
+	//	selectList.push_back((*it).second);
 
-	it = _sessionMap.begin();
-	while (loopCount > 0)
-	{
-		int selectResult = select(0, &readSet, &writeSet, NULL, &time);
-		if (selectResult == SOCKET_ERROR)
-			err_display("select()");
+	//	loopCount++;
+	//	if (loopCount >= FD_SETSIZE)
+	//	{
+	//		timeval time;
+	//		time.tv_sec = 0;
+	//		time.tv_usec = 0;
 
-		for (int i = 0; i < selectResult; i++)
-		{
-			if ((*it).second->bDeleted)
-				continue;
+	//		int iResult = select(0, &readSet, &writeSet, NULL, &time);
+	//		if (iResult == SOCKET_ERROR)
+	//			err_quit("select()");
 
-			//Recv
-			if (FD_ISSET((*it).first, &readSet))
-			{
-				--loopCount;
-				netProc_Recv((*it).second);
-			}
+	//		// accept
+	//		if (FD_ISSET(m_ListenSocket, &readSet))
+	//		{
+	//			netProc_Accept();
+	//		}
 
-			// send
-			if (FD_ISSET((*it).first, &writeSet))
-			{
-				--loopCount;
-				netProc_Send((*it).second);
-			}
+	//		list<st_SESSION*>::iterator it;
+	//		for (it = selectList.begin(); it != selectList.end(); it++)
+	//		{
+	//			if (FD_ISSET((*it)->Socket, &readSet))
+	//			{
+	//				netProc_Recv(*it);
+	//			}
+	//		}
 
-			it++;
-		}
-	}
+	//		// send
+	//		for (it = selectList.begin(); it != selectList.end(); it++)
+	//		{
+	//			if (FD_ISSET((*it)->Socket, &writeSet))
+	//			{
+	//				netProc_Send(*it);
+	//			}
+	//		}
+
+	//		FD_ZERO(&readSet);
+	//		FD_ZERO(&writeSet);
+	//		selectList.clear();
+	//		loopCount = 0;
+	//	}
+	//}
+}
+
+void SelectProc(fd_set* readSet, fd_set* writeSet)
+{
+
 }
 
 void netProc_Accept()
@@ -138,6 +172,8 @@ void netProc_Accept()
 		// 플레이어 정보 생성
 		netPacketProc_Accept(session);
 		_sessionMap.insert({ clientSocket, session });
+
+		_LOG(0, L"Accepted Player # Port : %d\n", session->IPPtr.sin_port);
 	}
 }
 
@@ -202,6 +238,8 @@ void netProc_Recv(st_SESSION* session)
 		csPacket->MoveReadPos(sizeof(st_PACKET_HEADER));
 		ProcessMessage(session, header.byType, csPacket);
 		csPacket->Clear();
+
+		_LOG(0, L"Received Message # Size : %d # sessionID : %d\n", dequeueRet, session->dwSessionID);
 	}
 
 	session->dwLastRecvTime = timeGetTime();
@@ -241,6 +279,7 @@ void netProc_Send(st_SESSION* session)
 		}
 
 		sendBuffer->MoveFront(sendSize);
+		_LOG(0, L"Send Message # Size : %d # sessionID : %d\n", sendRet, session->dwSessionID);
 	}
 
 	session->dwLastRecvTime = timeGetTime(); 
@@ -261,7 +300,9 @@ void DisconnectDeletedSession()
 			delete((*it).second->RecvQ);
 			delete((*it).second->SendQ);
 			// 3. closeSocket, new-delete 과정 진행
+			closesocket((*it).first);
 
+			_LOG(0, L"Disconnect Session # sessionID : %d\n", (*it).second->dwSessionID);
 			it = _sessionMap.erase(it);
 			continue;
 		}
