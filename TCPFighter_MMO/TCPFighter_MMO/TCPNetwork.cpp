@@ -17,6 +17,8 @@ unordered_map<SOCKET, st_SESSION*> _sessionMap;
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
+void SelectProc(fd_set* readSet, fd_set* writeSet, list<st_SESSION*> selectList);
+
 void netStartup()
 {
 	WSADATA wsa;
@@ -64,74 +66,72 @@ void netSelectIO()
 	FD_SET(m_ListenSocket, &readSet);
 
 	// loopCount를 구하고, 그만큼 돌며 select 진행
-	loopCount = (_sessionMap.size() / FD_SETSIZE);
 	
 	// @@shs 아예 다시짜야함
 
-	//list<st_SESSION*> selectList;
-	//unordered_map<SOCKET, st_SESSION*>::iterator it = _sessionMap.begin();
-	//for (int i = 0; i < loopCount; i++)
-	//{
-	//	FD_SET((*it).first, &readSet);
-	//	if ((*it).second->SendQ->GetUseSize() > 0)
-	//		FD_SET((*it).first, &writeSet);
-	//}
+	// 1. 반복문으로 돌아야 할 횟수를 정한다.
 
-	//
-	//for (it = _sessionMap.begin(); it != _sessionMap.end(); it++)
-	//{
-	//	FD_SET((*it).first, &readSet);
-	//	if ((*it).second->SendQ->GetUseSize() > 0)
-	//		FD_SET((*it).first, &writeSet);
+	// 2. 그 횟수만큼 돌면서 FDSet을 해주고, 그걸 리스트로 넣어서 처리해준다.
 
-	//	selectList.push_back((*it).second);
+	list<st_SESSION*> selectList;
+	unordered_map<SOCKET, st_SESSION*>::iterator it;
+	
+	for (it = _sessionMap.begin(); it != _sessionMap.end(); it++)
+	{
+		FD_SET((*it).first, &readSet);
+		if ((*it).second->SendQ->GetUseSize() > 0)
+			FD_SET((*it).first, &writeSet);
 
-	//	loopCount++;
-	//	if (loopCount >= FD_SETSIZE)
-	//	{
-	//		timeval time;
-	//		time.tv_sec = 0;
-	//		time.tv_usec = 0;
+		selectList.push_back((*it).second);
 
-	//		int iResult = select(0, &readSet, &writeSet, NULL, &time);
-	//		if (iResult == SOCKET_ERROR)
-	//			err_quit("select()");
+		loopCount++;
+		if (loopCount >= FD_SETSIZE)
+		{
+			SelectProc(&readSet, &writeSet, selectList);
 
-	//		// accept
-	//		if (FD_ISSET(m_ListenSocket, &readSet))
-	//		{
-	//			netProc_Accept();
-	//		}
+			FD_ZERO(&readSet);
+			FD_ZERO(&writeSet);
+			selectList.clear();
+			loopCount = 0;
+		}
+	}
 
-	//		list<st_SESSION*>::iterator it;
-	//		for (it = selectList.begin(); it != selectList.end(); it++)
-	//		{
-	//			if (FD_ISSET((*it)->Socket, &readSet))
-	//			{
-	//				netProc_Recv(*it);
-	//			}
-	//		}
-
-	//		// send
-	//		for (it = selectList.begin(); it != selectList.end(); it++)
-	//		{
-	//			if (FD_ISSET((*it)->Socket, &writeSet))
-	//			{
-	//				netProc_Send(*it);
-	//			}
-	//		}
-
-	//		FD_ZERO(&readSet);
-	//		FD_ZERO(&writeSet);
-	//		selectList.clear();
-	//		loopCount = 0;
-	//	}
-	//}
+	SelectProc(&readSet, &writeSet, selectList);
 }
 
-void SelectProc(fd_set* readSet, fd_set* writeSet)
+void SelectProc(fd_set* readSet, fd_set* writeSet, list<st_SESSION*> selectList)
 {
+	timeval time;
+	time.tv_sec = 0;
+	time.tv_usec = 0;
 
+	int iResult = select(0, readSet, writeSet, NULL, &time);
+	if (iResult == SOCKET_ERROR)
+		err_quit("select()");
+
+	// accept
+	if (FD_ISSET(m_ListenSocket, readSet))
+	{
+		netProc_Accept();
+	}
+
+	list<st_SESSION*>::iterator it;
+	for (it = selectList.begin(); it != selectList.end(); it++)
+	{
+		if (FD_ISSET((*it)->Socket, readSet))
+		{
+			netProc_Recv(*it);
+		}
+	}
+
+	// send
+	for (it = selectList.begin(); it != selectList.end(); it++)
+	{
+		if (FD_ISSET((*it)->Socket, writeSet))
+		{
+			netProc_Send(*it);
+		}
+	}
 }
 
 void netProc_Accept()
