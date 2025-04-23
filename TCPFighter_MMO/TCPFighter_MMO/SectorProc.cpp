@@ -9,14 +9,13 @@ using namespace std;
 #include "MessageCreate.h"
 #include "TCPNetwork.h"
 
-
 // 한 섹터는 100 x 100 크기로,  64 x 64개의 섹터로 이루어짐
 list<st_CHARACTER*> m_Sector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
 
 void SetUserToSector(st_CHARACTER* player)
 {
-	short sectorX = player->shX / dfSECTOR_SIZE_X;
-	short sectorY = player->shY / dfSECTOR_SIZE_Y;
+	short sectorX = (player->shX) / dfSECTOR_SIZE_X;
+	short sectorY = (player->shY) / dfSECTOR_SIZE_Y;
 
 	player->CurSector.iX = sectorX;
 	player->CurSector.iY = sectorY;
@@ -29,14 +28,16 @@ void SetUserToSector(st_CHARACTER* player)
 
 bool UpdateSector(st_CHARACTER* player)
 {
-	short sectorX = player->shX / dfSECTOR_SIZE_X;
-	short sectorY = player->shY / dfSECTOR_SIZE_Y;
+	short sectorX = (player->shX) / dfSECTOR_SIZE_X;
+	short sectorY = (player->shY) / dfSECTOR_SIZE_Y;
 
 	player->CurSector.iX = sectorX;
 	player->CurSector.iY = sectorY;
 
 	if (player->OldSector.iX != player->CurSector.iX || player->OldSector.iY != player->CurSector.iY)
 	{
+		player->OldSector.iX = sectorX;
+		player->OldSector.iY = sectorY;
 		return false;
 	}
 
@@ -96,6 +97,7 @@ void GetSectorSessions(short shX, short shY, list<st_SESSION*> pPlayerList)
 
 void GetSectorAround(int iSectorX, int iSectorY, st_SECTOR_AROUND* pSectorAround)
 {
+	pSectorAround->iCount = 0;
 	// 여기서 전부 밀어버려야되나?
 
 	for (int iY = -1; iY <= 1; iY++)
@@ -120,9 +122,6 @@ void GetUpdateSectorAround(st_CHARACTER* player, st_SECTOR_AROUND* pRemoveSector
 	// 1. OldSector, CurSector의 Around 구하기
 	st_SECTOR_AROUND oldAround;
 	st_SECTOR_AROUND curAround;
-
-	memset(&oldAround, 0, sizeof(st_SECTOR_AROUND));
-	memset(&curAround, 0, sizeof(st_SECTOR_AROUND));
 
 	GetSectorAround(player->OldSector.iX, player->OldSector.iY, &oldAround);
 	GetSectorAround(player->CurSector.iX, player->CurSector.iY, &curAround);

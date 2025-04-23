@@ -112,6 +112,11 @@ void Update()
 			}
 			break;
 		}
+
+		if (!UpdateSector(pPlayer))
+		{
+			ChangeSector(pPlayer);
+		}
 	}
 
 	DisconnectPlayer();

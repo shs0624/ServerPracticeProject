@@ -87,7 +87,7 @@ bool netPacketProc_MoveStop(st_SESSION* session, CPacket* packet)
 	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
 	{
 		// 싱크 전송, 서버 주소로 수정
-		printf("[SYNC - Packet MoveStart] Server x,y : %d, %d | Client x,y : %d, %d\n",
+		printf("[SYNC - Packet MoveSTOP] Server x,y : %d, %d | Client x,y : %d, %d\n",
 			_player->shX, _player->shY, csX, csY);
 
 		mpSync(&header, &scPacket, _player->dwSessionID, _player->shX, _player->shY);
@@ -226,6 +226,10 @@ bool netPacketProc_Accept(st_SESSION* session)
 
 	mpCreateOtherCharacter(&header, &scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
 	SendPacket_Around(playerPtr, &header, &scPacket);
+	scPacket.Clear();
+
+	// 섹터의 유저들을 순회하며 보내기
+	//mpCreateOtherCharacter(&header, &scPacket, )
 
 	m_CharacterMap.insert({ playerPtr->dwSessionID, playerPtr });
 
