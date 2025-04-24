@@ -46,7 +46,7 @@ void netStartup()
 	serverAddr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
 	int bindRet = bind(m_ListenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
 	if (bindRet == SOCKET_ERROR)
-		err_quit("Bind()");
+		err_quit("bind()");
 
 	int listenRet = listen(m_ListenSocket, SOMAXCONN);
 	if (listenRet == SOCKET_ERROR)
@@ -58,20 +58,11 @@ void netStartup()
 void netSelectIO()
 {
 	int loopCount = 0;
-	int mapSize = _sessionMap.size();
 	fd_set readSet, writeSet;
 	FD_ZERO(&readSet);
 	FD_ZERO(&writeSet);
 
 	FD_SET(m_ListenSocket, &readSet);
-
-	// loopCount를 구하고, 그만큼 돌며 select 진행
-	
-	// @@shs 아예 다시짜야함
-
-	// 1. 반복문으로 돌아야 할 횟수를 정한다.
-
-	// 2. 그 횟수만큼 돌면서 FDSet을 해주고, 그걸 리스트로 넣어서 처리해준다.
 
 	list<st_SESSION*> selectList;
 	unordered_map<SOCKET, st_SESSION*>::iterator it;
@@ -169,9 +160,11 @@ void netProc_Accept()
 		session->IPPtr = clientAddr;
 		session->dwLastRecvTime = timeGetTime();
 
+		_sessionMap.insert({ clientSocket, session });
+
 		// 플레이어 정보 생성
 		netPacketProc_Accept(session);
-		_sessionMap.insert({ clientSocket, session });
+
 
 		_LOG(0, L"Accepted Player # Port : %d\n", session->IPPtr.sin_port);
 	}
@@ -279,7 +272,7 @@ void netProc_Send(st_SESSION* session)
 		}
 
 		sendBuffer->MoveFront(sendSize);
-		_LOG(0, L"Send Message # Size : %d # sessionID : %d\n", sendRet, session->dwSessionID);
+		_LOG(0, L"Send Message  Size : %d # sessionID : %d\n", sendRet, session->dwSessionID);
 	}
 
 	session->dwLastRecvTime = timeGetTime(); 
@@ -302,7 +295,7 @@ void DisconnectDeletedSession()
 			// 3. closeSocket, new-delete 과정 진행
 			closesocket((*it).first);
 
-			_LOG(0, L"Disconnect Session # sessionID : %d\n", (*it).second->dwSessionID);
+			_LOG(0, L"Disconnect Session L4 # sessionID : %d\n", (*it).second->dwSessionID);
 			it = _sessionMap.erase(it);
 			continue;
 		}
@@ -337,4 +330,6 @@ void Send_UniCast(st_SESSION* pSession, st_PACKET_HEADER* header, char* packet)
 		DisconnectSession(pSession->Socket);
 		return;
 	}
+
+	_LOG(0, L"Enqueue Message  # Size : %d # type : %d # sessionID : %d\n", ret, header->byType, pSession->dwSessionID);
 }

@@ -13,6 +13,10 @@ using namespace std;
 #include "ContentsProc.h"
 #include "SectorProc.h"
 #include "MessageCreate.h"
+#include "LogProc.h"
+
+extern int g_iLogLevel;
+extern WCHAR g_szLogBuff[1024];
 
 unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
 
@@ -139,6 +143,7 @@ void DisconnectPlayer()
 			csPacket.Clear();
 			
 			it = m_CharacterMap.erase(it);
+			_LOG(0, L"Disconnect Player L7 # sessionID : %d\n", (*it).second->dwSessionID);
 			continue;
 		}
 

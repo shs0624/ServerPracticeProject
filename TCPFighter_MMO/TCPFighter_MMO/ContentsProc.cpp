@@ -228,8 +228,7 @@ bool netPacketProc_Accept(st_SESSION* session)
 	SendPacket_Around(playerPtr, &header, &scPacket);
 	scPacket.Clear();
 
-	// 섹터의 유저들을 순회하며 보내기
-	//mpCreateOtherCharacter(&header, &scPacket, )
+	list<st_SESSION*> _AroundSessionList;
 
 	m_CharacterMap.insert({ playerPtr->dwSessionID, playerPtr });
 

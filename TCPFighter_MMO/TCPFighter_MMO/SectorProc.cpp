@@ -12,6 +12,7 @@ using namespace std;
 // 한 섹터는 100 x 100 크기로,  64 x 64개의 섹터로 이루어짐
 list<st_CHARACTER*> m_Sector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
 
+// 유저를 섹터에 세팅하고, 그 섹터의 타 유저 정보도 전송
 void SetUserToSector(st_CHARACTER* player)
 {
 	short sectorX = (player->shX) / dfSECTOR_SIZE_X;
@@ -22,6 +23,39 @@ void SetUserToSector(st_CHARACTER* player)
 
 	player->OldSector.iX = sectorX;
 	player->OldSector.iY = sectorY;
+
+	st_PACKET_HEADER header;
+	CPacket* scPacket = new CPacket(PROTOCOL_MAXSIZE);
+
+	list<st_CHARACTER*>::iterator it;
+	list<st_CHARACTER*> liSectorPList;
+
+	// 그 섹터의 유저들 정보를 새 유저에게 전송
+	st_SECTOR_AROUND aroundSector;
+	GetSectorAround(sectorX, sectorY, &aroundSector);
+
+	for (int i = 0; i < aroundSector.iCount; i++)
+	{
+		int iX = aroundSector.Around[i].iX;
+		int iY = aroundSector.Around[i].iY;
+
+		liSectorPList = m_Sector[aroundSector.Around[i].iY][aroundSector.Around[i].iX];
+		for (it = liSectorPList.begin(); it != liSectorPList.end(); it++)
+		{
+			mpCreateOtherCharacter(&header, scPacket, (*it)->dwSessionID, (*it)->byDirection, (*it)->shX, (*it)->shY, (*it)->chHP);
+			Send_UniCast(player->pSession, &header, (char*)scPacket);
+			scPacket->Clear();
+
+			// 그 유저가 이동중이라면 MOVESTART도 전송
+			if ((*it)->dwAction != dfPACKET_MOVE_DIR_NONE)
+			{
+				//scMoveStart
+				mpMoveStart(&header, scPacket, (*it)->dwSessionID, (*it)->dwAction, (*it)->shX, (*it)->shY);
+				Send_UniCast(player->pSession, &header, scPacket->GetBufferPtr());
+				scPacket->Clear();
+			}
+		}
+	}
 
 	m_Sector[sectorY][sectorX].push_back(player);
 }
@@ -36,8 +70,6 @@ bool UpdateSector(st_CHARACTER* player)
 
 	if (player->OldSector.iX != player->CurSector.iX || player->OldSector.iY != player->CurSector.iY)
 	{
-		player->OldSector.iX = sectorX;
-		player->OldSector.iY = sectorY;
 		return false;
 	}
 
@@ -48,6 +80,9 @@ void ChangeSector(st_CHARACTER* player)
 {
 	st_SECTOR_AROUND removeSector;
 	st_SECTOR_AROUND addSector;
+
+	removeSector.iCount = 0;
+	addSector.iCount = 0;
 
 	// player의 OldSector, Cursector가 다른채로 있어야 한다.
 	GetUpdateSectorAround(player, &removeSector, &addSector);
@@ -84,14 +119,13 @@ void ChangeSector(st_CHARACTER* player)
 
 	// 3. map, player 세팅
 	m_Sector[player->OldSector.iY][player->OldSector.iX].remove(player);
+	m_Sector[player->CurSector.iY][player->CurSector.iX].push_back(player);
+
 	player->OldSector = player->CurSector;
 }
 
-void GetSectorSessions(short shX, short shY, list<st_SESSION*> pPlayerList)
+void GetAroundSessions(short shX, short shY, list<st_SESSION*> pPlayerList)
 {
-	short sectorX = shX / dfSECTOR_SIZE_X;
-	short sectorY = shY / dfSECTOR_SIZE_Y;
-
 	
 }
 
@@ -206,7 +240,6 @@ void SendPacket_Around(st_CHARACTER* pCharacter, st_PACKET_HEADER* header, CPack
 	int iSectorY = pCharacter->shY / dfSECTOR_SIZE_Y;
 
 	st_SECTOR_AROUND stAround;
-	memset(&stAround, 0, sizeof(st_SECTOR_AROUND));
 
 	GetSectorAround(iSectorX, iSectorY, &stAround);
 
@@ -216,7 +249,7 @@ void SendPacket_Around(st_CHARACTER* pCharacter, st_PACKET_HEADER* header, CPack
 		list<st_CHARACTER*>::iterator it;
 		list<st_CHARACTER*> pSectorPlayerList;
 
-		if (stAround.Around[i].iY == iSectorY && stAround.Around[i].iX)
+		if (stAround.Around[i].iY == iSectorY && stAround.Around[i].iX == iSectorX)
 			playerSectorFlag = true;
 
 		pSectorPlayerList = m_Sector[stAround.Around[i].iY][stAround.Around[i].iX];
