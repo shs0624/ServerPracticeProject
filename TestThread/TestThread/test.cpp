@@ -29,7 +29,7 @@ int main()
 	}
 	else
 	{
-		printf()
+		//printf()
 	}
 
 	return 0;
