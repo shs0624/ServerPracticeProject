@@ -44,29 +44,31 @@ UINT Thread1(LPVOID lpThreadParameter)
 
 		while (1)
 		{
-			if (g_Flag[1] == false)
+			int tFlag = g_Flag[1];
+			int tTurn = g_turn;
+			if (tFlag == false)
 				break;
 			if (g_turn != 0)
 				break;
 		}
 
-		g_cs[0] = true;
+		//g_cs[0] = true;
 
-		/*if (g_Flag[1] == true && (g_turn != 1 || g_Flag[0] == false))
+		if (g_Flag[1] == true && (g_turn != 1 || g_Flag[0] == false))
 		{
 			errCnt++;
 			DebugBreak();
-		}*/
-
-		if (g_cs[0] == true && g_cs[1] == true)
-		{
-			DebugBreak();
 		}
+
+		//if (g_cs[0] == true && g_cs[1] == true)
+		//{
+		//	DebugBreak();
+		//}
 
 		_result++;
 		cnt++;
 
-		g_cs[0] = false;
+		//g_cs[0] = false;
 
 		g_Flag[0] = false; 
 
@@ -97,23 +99,23 @@ UINT Thread2(LPVOID lpThreadParameter)
 				break;
 		}
 
-		g_cs[1] = true;
+		//g_cs[1] = true;
 
-		/*if (g_Flag[0] == true && (g_turn != 0 || g_Flag[1] == false))
+		if (g_Flag[0] == true && (g_turn != 0 || g_Flag[1] == false))
 		{
 			errCnt++;
 			DebugBreak();
-		}*/
-
-		if (g_cs[0] == true && g_cs[1] == true)
-		{
-			DebugBreak();
 		}
+
+		//if (g_cs[0] == true && g_cs[1] == true)
+		//{
+		//	DebugBreak();
+		//}
 
 		_result++;
 		cnt++;
 
-		g_cs[1] = false;
+		//g_cs[1] = false;
 
 		g_Flag[1] = false;
 
