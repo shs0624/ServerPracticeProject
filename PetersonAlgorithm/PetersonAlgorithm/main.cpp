@@ -115,7 +115,7 @@ UINT Thread2(LPVOID lpThreadParameter)
 		{
 			// 1->0로 바뀐경우
 			DebugBreak();
-		}
+		} 
 		g_Flag[1] = false;
 
 		cnt++;

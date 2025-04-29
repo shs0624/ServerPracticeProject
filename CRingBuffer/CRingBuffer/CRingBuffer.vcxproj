@@ -127,11 +127,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CQueue.cpp" />
+    <ClCompile Include="CTest.cpp" />
     <ClCompile Include="CRingBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CQueue.h" />
     <ClInclude Include="CRingBuffer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
