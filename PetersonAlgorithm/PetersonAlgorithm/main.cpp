@@ -315,7 +315,7 @@ UINT Thread2(LPVOID lpThreadParameter)
 //	return 0;
 //}
 
-//// 둘 다 임계영역에 있는 모습을 확인할 수 있는 버전
+// 둘 다 임계영역에 있는 모습을 확인할 수 있는 버전
 //UINT Thread1(LPVOID lpThreadParameter)
 //{
 //	int cnt = 0;
@@ -406,82 +406,80 @@ UINT Thread2(LPVOID lpThreadParameter)
 //}
 
 // 임시변수로 확인용
-/*
-UINT Thread1(LPVOID lpThreadParameter)
-{
-	int cnt = 0;
-
-	while (1)
-	{
-		int tFlag;
-		int tTurn;
-
-		g_Flag[0] = true;
-		g_turn = 0;
-
-		while (1)
-		{
-			tFlag = g_Flag[1];
-			tTurn = g_turn;
-			if (tFlag == false)
-				break;
-			if (tTurn != 0)
-				break;
-		}
-
-		if (g_Flag[1] == true && (g_turn != 1 || g_Flag[0] == false))
-		{
-			DebugBreak();
-		}
-
-		_result++;
-		cnt++;
-
-		g_Flag[0] = false; 
-
-		if (cnt == (int)lpThreadParameter)
-			break;
-	}
-
-	return 0;
-}
-
-UINT Thread2(LPVOID lpThreadParameter)
-{
-	int cnt = 0;
-
-	while (1)
-	{
-		int tFlag;
-		int tTurn;
-
-		g_Flag[1] = true;
-		g_turn = 1;
-
-		while (1)
-		{
-			tFlag = g_Flag[0];
-			tTurn = g_turn;
-			if (tFlag == false)
-				break;
-			if (tTurn != 1)
-				break;
-		}
-
-		if (g_Flag[0] == true && (g_turn != 0 || g_Flag[1] == false))
-		{
-			DebugBreak();
-		}
-
-		_result++;
-		cnt++;
-
-		g_Flag[1] = false;
-
-		if (cnt == (int)lpThreadParameter)
-			break;
-	}
-
-	return 0;
-}
-*/
+//UINT Thread1(LPVOID lpThreadParameter)
+//{
+//	int cnt = 0;
+//
+//	while (1)
+//	{
+//		int tFlag;
+//		int tTurn;
+//
+//		g_Flag[0] = true;
+//		g_turn = 0;
+//
+//		while (1)
+//		{
+//			tFlag = g_Flag[1];
+//			tTurn = g_turn;
+//			if (tFlag == false)
+//				break;
+//			if (tTurn != 0)
+//				break;
+//		}
+//
+//		if (g_Flag[1] == true && (g_turn != 1 || g_Flag[0] == false))
+//		{
+//			DebugBreak();
+//		}
+//
+//		_result++;
+//		cnt++;
+//
+//		g_Flag[0] = false; 
+//
+//		if (cnt == (int)lpThreadParameter)
+//			break;
+//	}
+//
+//	return 0;
+//}
+//
+//UINT Thread2(LPVOID lpThreadParameter)
+//{
+//	int cnt = 0;
+//
+//	while (1)
+//	{
+//		int tFlag;
+//		int tTurn;
+//
+//		g_Flag[1] = true;
+//		g_turn = 1;
+//
+//		while (1)
+//		{
+//			tFlag = g_Flag[0];
+//			tTurn = g_turn;
+//			if (tFlag == false)
+//				break;
+//			if (tTurn != 1)
+//				break;
+//		}
+//
+//		if (g_Flag[0] == true && (g_turn != 0 || g_Flag[1] == false))
+//		{
+//			DebugBreak();
+//		}
+//
+//		_result++;
+//		cnt++;
+//
+//		g_Flag[1] = false;
+//
+//		if (cnt == (int)lpThreadParameter)
+//			break;
+//	}
+//
+//	return 0;
+//}
