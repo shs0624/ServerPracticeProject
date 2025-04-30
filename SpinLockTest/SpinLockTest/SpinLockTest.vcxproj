@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{93de8b44-66db-4005-8ab6-3f6ef92e78bc}</ProjectGuid>
-    <RootNamespace>CRingBuffer</RootNamespace>
+    <ProjectGuid>{3a05964d-963f-42d5-bcb9-692f1b9e6a09}</ProjectGuid>
+    <RootNamespace>SpinLockTest</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -118,7 +118,6 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -128,11 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CTest.cpp" />
-    <ClCompile Include="CRingBuffer.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="CRingBuffer.h" />
+    <ClCompile Include="Testmain.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

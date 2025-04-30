@@ -46,6 +46,7 @@ UINT Thread1(LPVOID lpThreadParameter)
 		g_Flag[0] = true; // store Flag[0]
 		g_turn = 0; //store g_turn
 
+		_Atomic_thread_fence(_Atomic_memory_order_seq_cst);
 		while (1)
 		{
 			tTurn = g_turn; // load g_turn, store tTurn
@@ -92,6 +93,7 @@ UINT Thread2(LPVOID lpThreadParameter)
 		g_Flag[1] = true;
 		g_turn = 1;
 
+		_Atomic_thread_fence(_Atomic_memory_order_seq_cst);
 		while (1)
 		{
 			tTurn = g_turn;

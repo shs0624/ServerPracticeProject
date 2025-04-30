@@ -28,7 +28,7 @@ int main()
 
 	int size = strlen(str);
 
-	pRingBuffer = new CRingBuffer(size * 50);
+	pRingBuffer = new CRingBuffer(500);
 
 	threadArr[0] = (HANDLE)_beginthreadex(NULL, 0, EnqueueThread, (LPVOID)size, 0, &dwThread1Id);
 	threadArr[1] = (HANDLE)_beginthreadex(NULL, 0, DequeueThread, (LPVOID)size, 0, &dwThread2Id);
