@@ -66,8 +66,10 @@ int CRingBuffer::Enqueue(char* input, int size)
 		memcpy((void*)(arr + tail), (void*)input, enqueueSize);
 	}
 
-	tail = (tail + enqueueSize) % max;
-	count += enqueueSize;
+	//tail = (tail + enqueueSize) % max;
+	InterlockedExchange((LONG*)&tail, (tail + enqueueSize) % max);
+	InterlockedAdd((LONG*) & count, enqueueSize);
+	//count += enqueueSize;
 	return enqueueSize;
 }
 
@@ -89,8 +91,10 @@ int CRingBuffer::Dequeue(char* output, int size)
 		memcpy((void*)output, (void*)(arr + head), dequeueSize);
 	}
 
-	head = (head + dequeueSize) % max;
-	count -= dequeueSize;
+	//head = (head + dequeueSize) % max;
+	//count -= dequeueSize;
+	InterlockedExchange((LONG*) & head, (head + dequeueSize) % max);
+	InterlockedAdd((LONG*)&count, -dequeueSize);
 	return dequeueSize;
 }
 

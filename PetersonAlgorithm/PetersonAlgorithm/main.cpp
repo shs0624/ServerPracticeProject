@@ -10,6 +10,8 @@ LONG g_lock;
 
 int _result = 0;
 
+CRITICAL_SECTION cs;
+
 UINT Thread1(LPVOID lpThreadParameter);
 UINT Thread2(LPVOID lpThreadParameter);
 
@@ -24,6 +26,7 @@ int main()
 	UINT dwThread2Id;
 	_result = 0;	
 
+	InitializeCriticalSection(&cs);
 	threadArr[0] = (HANDLE)_beginthreadex(NULL, 0, Thread1, (LPVOID)100000000, 0, &dwThread1Id);
 	threadArr[1] = (HANDLE)_beginthreadex(NULL, 0, Thread2, (LPVOID)100000000, 0, &dwThread2Id);
 
@@ -37,6 +40,7 @@ int main()
 UINT Thread1(LPVOID lpThreadParameter)
 {
 	int cnt = 0;
+	EnterCriticalSection(&cs);
 
 	while (1)
 	{
@@ -46,7 +50,6 @@ UINT Thread1(LPVOID lpThreadParameter)
 		g_Flag[0] = true; // store Flag[0]
 		g_turn = 0; //store g_turn
 
-		_Atomic_thread_fence(_Atomic_memory_order_seq_cst);
 		while (1)
 		{
 			tTurn = g_turn; // load g_turn, store tTurn
@@ -84,6 +87,8 @@ UINT Thread1(LPVOID lpThreadParameter)
 UINT Thread2(LPVOID lpThreadParameter)
 {
 	int cnt = 0;
+	Sleep(500);
+	EnterCriticalSection(&cs);
 
 	while (1)
 	{
