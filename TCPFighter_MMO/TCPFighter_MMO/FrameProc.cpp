@@ -31,6 +31,7 @@ void Update()
 
 	DWORD oldTick = dwCurrentTick;
 	dwCurrentTick = timeGetTime();
+	//_LOG(0, L"Update!\n");
 
 	DWORD dwDeltaTime = dwCurrentTick - oldTick;
 	short shDeltaX = (short)(((float)(dwDeltaTime / FRAME_TIME)) * dfSPEED_PLAYER_X);
@@ -60,6 +61,8 @@ void Update()
 			pPlayer->bDeleted = true;
 			continue;
 		}
+
+		_LOG(0, L"Player Info # sessionID : %d # X : %d # Y : %d\n", pPlayer->dwSessionID, pPlayer->shX, pPlayer->shY);
 
 		switch (pPlayer->dwAction)
 		{

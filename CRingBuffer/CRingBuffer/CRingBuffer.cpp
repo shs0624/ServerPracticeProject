@@ -10,7 +10,6 @@ CRingBuffer::CRingBuffer()
 
 	head = 0;
 	tail = 0;
-	count = 0;
 	max = DEFAULTSIZE;
 }
 
@@ -24,7 +23,6 @@ CRingBuffer::CRingBuffer(int size)
 
 	head = 0;
 	tail = 0;
-	count = 0;
 	max = size;
 }
 
@@ -40,80 +38,103 @@ int CRingBuffer::GetBufferSize()
 
 int CRingBuffer::GetFreeSize()
 {
-	return max - count;
+	int tempHead = head;
+	int tempTail = tail;
+	int ret = max - ((tempTail - tempHead + max) % max);
+
+	return ret;
 }
 
 int CRingBuffer::GetUseSize()
 {
-	return count;
+	int tempHead = head;
+	int tempTail = tail;
+	int ret = (tempTail - tempHead + max) % max;
+
+	return ret;
 }
 
 int CRingBuffer::Enqueue(char* input, int size)
 {
 	// 넣을 수 있는 사이즈 얻기
-	int freeSize = GetFreeSize();
+	int tempTail = tail;
+	int tempHead = head;
+	//int freeSize = GetFreeSize();
+	int freeSize = max - ((tempTail - tempHead + max) % max);
 	int enqueueSize = (freeSize >= size) ? size : freeSize;
 
-	if (tail + enqueueSize > max)
+	if (tempTail + enqueueSize > max)
 	{
 		// 경계를 넘는다면
-		int cutSize = max - tail;
-		memcpy((void*)(arr + tail), (void*)input, cutSize);
+		int cutSize = max - tempTail;
+		memcpy((void*)(arr + tempTail), (void*)input, cutSize);
 		memcpy((void*)arr, (void*)(input + cutSize), enqueueSize - cutSize);
 	}
 	else
 	{
-		memcpy((void*)(arr + tail), (void*)input, enqueueSize);
+		memcpy((void*)(arr + tempTail), (void*)input, enqueueSize);
 	}
 
 	//tail = (tail + enqueueSize) % max;
-	InterlockedExchange((LONG*)&tail, (tail + enqueueSize) % max);
-	InterlockedAdd((LONG*) & count, enqueueSize);
-	//count += enqueueSize;
+	tail = (tempTail + enqueueSize) % max;
+
 	return enqueueSize;
 }
 
 int CRingBuffer::Dequeue(char* output, int size)
 {
 	// 뺄 수 있는 사이즈 얻기
-	int useSize = GetUseSize();
-	int dequeueSize = (useSize < size) ? useSize : size;
+	int tempHead = head;
+	int tempTail = tail;
+	int useSize = (tempTail - tempHead + max) % max;
+	int dequeueSize = (useSize < size) ? useSize : size;	
 
-	if (head + dequeueSize > max)
+
+	if (tempHead + dequeueSize > max)
 	{
 		// 경계를 넘는다면
-		int cutSize = max - head;
-		memcpy((void*)output, (void*)(arr + head), cutSize);
+		int cutSize = max - tempHead;
+		memcpy((void*)output, (void*)(arr + tempHead), cutSize);
 		memcpy((void*)(output + cutSize), (void*)arr, dequeueSize - cutSize);
 	}
 	else
 	{
-		memcpy((void*)output, (void*)(arr + head), dequeueSize);
+		memcpy((void*)output, (void*)(arr + tempHead), dequeueSize);
 	}
 
-	//head = (head + dequeueSize) % max;
-	//count -= dequeueSize;
-	InterlockedExchange((LONG*) & head, (head + dequeueSize) % max);
-	InterlockedAdd((LONG*)&count, -dequeueSize);
+	//if (InterlockedExchange(&_lock, 2) == 1)
+	//{
+	//	DebugBreak();
+	//}
+
+	//if (InterlockedExchange(&_lock, 0) == 1)
+	//{
+	//	DebugBreak();
+	//}
+
+	head = (tempHead + dequeueSize) % max;
+
 	return dequeueSize;
 }
 
 int CRingBuffer::Peek(char* output, int size)
 {
 	// 뺄 수 있는 사이즈 얻기
-	int useSize = GetUseSize();
+	int tempHead = head;
+	int tempTail = tail;
+	int useSize = (tempTail - tempHead + max) % max;
 	int dequeueSize = (useSize < size) ? useSize : size;
 
-	if (head + dequeueSize > max)
+	if (tempHead + dequeueSize > max)
 	{
 		// 경계를 넘는다면
-		int cutSize = max - head;
-		memcpy((void*)output, (void*)(arr + head), cutSize);
+		int cutSize = max - tempHead;
+		memcpy((void*)output, (void*)(arr + tempHead), cutSize);
 		memcpy((void*)(output + cutSize), (void*)arr, dequeueSize - cutSize);
 	}
 	else
 	{
-		memcpy((void*)output, (void*)(arr + head), dequeueSize);
+		memcpy((void*)output, (void*)(arr + tempHead), dequeueSize);
 	}
 
 	return dequeueSize;
@@ -134,7 +155,6 @@ int CRingBuffer::MoveRear(int iSize)
 {
 	tail += iSize;
 	tail = tail % max;
-	count += iSize;
 	return iSize;
 }
 
@@ -143,7 +163,6 @@ int CRingBuffer::MoveFront(int iSize)
 {
 	head += iSize;
 	head = head % max;
-	count -= iSize;
 	return iSize;
 }
 
@@ -166,5 +185,4 @@ void CRingBuffer::ClearBuffer(void)
 {
 	head = 0;
 	tail = 0;
-	count = 0;
 }
