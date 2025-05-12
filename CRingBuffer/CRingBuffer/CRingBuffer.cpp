@@ -10,7 +10,7 @@ CRingBuffer::CRingBuffer()
 
 	head = 0;
 	tail = 0;
-	max = DEFAULTSIZE;
+	max = DEFAULTSIZE + 1;
 }
 
 CRingBuffer::CRingBuffer(int size)
@@ -23,7 +23,7 @@ CRingBuffer::CRingBuffer(int size)
 
 	head = 0;
 	tail = 0;
-	max = size;
+	max = size + 1;
 }
 
 CRingBuffer::~CRingBuffer(void)
@@ -40,27 +40,43 @@ int CRingBuffer::GetFreeSize()
 {
 	int tempHead = head;
 	int tempTail = tail;
-	int ret = max - ((tempTail - tempHead + max) % max);
 
-	return ret;
+	if (tempTail == tempHead)
+		return max - 1;
+
+	if (tempTail > tempHead)
+	{
+		return  max - (tempTail - tempHead) - 1;
+	}
+	else
+	{
+		return tempHead - tempTail - 1;
+	}
 }
 
 int CRingBuffer::GetUseSize()
 {
 	int tempHead = head;
 	int tempTail = tail;
-	int ret = (tempTail - tempHead + max) % max;
 
-	return ret;
+	if (tempTail == tempHead)
+		return 0;
+
+	if (tempTail > tempHead)
+	{
+		return tempTail - tempHead;
+	}
+	else
+	{
+		return max - (tempHead - tempTail);
+	}
 }
 
 int CRingBuffer::Enqueue(char* input, int size)
 {
 	// 넣을 수 있는 사이즈 얻기
 	int tempTail = tail;
-	int tempHead = head;
-	//int freeSize = GetFreeSize();
-	int freeSize = max - ((tempTail - tempHead + max) % max);
+	int freeSize = GetFreeSize();
 	int enqueueSize = (freeSize >= size) ? size : freeSize;
 
 	if (tempTail + enqueueSize > max)
@@ -75,9 +91,7 @@ int CRingBuffer::Enqueue(char* input, int size)
 		memcpy((void*)(arr + tempTail), (void*)input, enqueueSize);
 	}
 
-	//tail = (tail + enqueueSize) % max;
 	tail = (tempTail + enqueueSize) % max;
-
 	return enqueueSize;
 }
 
@@ -85,8 +99,7 @@ int CRingBuffer::Dequeue(char* output, int size)
 {
 	// 뺄 수 있는 사이즈 얻기
 	int tempHead = head;
-	int tempTail = tail;
-	int useSize = (tempTail - tempHead + max) % max;
+	int useSize = GetUseSize();
 	int dequeueSize = (useSize < size) ? useSize : size;	
 
 
@@ -102,18 +115,7 @@ int CRingBuffer::Dequeue(char* output, int size)
 		memcpy((void*)output, (void*)(arr + tempHead), dequeueSize);
 	}
 
-	//if (InterlockedExchange(&_lock, 2) == 1)
-	//{
-	//	DebugBreak();
-	//}
-
-	//if (InterlockedExchange(&_lock, 0) == 1)
-	//{
-	//	DebugBreak();
-	//}
-
 	head = (tempHead + dequeueSize) % max;
-
 	return dequeueSize;
 }
 
@@ -121,8 +123,7 @@ int CRingBuffer::Peek(char* output, int size)
 {
 	// 뺄 수 있는 사이즈 얻기
 	int tempHead = head;
-	int tempTail = tail;
-	int useSize = (tempTail - tempHead + max) % max;
+	int useSize = GetUseSize();
 	int dequeueSize = (useSize < size) ? useSize : size;
 
 	if (tempHead + dequeueSize > max)
