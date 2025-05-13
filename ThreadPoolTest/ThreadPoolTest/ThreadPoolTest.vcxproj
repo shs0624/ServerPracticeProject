@@ -127,7 +127,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CRingBuffer.cpp" />
+    <ClCompile Include="EventQueueMain.cpp" />
     <ClCompile Include="ListEventMain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CRingBuffer.h" />
+    <ClInclude Include="EventQueueHeader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
