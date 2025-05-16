@@ -149,35 +149,18 @@ unsigned int WINAPI SendThread(LPVOID arg)
 		int addrlen = sizeof(clientaddr);
 		getpeername(ptr->sock, (SOCKADDR*)&clientaddr, &addrlen);
 
-		// 데이터 보내기
-		ZeroMemory(&ptr->sendoverlapped, sizeof(ptr->sendoverlapped));
-		ptr->sendoverlapped.hEvent = SendEventArray[index];
-
-		DWORD sendbytes;
-		WSABUF wsabuf;
-		wsabuf.buf = ptr->sendBuf;
-		wsabuf.len = strlen(ptr->sendBuf);
-		retval = WSASend(ptr->sock, &wsabuf, 1, &sendbytes,
-			0, &ptr->sendoverlapped, NULL);
-		printf("[TCP WSASend] IP주소 = %s, 포트 번호 = %d | sendbytes : %d\n",
-			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), sendbytes);
-		if (retval == SOCKET_ERROR)
+		DWORD cbTransferred, flag;
+		retval = WSAGetOverlappedResult(ptr->sock, &(ptr->sendoverlapped), &cbTransferred, FALSE, &flag);
+		if (retval == FALSE || cbTransferred == 0)
 		{
-			if (WSAGetLastError() != WSA_IO_PENDING)
-			{
-				err_display("WSASend()");
-			}
-			else
-			{
-				printf("[WSA_IO_PENDING] WSASend\n");
-			}
-
-			WSAResetEvent(SendEventArray[index]);
+			RemoveSocketInfo(index);
+			printf("[TCP 서버] 클라이언트 종료 : IP주소 = %s, 포트 번호 = %d\n",
+				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
 			continue;
 		}
 
-		// Send 완료 후 이벤트 리셋
-		WSAResetEvent(SendEventArray[index]);
+		printf("[TCP WSASend Result] IP주소 = %s, 포트 번호 = %d | cbTransferred : %d\n",
+			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), cbTransferred);
 	}
 }
 
@@ -229,14 +212,34 @@ unsigned int WINAPI RecvThread(LPVOID arg)
 			&flag, &ptr->recvoverlapped, NULL);
 		printf("[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | retval : %d\n",
 			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvbytes);
-
-		SetEvent(SendEventArray[index]);
 		if (retval == SOCKET_ERROR)
 		{
 			if (WSAGetLastError() != WSA_IO_PENDING)
 			{
 				err_display("WSARecv()");
+				continue;
 			}
+		}
+
+		DWORD sendbytes;
+		wsabuf.buf = ptr->sendBuf;
+		wsabuf.len = strlen(ptr->sendBuf);
+		retval = WSASend(ptr->sock, &wsabuf, 1, &sendbytes,
+			0, &ptr->sendoverlapped, NULL);
+		printf("[TCP WSASend] IP주소 = %s, 포트 번호 = %d | sendbytes : %d\n",
+			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), sendbytes);
+		if (retval == SOCKET_ERROR)
+		{
+			if (WSAGetLastError() != WSA_IO_PENDING)
+			{
+				err_display("WSASend()");
+			}
+			else
+			{
+				printf("[WSA_IO_PENDING] WSASend\n");
+			}
+
+			WSAResetEvent(SendEventArray[index]);
 			continue;
 		}
 	}
