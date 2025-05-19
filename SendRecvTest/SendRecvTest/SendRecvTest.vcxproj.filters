@@ -14,35 +14,35 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="Profiler">
-      <UniqueIdentifier>{fc1d93e4-abb9-4460-b2df-024b33288120}</UniqueIdentifier>
+      <UniqueIdentifier>{c0e9dedf-1070-4b63-b8c0-b201c83eb8f0}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="CompletionRoutineMain.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="IOCPMain.cpp">
+    <ClCompile Include="OverlappedIOServer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="ProcademyProfiler.cpp">
       <Filter>Profiler</Filter>
     </ClCompile>
+    <ClCompile Include="FastIOServer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="OverlappedIOTestClient.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="header.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="CompletionRoutineheader.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="IOCPHeader.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="ProcademyProfiler.h">
       <Filter>Profiler</Filter>
+    </ClInclude>
+    <ClInclude Include="IOCPClientHeader.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="FastIOHeader.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

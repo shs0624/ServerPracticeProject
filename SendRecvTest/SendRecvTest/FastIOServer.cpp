@@ -5,7 +5,7 @@
 #include <tchar.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "header.h"
+#include "FastIOHeader.h"
 
 // IO스레드에서 accept 진행
 // Send 스레드
@@ -14,9 +14,7 @@
 SOCKET listen_sock;
 
 HANDLE _recvThreadHandle;
-HANDLE _sendThreadHandle;
 
-unsigned int _sendThreadID;
 unsigned int _recvThreadID;
 
 int main(int argc, char* argv[])
@@ -59,15 +57,8 @@ int main(int argc, char* argv[])
 	if (recvdummyEvent == WSA_INVALID_EVENT)
 		err_quit("WSACreateEvent()");
 
-	WSAEVENT senddummyEvent = WSACreateEvent();
-	if (senddummyEvent == WSA_INVALID_EVENT)
-		err_quit("WSACreateEvent()");
+	RecvEventArray[nTotalSockets++] = recvdummyEvent;
 
-
-	RecvEventArray[nTotalSockets] = recvdummyEvent;
-	SendEventArray[nTotalSockets++] = senddummyEvent;
-
-	_sendThreadHandle = (HANDLE)_beginthreadex(NULL, 0, SendThread, (LPVOID)0, 0, &_sendThreadID);
 	_recvThreadHandle = (HANDLE)_beginthreadex(NULL, 0, RecvThread, (LPVOID)0, 0, &_recvThreadID);
 
 	// 데이터 통신에 사용할 변수
@@ -99,69 +90,13 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
-		// 비동기 입출력 시작
-		SOCKETINFO* ptr = SocketInfoArray[nTotalSockets - 1];
-		flags = 0;
-
-		WSABUF wsabuf;
-		wsabuf.buf = ptr->recvBuf;
-		wsabuf.len = BUFSIZE;
-		int recvRet = WSARecv(ptr->sock, &wsabuf, 1, &recvbytes, &flags, &ptr->recvoverlapped, NULL);
-		if (recvRet == SOCKET_ERROR)
-		{
-			if (WSAGetLastError() != WSA_IO_PENDING)
-			{
-				err_display("WSARecv()");
-				RemoveSocketInfo(nTotalSockets - 1);
-				continue;
-			}
-		}
-		printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
-			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
-
 		// 소켓 개수 변화를 알림
 		WSASetEvent(RecvEventArray[0]);
-		WSASetEvent(SendEventArray[0]);
 	}
 
 	WSACleanup();
 	DeleteCriticalSection(&cs);
 	return 0;
-}
-
-unsigned int WINAPI SendThread(LPVOID arg)
-{
-	char ipbuffer[50];
-	int retval;
-
-	while (1)
-	{
-		DWORD index = WSAWaitForMultipleEvents(nTotalSockets, SendEventArray,
-			FALSE, WSA_INFINITE, FALSE);
-		if (index == WSA_WAIT_FAILED) continue;
-		index -= WSA_WAIT_EVENT_0;
-		WSAResetEvent(SendEventArray[index]);
-		if (index == 0) continue;
-
-		// 클라이언트 정보 얻기
-		SOCKETINFO* ptr = SocketInfoArray[index];
-		SOCKADDR_IN clientaddr;
-		int addrlen = sizeof(clientaddr);
-		getpeername(ptr->sock, (SOCKADDR*)&clientaddr, &addrlen);
-
-		DWORD cbTransferred, flag;
-		retval = WSAGetOverlappedResult(ptr->sock, &(ptr->sendoverlapped), &cbTransferred, FALSE, &flag);
-		if (retval == FALSE || cbTransferred == 0)
-		{
-			RemoveSocketInfo(index);
-			printf("[TCP 서버] 클라이언트 종료 : IP주소 = %s, 포트 번호 = %d\n",
-				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
-			continue;
-		}
-
-		printf("[TCP WSASend Result] IP주소 = %s, 포트 번호 = %d | cbTransferred : %d\n",
-			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), cbTransferred);
-	}
 }
 
 unsigned int WINAPI RecvThread(LPVOID arg)
@@ -195,7 +130,6 @@ unsigned int WINAPI RecvThread(LPVOID arg)
 
 		//받은 데이터 출력
 		ptr->recvBuf[cbTransferred] = '\0';
-		memcpy(ptr->sendBuf, ptr->recvBuf, cbTransferred + 1);
 		printf("[TCP / %s : %d] %s\n", inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50),
 			ntohs(clientaddr.sin_port), ptr->recvBuf);
 
@@ -220,28 +154,6 @@ unsigned int WINAPI RecvThread(LPVOID arg)
 				continue;
 			}
 		}
-
-		DWORD sendbytes;
-		wsabuf.buf = ptr->sendBuf;
-		wsabuf.len = strlen(ptr->sendBuf);
-		retval = WSASend(ptr->sock, &wsabuf, 1, &sendbytes,
-			0, &ptr->sendoverlapped, NULL);
-		printf("[TCP WSASend] IP주소 = %s, 포트 번호 = %d | sendbytes : %d\n",
-			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), sendbytes);
-		if (retval == SOCKET_ERROR)
-		{
-			if (WSAGetLastError() != WSA_IO_PENDING)
-			{
-				err_display("WSASend()");
-			}
-			else
-			{
-				printf("[WSA_IO_PENDING] WSASend\n");
-			}
-
-			WSAResetEvent(SendEventArray[index]);
-			continue;
-		}
 	}
 }
 
@@ -257,17 +169,11 @@ BOOL AddSocketInfo(SOCKET sock)
 	WSAEVENT recvEvent = WSACreateEvent();
 	if (recvEvent == WSA_INVALID_EVENT) return FALSE;
 
-	WSAEVENT sendEvent = WSACreateEvent();
-	if (sendEvent == WSA_INVALID_EVENT) return FALSE;
-
 	ZeroMemory(&ptr->recvoverlapped, sizeof(ptr->recvoverlapped));
-	ZeroMemory(&ptr->sendoverlapped, sizeof(ptr->sendoverlapped));
 	ptr->recvoverlapped.hEvent = recvEvent;
-	ptr->sendoverlapped.hEvent = sendEvent;
 	ptr->sock = sock;
 	SocketInfoArray[nTotalSockets] = ptr;
 	RecvEventArray[nTotalSockets] = recvEvent;
-	SendEventArray[nTotalSockets] = sendEvent;
 	nTotalSockets++;
 
 	LeaveCriticalSection(&cs);
@@ -282,13 +188,11 @@ void RemoveSocketInfo(int nIndex)
 	closesocket(ptr->sock);
 	delete ptr;
 	WSACloseEvent(RecvEventArray[nIndex]);
-	WSACloseEvent(SendEventArray[nIndex]);
 
 	if (nIndex != (nTotalSockets - 1))
 	{
 		SocketInfoArray[nIndex] = SocketInfoArray[nTotalSockets - 1];
 		RecvEventArray[nIndex] = RecvEventArray[nTotalSockets - 1];
-		SendEventArray[nIndex] = SendEventArray[nTotalSockets - 1];
 	}
 	--nTotalSockets;
 

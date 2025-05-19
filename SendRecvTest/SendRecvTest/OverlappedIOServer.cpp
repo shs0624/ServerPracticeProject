@@ -1,4 +1,5 @@
 //#pragma comment(lib,"ws2_32")
+//#pragma comment(lib,"winmm.lib")
 //#include <winsock2.h>
 //#include <WS2tcpip.h>
 //#include <process.h>
@@ -6,21 +7,28 @@
 //#include <stdlib.h>
 //#include <stdio.h>
 //#include "IOCPHeader.h"
+//#include "ProcademyProfiler.h"
 //
 //// IO스레드에서 accept 진행
 //// Send 스레드
 //// Recv 스레드 생성
 //
+//SRWLOCK _srwLock;
+//
 //SOCKET listen_sock;
 //
 //HANDLE _iocpHandle;
+//HANDLE _controlThreadHandle;
 //HANDLE _workerThreadHandleArr[50];
 //unsigned int _workerThreadID[50];
 //
 //int main(int argc, char* argv[])
 //{
+//	timeBeginPeriod(1);
+//
 //	int retval;
 //	InitializeCriticalSection(&cs);
+//	InitializeSRWLock(&_srwLock);
 //
 //	// 윈속 초기화
 //	WSADATA wsa;
@@ -59,6 +67,7 @@
 //	SYSTEM_INFO si;
 //	GetSystemInfo(&si);
 //
+//	_controlThreadHandle = (HANDLE)_beginthreadex(NULL, 0, ControlThread, 0, 0, NULL);
 //	for (int i = 0; i < (int)si.dwNumberOfProcessors * 2; i++)
 //	{
 //		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
@@ -115,7 +124,25 @@
 //
 //	WSACleanup();
 //	DeleteCriticalSection(&cs);
+//	timeEndPeriod(1);
 //	return 0;
+//}
+//
+//unsigned int WINAPI ControlThread(LPVOID arg)
+//{
+//	WCHAR ControlKey;
+//	while (1)
+//	{
+//		ControlKey = _getwch();
+//		if (ControlKey == L'q' || ControlKey == L'Q')
+//		{
+//			//------------------------------------------------
+//			// 종료처리
+//			//------------------------------------------------
+//			ProfileDataOutText("OverlappedIOServer.txt");
+//		}
+//		Sleep(10);
+//	}
 //}
 //
 //unsigned int WINAPI WorkerThread(LPVOID arg)
@@ -163,8 +190,14 @@
 //			ZeroMemory(&ptr->overlapped, sizeof(ptr->overlapped));
 //			wsabuf.buf = ptr->recvBuf;
 //			wsabuf.len = BUFSIZE;
+//			int recvRet;
+//			AcquireSRWLockExclusive(&_srwLock);
 //			ptr->overlapped.type = RECV;
-//			int recvRet = WSARecv(ptr->sock, &wsabuf, 1, &recvbytes, &flags, &ptr->overlapped.overlappedVar, NULL);
+//			{
+//				Profiler profiler("WSARecv_Return");
+//				recvRet = WSARecv(ptr->sock, &wsabuf, 1, &recvbytes, &flags, &ptr->overlapped.overlappedVar, NULL);
+//			}
+//			ReleaseSRWLockExclusive(&_srwLock);
 //			if (recvRet == SOCKET_ERROR)
 //			{
 //				if (WSAGetLastError() != WSA_IO_PENDING)
@@ -176,11 +209,14 @@
 //			printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
 //				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
 //
-//			ptr->overlapped.type = SEND;
+//			/*ptr->overlapped.type = SEND;
 //			wsabuf.buf = ptr->sendBuf;
 //			wsabuf.len = strlen(ptr->sendBuf);
-//			retval = WSASend(ptr->sock, &wsabuf, 1, &sendbytes,
-//				0, &ptr->overlapped.overlappedVar, NULL);
+//			{
+//				Profiler profiler("WSASend_Return");
+//				retval = WSASend(ptr->sock, &wsabuf, 1, &sendbytes,
+//					0, &ptr->overlapped.overlappedVar, NULL);
+//			}
 //			printf("[TCP WSASend] IP주소 = %s, 포트 번호 = %d | sendbytes : %d\n",
 //				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), sendbytes);
 //
@@ -195,7 +231,7 @@
 //					printf("[WSA_IO_PENDING] WSASend\n");
 //				}
 //				continue;
-//			}
+//			}*/
 //		}
 //		else
 //		{
