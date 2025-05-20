@@ -216,6 +216,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			}
 
 			// WSARecv
+			WSABUF recvWsa[2];
 			int recvRet;
 			DWORD flags = 0;
 			ZeroMemory(&ptr->recvOverlapped, sizeof(ptr->recvOverlapped));
@@ -223,7 +224,6 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
 			{
 				// 두개로 나눠 받아야 함
-				WSABUF recvWsa[2];
 				recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
 				recvWsa[0].len = ptr->recvBuf->DirectEnqueueSize();
 
@@ -235,11 +235,10 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			}
 			else
 			{
-				WSABUF recvWsa;
-				recvWsa.buf = ptr->recvBuf->GetRearBufferPtr();
-				recvWsa.len = ptr->recvBuf->GetFreeSize();
+				recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
+				recvWsa[0].len = ptr->recvBuf->GetFreeSize();
 
-				recvRet = WSARecv(ptr->sock, &recvWsa, 2, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
+				recvRet = WSARecv(ptr->sock, &recvWsa[0], 1, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
 			}
 
 			if (recvRet == SOCKET_ERROR)
