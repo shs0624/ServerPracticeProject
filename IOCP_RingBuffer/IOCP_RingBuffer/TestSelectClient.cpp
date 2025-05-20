@@ -2,16 +2,14 @@
 #pragma comment(lib,"winmm.lib")
 #include <winsock2.h>
 #include <WS2tcpip.h>
-#include <process.h>
-#include <tchar.h>
-#include <time.h>
+#include <iostream>
 #include <conio.h>
-#include <stdio.h>
-#include "IOCPClientHeader.h"
-#include "ProcademyProfiler.h"
+#include <Windows.h>
+#include "TestSelectClient.h"
 
 const char* str = "MonsterHunterWilds";
-int _cnt;
+int _sendCnt;
+int _recvCnt;
 
 SOCKET _socket;
 
@@ -19,7 +17,8 @@ HANDLE _logEvent;
 
 int main(void)
 {
-	_cnt = 0;
+	_sendCnt = 0;
+	_recvCnt = 0;
 
 	_logEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
 
@@ -50,26 +49,11 @@ int main(void)
 
 	while (1)
 	{
-		//클라는 그냥 보내죠?
-		while (1)
-		{
-			char ch = _getch();
-			if (ch == 'E' || ch == 'e')
-				break;
-		}
+		fd_set readSet;
+		FD_ZERO(&readSet);
+		FD_SET(_socket, &readSet);
 
-		int sendlen = strlen(str);
-		len = (rand() % (sendlen - 1)) + 1;
-
-		int sendret = send(_socket, str, len, 0);
-		if (sendret == SOCKET_ERROR)
-		{
-			err_display("send()");
-			break;
-		}
-
-		// 리시브가 필요한가?
-		_cnt++;
+		int selectRet = select(0, &readSet, 0, 0, NULL);
 	}
 }
 
@@ -79,7 +63,7 @@ unsigned int WINAPI LogThread(LPVOID arg)
 	{
 		WaitForSingleObject(_logEvent, 1000);
 
-		printf("[LOG] Cnt : %d\n", _cnt);
+		printf("[LOG] SendCnt : %d | RecvCnt : %d\n", _sendCnt, _recvCnt);
 	}
 }
 
