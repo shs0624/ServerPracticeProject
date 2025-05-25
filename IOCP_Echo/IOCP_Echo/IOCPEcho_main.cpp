@@ -5,7 +5,7 @@
 #include <tchar.h>
 #include <conio.h>
 #include <stdio.h>
-#include <list>
+#include <unordered_map>
 #include "CRingBuffer.h"
 #include "IOCPEcho_header.h"
 using namespace std;
@@ -22,14 +22,17 @@ HANDLE _acceptThreadHandle;
 HANDLE _iocpHandle;
 HANDLE _iocpWorkerThreadHandleArr[50];
 
+DWORD _threadID = 0;
+
 unsigned int _acceptThreadID;
 unsigned int _iocpWorkerThreadID[50];
 
-list<st_Session*> _sessionList;
+unordered_map<DWORD, st_Session*> _sessionList;
 
 bool RecvProc(st_Session* ptr, DWORD cbTransferred);
 bool SendProc(st_Session* ptr, DWORD cbTransferred);
 
+// 이미 도착한 메시지들에서 문제가 발생
 int main(int argc, char* argv[])
 {
 	int retval;
@@ -73,11 +76,14 @@ int main(int argc, char* argv[])
 	GetSystemInfo(&si);
 
 	_acceptThreadHandle = (HANDLE)_beginthreadex(NULL, 0, AcceptThread, 0, 0, &_acceptThreadID);
+	if (_acceptThreadHandle == NULL) 
+		return 1;
 
 	for (int i = 0; i < (int)si.dwNumberOfProcessors * 2; i++)
 	{
 		_iocpWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, 0, 0, &_iocpWorkerThreadID[i]);
-		if (_iocpWorkerThreadHandleArr[i] == NULL) return 1;
+		if (_iocpWorkerThreadHandleArr[i] == NULL) 
+			return 1;
 	}
 
 	printf("\n[TCP 서버] 시작\n");
@@ -114,8 +120,8 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 			continue;
 		}
 
-		printf("\n[TCP 서버] 클라이언트 접속 : IP주소 = %s, 포트 번호 = %d\n",
-			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
+		//printf("\n[TCP 서버] 클라이언트 접속 : IP주소 = %s, 포트 번호 = %d\n",
+		//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
 
 
 		// 비동기 입출력 시작
@@ -127,12 +133,14 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 
 		ZeroMemory(&ptr->recvOverlapped, sizeof(ptr->recvOverlapped));
 		ZeroMemory(&ptr->sendOverlapped, sizeof(ptr->sendOverlapped));
+		ptr->dwSessionID = _threadID++;
+		ptr->dwSendCount = 0;
 		ptr->sock = client_sock;
 		ptr->recvBuf = new CRingBuffer(15000);
 		ptr->sendBuf = new CRingBuffer(15000);
 
 		AcquireSRWLockExclusive(&_srwLock);
-		_sessionList.push_back(ptr);
+		_sessionList.insert({ ptr->dwSessionID, ptr });
 		ReleaseSRWLockExclusive(&_srwLock);
 
 		WSABUF wsabuf;
@@ -145,12 +153,12 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		{
 			if (WSAGetLastError() != WSA_IO_PENDING)
 			{
-				err_display("WSARecv()");
+				err_display("WSARecv()_Accept");
 				continue;
 			}
 		}
-		printf("\n[TCP Accept WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
-			inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
+		//printf("\n[TCP Accept WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
+		//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
 	}
 
 	return 0;
@@ -165,7 +173,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 	while (1)
 	{
 		WSABUF wsabuf;
-		DWORD cbTransferred, sendbytes, recvbytes;
+		DWORD cbTransferred, recvbytes;
 		SOCKET client_sock;
 		st_Session* ptr;
 		OVERLAPPED* pOverlapped;
@@ -178,22 +186,24 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 
 		if (retval == 0 || cbTransferred == 0)
 		{
-			if (retval == 0)
+			if (ptr->dwSendCount != 0)
 			{
-				DWORD temp1, temp2;
-				WSAGetOverlappedResult(ptr->sock, &ptr->recvOverlapped,
-					&temp1, FALSE, &temp2);
-				err_display("WSAGetOverlappedResult()");
+				ptr->dwSendCount--;
+				continue;
 			}
 
 			AcquireSRWLockExclusive(&_srwLock);
-			_sessionList.remove(ptr);
+			_sessionList.erase(ptr->dwSessionID);
 			ReleaseSRWLockExclusive(&_srwLock);
 
 			closesocket(ptr->sock);
-			printf("[TCP 서버] 클라이언트 종료 : IP주소 = %s, 포트 번호 = %d\n",
-				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
+			//printf("[TCP 서버] 클라이언트 종료 : IP주소 = %s, 포트 번호 = %d\n",
+			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
+			delete (ptr->recvBuf);
+			delete (ptr->sendBuf);
+			//printf("[TCP 서버] delete : %p | sendCount : %d\n", ptr, ptr->dwSendCount);
 			delete ptr;
+
 			continue;
 		}
 
@@ -213,8 +223,8 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			WSABUF recvWsa[2];
 			int recvRet;
 			DWORD flags = 0;
-			ZeroMemory(&ptr->recvOverlapped, sizeof(ptr->recvOverlapped));
-			ZeroMemory(&ptr->sendOverlapped, sizeof(ptr->sendOverlapped));
+			ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
+			ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
 			if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
 			{
 				// 두개로 나눠 받아야 함
@@ -238,7 +248,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			{
 				if (WSAGetLastError() != WSA_IO_PENDING)
 				{
-					err_display("WSARecv()");
+					err_display("WSARecv()_IOWorkerThread");
 					continue;
 				}
 			}
@@ -248,18 +258,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 		}
 		else
 		{
-			//DWORD cbTransferred, flag;
-			/*retval = WSAGetOverlappedResult(ptr->sock, &(ptr->sendOverlapped), &cbTransferred, FALSE, &flag);
-			if (retval == FALSE || cbTransferred == 0)
-			{
-				printf("[TCP 서버] 클라이언트 종료 : IP주소 = %s, 포트 번호 = %d\n",
-					inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
-				continue;
-			}*/
-
-			ptr->sendBuf->MoveFront(cbTransferred);
-			//printf("[TCP WSASend Result] IP주소 = %s, 포트 번호 = %d | cbTransferred : %d\n",
-			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), cbTransferred);
+			ptr->dwSendCount--;
 		}
 	}
 }
@@ -283,55 +282,15 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 			DebugBreak();
 
 			AcquireSRWLockExclusive(&_srwLock);
-			_sessionList.remove(ptr);
+			_sessionList.erase(ptr->dwSessionID);
 			ReleaseSRWLockExclusive(&_srwLock);
 
 			closesocket(ptr->sock);
+			delete (ptr->recvBuf);
+			delete (ptr->sendBuf);
 			delete ptr;
 			return false;
 		}
-
-		/*int enqueueRet = ptr->sendBuf->Enqueue((char*)&len, sizeof(short));
-		if (enqueueRet != sizeof(short))
-		{
-			DebugBreak();
-
-			AcquireSRWLockExclusive(&_srwLock);
-			_sessionList.remove(ptr);
-			ReleaseSRWLockExclusive(&_srwLock);
-
-			closesocket(ptr->sock);
-			delete ptr;
-			continue;
-		}
-
-		dequeueRet = ptr->recvBuf->Dequeue((char*)&num, sizeof(LONGLONG));
-		if (dequeueRet != sizeof(LONGLONG))
-		{
-			DebugBreak();
-
-			AcquireSRWLockExclusive(&_srwLock);
-			_sessionList.remove(ptr);
-			ReleaseSRWLockExclusive(&_srwLock);
-
-			closesocket(ptr->sock);
-			delete ptr;
-			continue;
-		}
-
-		enqueueRet = ptr->sendBuf->Enqueue((char*) & num, sizeof(LONGLONG));
-		if (enqueueRet != sizeof(LONGLONG))
-		{
-			DebugBreak();
-
-			AcquireSRWLockExclusive(&_srwLock);
-			_sessionList.remove(ptr);
-			ReleaseSRWLockExclusive(&_srwLock);
-
-			closesocket(ptr->sock);
-			delete ptr;
-			continue;
-		}*/
 
 		//printf("[TCP / %s : %d] %lld\n", inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50),
 		//	ntohs(clientaddr.sin_port), (LONGLONG)*(tempBuffer + sizeof(short)));
@@ -343,10 +302,12 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 			DebugBreak();
 
 			AcquireSRWLockExclusive(&_srwLock);
-			_sessionList.remove(ptr);
+			_sessionList.erase(ptr->dwSessionID);
 			ReleaseSRWLockExclusive(&_srwLock);
 
 			closesocket(ptr->sock);
+			delete (ptr->recvBuf);
+			delete (ptr->sendBuf);
 			delete ptr;
 			return false;
 		}
@@ -382,12 +343,14 @@ bool SendProc(st_Session* ptr, DWORD cbTransferred)
 			0, &(ptr->sendOverlapped), NULL);
 	}
 
+	ptr->sendBuf->MoveFront(cbTransferred);
+	ptr->dwSendCount++;
 
 	if (retval == SOCKET_ERROR)
 	{
 		if (WSAGetLastError() != WSA_IO_PENDING)
 		{
-			err_display("WSASend()");
+			//err_display("WSASend()");
 			return false;
 		}
 	}

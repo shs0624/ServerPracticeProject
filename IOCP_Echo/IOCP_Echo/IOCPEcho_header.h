@@ -15,9 +15,12 @@ struct st_Session
 {
 	OVERLAPPED sendOverlapped;
 	OVERLAPPED recvOverlapped;
+	DWORD dwSessionID;
 	SOCKET sock;
 	CRingBuffer* sendBuf;
 	CRingBuffer* recvBuf;
+
+	DWORD dwSendCount;
 };
 
 int nTotalSockets = 0;

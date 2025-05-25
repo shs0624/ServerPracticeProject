@@ -154,26 +154,26 @@ int CRingBuffer::DirectDequeueSize(void)
 // 호출 전에 FreeSize를 체크하고 넣을거다.
 int CRingBuffer::MoveRear(int iSize)
 {
-	/*int temptail = tail;
+	int temptail = tail;
 	temptail += iSize;
 	temptail = temptail % max;
 
-	tail = temptail;*/
-	tail += iSize;
-	tail = tail % max;
+	tail = temptail;
+	/*tail += iSize;
+	tail = tail % max;*/
 	return iSize;
 }
 
 // 호출 전에 UseSize를 체크하고 넣을거다.
 int CRingBuffer::MoveFront(int iSize)
 {
-	/*int tempHead = head;
+	int tempHead = head;
 	tempHead += iSize;
 	tempHead = tempHead % max;
 
-	head = tempHead;*/
-	head += iSize;
-	head = head % max;
+	head = tempHead;
+	/*head += iSize;
+	head = head % max;*/
 	return iSize;
 }
 
