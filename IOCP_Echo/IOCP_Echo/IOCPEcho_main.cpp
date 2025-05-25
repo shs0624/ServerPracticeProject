@@ -219,6 +219,16 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 				continue;
 			}
 
+			
+
+			//printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
+			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
+		}
+		else
+		{
+			ptr->sendBuf->MoveFront(cbTransferred);
+			ptr->dwSendCount--;
+
 			// WSARecv
 			WSABUF recvWsa[2];
 			int recvRet;
@@ -252,13 +262,6 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 					continue;
 				}
 			}
-
-			//printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
-			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
-		}
-		else
-		{
-			ptr->dwSendCount--;
 		}
 	}
 }
@@ -270,7 +273,7 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 	// 받은 데이터 카피
 	ptr->recvBuf->MoveRear(cbTransferred);
 
-	// 받은 데이터를 전부 링버퍼에 넣고, 완성된 패킷들을 읽으며 Send링버퍼에 Enqueue
+	// 받은 데이터를 전부 수신 링버퍼에서 빼고, 완성된 패킷들을 읽으며 Send링버퍼에 Enqueue
 	while (1)
 	{
 		if (ptr->recvBuf->GetUseSize() < PROTOCOL_SIZE)
@@ -343,7 +346,7 @@ bool SendProc(st_Session* ptr, DWORD cbTransferred)
 			0, &(ptr->sendOverlapped), NULL);
 	}
 
-	ptr->sendBuf->MoveFront(cbTransferred);
+	//ptr->sendBuf->MoveFront(cbTransferred);
 	ptr->dwSendCount++;
 
 	if (retval == SOCKET_ERROR)
