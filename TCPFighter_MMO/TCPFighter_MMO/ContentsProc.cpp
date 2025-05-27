@@ -199,6 +199,7 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 
 bool netPacketProc_Accept(st_SESSION* session)
 {
+	srand(time(NULL));
 	st_CHARACTER* playerPtr = (st_CHARACTER*)malloc(sizeof(st_CHARACTER));
 	if (playerPtr == nullptr)
 	{

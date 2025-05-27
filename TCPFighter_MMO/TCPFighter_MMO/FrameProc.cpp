@@ -95,7 +95,7 @@ void Update()
 		case dfPACKET_MOVE_DIR_RR:
 			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY))
 			{
-				pPlayer->shY += shDeltaY;
+				pPlayer->shX += shDeltaX;
 			}
 			break;
 		case dfPACKET_MOVE_DIR_RU:

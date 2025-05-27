@@ -186,6 +186,11 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 
 		if (retval == 0 || cbTransferred == 0)
 		{
+			if (ptr->sendBuf->GetUseSize() != 0)
+			{
+				//DebugBreak();
+			}
+
 			if (ptr->dwSendCount != 0)
 			{
 				ptr->dwSendCount--;
@@ -218,9 +223,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			{
 				continue;
 			}
-
 			
-
 			//printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
 			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
 		}
@@ -324,8 +327,10 @@ bool SendProc(st_Session* ptr, DWORD cbTransferred)
 	int retval;
 	DWORD sendbytes;
 
+	int sendSize = ptr->sendBuf->GetUseSize();
+
 	// WSASend
-	if (ptr->sendBuf->DirectDequeueSize() < ptr->sendBuf->GetUseSize())
+	if (ptr->sendBuf->DirectDequeueSize() < sendSize)
 	{
 		// 두개로 나눠 보내야함
 		WSABUF sendWsa[2];
@@ -333,7 +338,7 @@ bool SendProc(st_Session* ptr, DWORD cbTransferred)
 		sendWsa[0].len = ptr->sendBuf->DirectDequeueSize();
 
 		sendWsa[1].buf = ptr->sendBuf->GetArrPtr();
-		sendWsa[1].len = ptr->sendBuf->GetUseSize() - ptr->sendBuf->DirectDequeueSize();
+		sendWsa[1].len = sendSize - ptr->sendBuf->DirectDequeueSize();
 		retval = WSASend(ptr->sock, sendWsa, 2, &sendbytes,
 			0, &(ptr->sendOverlapped), NULL);
 	}
@@ -341,7 +346,7 @@ bool SendProc(st_Session* ptr, DWORD cbTransferred)
 	{
 		WSABUF sendWsa;
 		sendWsa.buf = ptr->sendBuf->GetFrontBufferPtr();
-		sendWsa.len = ptr->sendBuf->GetUseSize();
+		sendWsa.len = sendSize;
 		retval = WSASend(ptr->sock, &sendWsa, 1, &sendbytes,
 			0, &(ptr->sendOverlapped), NULL);
 	}

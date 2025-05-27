@@ -57,16 +57,35 @@ void netStartup()
 
 void netSelectIO()
 {
+	timeval time;
+	time.tv_sec = 0;
+	time.tv_usec = 0;
+
 	int loopCount = 0;
 	fd_set readSet, writeSet;
 	FD_ZERO(&readSet);
 	FD_ZERO(&writeSet);
-
 	FD_SET(m_ListenSocket, &readSet);
 
 	list<st_SESSION*> selectList;
 	unordered_map<SOCKET, st_SESSION*>::iterator it;
+
+	int iResult = select(0, &readSet, NULL, NULL, &time);
+	if (iResult == SOCKET_ERROR)
+		err_quit("select()");
+
+	// accept
+	if (FD_ISSET(m_ListenSocket, &readSet))
+	{
+		netProc_Accept();
+	}
 	
+	if (_sessionMap.empty())
+		return;
+
+	FD_ZERO(&readSet);
+	FD_ZERO(&writeSet);
+	// recv, send 
 	for (it = _sessionMap.begin(); it != _sessionMap.end(); it++)
 	{
 		FD_SET((*it).first, &readSet);
@@ -87,6 +106,7 @@ void netSelectIO()
 		}
 	}
 
+	// 남은 readSet, writeSet 처리
 	SelectProc(&readSet, &writeSet, selectList);
 }
 
@@ -99,12 +119,6 @@ void SelectProc(fd_set* readSet, fd_set* writeSet, list<st_SESSION*> selectList)
 	int iResult = select(0, readSet, writeSet, NULL, &time);
 	if (iResult == SOCKET_ERROR)
 		err_quit("select()");
-
-	// accept
-	if (FD_ISSET(m_ListenSocket, readSet))
-	{
-		netProc_Accept();
-	}
 
 	list<st_SESSION*>::iterator it;
 	for (it = selectList.begin(); it != selectList.end(); it++)
@@ -232,7 +246,7 @@ void netProc_Recv(st_SESSION* session)
 		ProcessMessage(session, header.byType, csPacket);
 		csPacket->Clear();
 
-		_LOG(0, L"Received Message # Size : %d # sessionID : %d\n", dequeueRet, session->dwSessionID);
+		_LOG(0, L"Received Message # Type : %d # sessionID : %d\n", header.byType, session->dwSessionID);
 	}
 
 	session->dwLastRecvTime = timeGetTime();
