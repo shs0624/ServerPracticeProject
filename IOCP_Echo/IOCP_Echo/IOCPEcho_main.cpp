@@ -183,7 +183,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 		SOCKADDR_IN clientaddr;
 		int addrlen = sizeof(clientaddr);
 		getpeername(ptr->sock, (SOCKADDR*)&clientaddr, &addrlen);
-
+		
 		if (retval == 0 || cbTransferred == 0)
 		{
 			if (ptr->sendBuf->GetUseSize() != 0)
@@ -231,40 +231,6 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 		{
 			ptr->sendBuf->MoveFront(cbTransferred);
 			ptr->dwSendCount--;
-
-			// WSARecv
-			WSABUF recvWsa[2];
-			int recvRet;
-			DWORD flags = 0;
-			ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
-			ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
-			if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
-			{
-				// 두개로 나눠 받아야 함
-				recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
-				recvWsa[0].len = ptr->recvBuf->DirectEnqueueSize();
-
-				recvWsa[1].buf = ptr->recvBuf->GetArrPtr();
-				recvWsa[1].len = ptr->recvBuf->GetFreeSize() - ptr->recvBuf->DirectEnqueueSize();
-
-				recvRet = WSARecv(ptr->sock, recvWsa, 2, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
-			}
-			else
-			{
-				recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
-				recvWsa[0].len = ptr->recvBuf->GetFreeSize();
-
-				recvRet = WSARecv(ptr->sock, &recvWsa[0], 1, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
-			}
-
-			if (recvRet == SOCKET_ERROR)
-			{
-				if (WSAGetLastError() != WSA_IO_PENDING)
-				{
-					err_display("WSARecv()_IOWorkerThread");
-					continue;
-				}
-			}
 		}
 	}
 }
@@ -315,6 +281,40 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 			delete (ptr->recvBuf);
 			delete (ptr->sendBuf);
 			delete ptr;
+			return false;
+		}
+	}
+
+	// WSARecv
+	WSABUF recvWsa[2];
+	int recvRet;
+	DWORD flags = 0, recvbytes = 0;
+	ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
+	ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
+	if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
+	{
+		// 두개로 나눠 받아야 함
+		recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
+		recvWsa[0].len = ptr->recvBuf->DirectEnqueueSize();
+
+		recvWsa[1].buf = ptr->recvBuf->GetArrPtr();
+		recvWsa[1].len = ptr->recvBuf->GetFreeSize() - ptr->recvBuf->DirectEnqueueSize();
+
+		recvRet = WSARecv(ptr->sock, recvWsa, 2, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
+	}
+	else
+	{
+		recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
+		recvWsa[0].len = ptr->recvBuf->GetFreeSize();
+
+		recvRet = WSARecv(ptr->sock, &recvWsa[0], 1, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
+	}
+
+	if (recvRet == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != WSA_IO_PENDING)
+		{
+			err_display("WSARecv()_IOWorkerThread");
 			return false;
 		}
 	}
