@@ -20,7 +20,9 @@ struct st_Session
 	CRingBuffer* sendBuf;
 	CRingBuffer* recvBuf;
 
-	DWORD dwSendCount;
+	CRITICAL_SECTION CrtLock;
+	DWORD dwIOCount;
+	BOOL bSendFlag;
 };
 
 int nTotalSockets = 0;
