@@ -121,10 +121,6 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 			continue;
 		}
 
-		//printf("\n[TCP 서버] 클라이언트 접속 : IP주소 = %s, 포트 번호 = %d\n",
-		//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
-
-
 		// 비동기 입출력 시작
 		st_Session* ptr = new st_Session;
 		if (ptr == NULL) break;
@@ -160,8 +156,6 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 				continue;
 			}
 		}
-		//printf("\n[TCP Accept WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
-		//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
 	}
 
 	return 0;
@@ -195,12 +189,10 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 
 		if (retval == 0 || cbTransferred == 0)
 		{
-			InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount));
-			if (ptr->dwIOCount == 0)
+			if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
 			{
 				// 연결 끊기
 				ReleaseSession(ptr);
-				continue;
 			}
 			continue;
 		}
@@ -210,17 +202,26 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			EnterCriticalSection(&(ptr->CrtLock));
 			if (!RecvProc(ptr, cbTransferred))
 			{
-				LeaveCriticalSection(&(ptr->CrtLock));
-				continue;
+				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+				{
+					LeaveCriticalSection(&(ptr->CrtLock));
+					// 연결 끊기
+					ReleaseSession(ptr);
+					continue;
+				}
 			}
 
 			if (InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 			{
-				InterlockedAdd((LONG*)&(ptr->dwIOCount), 1);
 				if (!SendProc(ptr))
 				{
-					LeaveCriticalSection(&(ptr->CrtLock));
-					continue;
+					if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+					{
+						LeaveCriticalSection(&(ptr->CrtLock));
+						// 연결 끊기
+						ReleaseSession(ptr);
+						continue;
+					}
 				}
 			}
 
@@ -230,7 +231,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			DWORD flags = 0, recvbytes = 0;
 			ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
 			ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
-
+			InterlockedIncrement((ULONGLONG*)&(ptr->dwIOCount));
 			if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
 			{
 				// 두개로 나눠 받아야 함
@@ -255,8 +256,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			{
 				if (WSAGetLastError() != WSA_IO_PENDING)
 				{
-					InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount));
-					if (ptr->dwIOCount == 0)
+					if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
 					{
 						// 연결 끊기
 						ReleaseSession(ptr);
@@ -264,14 +264,9 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 					}
 				}
 			}
-			
-			//printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | cbTransferred : %d\n",
-			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), cbTransferred);
 		}
 		else
 		{
-			//printf("\n[TCP Send Overlapped] IP주소 = %s, 포트 번호 = %d | cbTransferred : %d\n",
-			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), cbTransferred);
 			EnterCriticalSection(&(ptr->CrtLock));
 			ptr->sendBuf->MoveFront(cbTransferred);
 			int useSize = ptr->sendBuf->GetUseSize();
@@ -282,15 +277,14 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			else
 			{
 				InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), FALSE);
-				InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount));
-				if (ptr->dwIOCount == 0)
-				{
-					// 연결 끊기
-					ReleaseSession(ptr);
-					continue;
-				}
 			}
 			LeaveCriticalSection(&(ptr->CrtLock));
+		}
+
+		if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+		{
+			// 연결 끊기
+			ReleaseSession(ptr);
 		}
 	}
 
@@ -318,19 +312,14 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 		if (dequeueRet != PROTOCOL_SIZE)
 		{
 			DebugBreak();
-			ReleaseSession(ptr);
 			return false;
 		}
-
-		//printf("[TCP / %s : %d] %lld\n", inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50),
-		//	ntohs(clientaddr.sin_port), (LONGLONG)*(tempBuffer + sizeof(short)));
 
 		// sendQ 인큐
 		int enqueueRet = ptr->sendBuf->Enqueue(tempBuffer, PROTOCOL_SIZE);
 		if (enqueueRet != PROTOCOL_SIZE)
 		{
 			DebugBreak();
-			ReleaseSession(ptr);
 			return false;
 		}
 	}
@@ -343,6 +332,7 @@ bool SendProc(st_Session* ptr)
 	int retval;
 	DWORD sendbytes;
 
+	InterlockedIncrement((ULONGLONG*)&(ptr->dwIOCount));
 	int sendSize = ptr->sendBuf->GetUseSize();
 	// WSASend
 	if (ptr->sendBuf->DirectDequeueSize() < sendSize)
@@ -370,12 +360,6 @@ bool SendProc(st_Session* ptr)
 	{
 		if (WSAGetLastError() != WSA_IO_PENDING)
 		{
-			InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount));
-			if (ptr->dwIOCount == 0)
-			{
-				// 연결 끊기
-				ReleaseSession(ptr);
-			}
 			return false;
 		}
 	}
@@ -387,6 +371,10 @@ void ReleaseSession(st_Session* ptr)
 {
 	AcquireSRWLockExclusive(&_srwLock);
 	_sessionList.erase(ptr->dwSessionID);
+
+	EnterCriticalSection(&(ptr->CrtLock));
+	LeaveCriticalSection(&(ptr->CrtLock));
+
 	ReleaseSRWLockExclusive(&_srwLock);
 
 	DeleteCriticalSection(&(ptr->CrtLock));
