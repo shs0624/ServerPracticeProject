@@ -16,6 +16,9 @@
     <Filter Include="RingBuffer">
       <UniqueIdentifier>{0aad8a2d-6e1d-4ce2-ba1a-1053010befc5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="CFreeList">
+      <UniqueIdentifier>{58306442-faed-4216-bcbe-852a49e14847}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="IOCPEcho_main.cpp">
@@ -31,6 +34,9 @@
     </ClInclude>
     <ClInclude Include="CRingBuffer.h">
       <Filter>RingBuffer</Filter>
+    </ClInclude>
+    <ClInclude Include="CFreeList.h">
+      <Filter>CFreeList</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

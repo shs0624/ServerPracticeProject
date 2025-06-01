@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <unordered_map>
 #include "CRingBuffer.h"
+#include "CFreeList.h"
 #include "IOCPEcho_header.h"
 using namespace std;
 
@@ -15,6 +16,8 @@ using namespace std;
 // Recv 스레드 생성
 
 bool b_sendFlag = false;
+
+CRITICAL_SECTION _poolLock;
 
 SOCKET listen_sock;
 
@@ -28,6 +31,7 @@ unsigned int _acceptThreadID;
 unsigned int _iocpWorkerThreadID[50];
 
 unordered_map<DWORD, st_Session*> _sessionList;
+procademy::CMemoryPool<st_Session>* _sessionPool;
 
 bool RecvProc(st_Session* ptr, DWORD cbTransferred);
 bool SendProc(st_Session* ptr);
@@ -38,6 +42,9 @@ int main(int argc, char* argv[])
 {
 	int retval;
 	InitializeSRWLock(&_srwLock);
+	InitializeCriticalSection(&_poolLock);
+
+	_sessionPool = new procademy::CMemoryPool<st_Session>(200, false, false);
 
 	// 윈속 초기화
 	WSADATA wsa;
@@ -122,7 +129,9 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		}
 
 		// 비동기 입출력 시작
-		st_Session* ptr = new st_Session;
+		EnterCriticalSection(&_poolLock);
+		st_Session* ptr = _sessionPool->Alloc();//new st_Session;
+		LeaveCriticalSection(&_poolLock);
 		if (ptr == NULL) break;
 
 		// 소켓을 IOCP에 등록
@@ -177,10 +186,6 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 		retval = GetQueuedCompletionStatus(_iocpHandle, &cbTransferred,
 			(PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
 
-		SOCKADDR_IN clientaddr;
-		int addrlen = sizeof(clientaddr);
-		getpeername(ptr->sock, (SOCKADDR*)&clientaddr, &addrlen);
-		
 		if (pOverlapped == 0 && cbTransferred == 0 && ptr == 0)
 		{
 			// 종료
@@ -371,17 +376,24 @@ void ReleaseSession(st_Session* ptr)
 {
 	AcquireSRWLockExclusive(&_srwLock);
 	_sessionList.erase(ptr->dwSessionID);
-
-	EnterCriticalSection(&(ptr->CrtLock));
-	LeaveCriticalSection(&(ptr->CrtLock));
-
+	//EnterCriticalSection(&(ptr->CrtLock));
+	//LeaveCriticalSection(&(ptr->CrtLock));
 	ReleaseSRWLockExclusive(&_srwLock);
 
+	/*
 	DeleteCriticalSection(&(ptr->CrtLock));
 	closesocket(ptr->sock);
-	delete (ptr->recvBuf);
-	delete (ptr->sendBuf);
+	
+	delete(ptr->recvBuf);
+	delete(ptr->sendBuf);
 	delete ptr;
+	//*/
+
+	ptr->recvBuf->ClearBuffer();
+	ptr->sendBuf->ClearBuffer();
+	EnterCriticalSection(&_poolLock);
+	_sessionPool->Free(ptr);
+	LeaveCriticalSection(&_poolLock);
 }
 
 // 소켓 함수 오류 출력 후 종료

@@ -132,6 +132,7 @@
     <ClCompile Include="IOCPEcho_main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CFreeList.h" />
     <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="IOCPEcho_header.h" />
   </ItemGroup>
