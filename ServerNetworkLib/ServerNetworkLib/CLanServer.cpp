@@ -1,23 +1,17 @@
 #pragma comment(lib,"ws2_32")
-#include <winsock2.h>
-#include <WS2tcpip.h>
+#include <iostream>
 #include <process.h>
-#include <tchar.h>
-#include <conio.h>
-#include <stdio.h>
+#include <winsock2.h>
+#include <Windows.h>
 #include <unordered_map>
-#include "CRingBuffer.h"
-#include "CFreeList.h"
-#include "IOCPEcho_header.h"
-using namespace std;
+#include "Debug.h"
+#include "CLanServer.h"
 
-// IO스레드에서 accept 진행
-// Send 스레드
-// Recv 스레드 생성
+//unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg);
+//unsigned int IOCPWorkerThread(LPVOID arg);
 
-bool b_sendFlag = false;
-
-CRITICAL_SECTION _poolLock;
+bool RecvProc(st_Session* ptr, DWORD cbTransferred);
+bool SendProc(st_Session* ptr);
 
 SOCKET listen_sock;
 
@@ -25,33 +19,24 @@ HANDLE _acceptThreadHandle;
 HANDLE _iocpHandle;
 HANDLE _iocpWorkerThreadHandleArr[50];
 
-DWORD _threadID = 0;
-
 unsigned int _acceptThreadID;
 unsigned int _iocpWorkerThreadID[50];
 
-unordered_map<DWORD, st_Session*> _sessionList;
-procademy::CMemoryPool<st_Session>* _sessionPool;
+DWORD _threadID = 0;
+CRITICAL_SECTION _sessionMapLock;
+std::unordered_map<DWORD, st_Session*> _sessionMap;
 
-bool RecvProc(st_Session* ptr, DWORD cbTransferred);
-bool SendProc(st_Session* ptr);
-void ReleaseSession(st_Session* ptr);
-
-// 이미 도착한 메시지들에서 문제가 발생
-int main(int argc, char* argv[])
+bool CLanServer::Start(UCHAR* ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection)
 {
 	int retval;
-	InitializeSRWLock(&_srwLock);
-	InitializeCriticalSection(&_poolLock);
-
-	_sessionPool = new procademy::CMemoryPool<st_Session>(200, false, false);
+	InitializeCriticalSection(&_sessionMapLock);
 
 	// 윈속 초기화
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
 
-	_iocpHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	_iocpHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrentThreads);
 	if (_iocpHandle == NULL) return 1;
 
 	// socket();
@@ -69,7 +54,7 @@ int main(int argc, char* argv[])
 	ZeroMemory(&serveraddr, sizeof(serveraddr));
 	serveraddr.sin_family = AF_INET;
 	serveraddr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
-	serveraddr.sin_port = htons(SERVERPORT);
+	serveraddr.sin_port = htons(port);
 	retval = bind(listen_sock, (SOCKADDR*)&serveraddr, sizeof(serveraddr));
 	if (retval == SOCKET_ERROR)
 		err_quit("bind()");
@@ -84,31 +69,20 @@ int main(int argc, char* argv[])
 	GetSystemInfo(&si);
 
 	_acceptThreadHandle = (HANDLE)_beginthreadex(NULL, 0, AcceptThread, 0, 0, &_acceptThreadID);
-	if (_acceptThreadHandle == NULL) 
+	if (_acceptThreadHandle == NULL)
 		return 1;
 
-	for (int i = 0; i < (int)si.dwNumberOfProcessors * 2; i++)
+	for (int i = 0; i < workerCount; i++)
 	{
 		_iocpWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, 0, 0, &_iocpWorkerThreadID[i]);
-		if (_iocpWorkerThreadHandleArr[i] == NULL) 
+		if (_iocpWorkerThreadHandleArr[i] == NULL)
 			return 1;
 	}
 
 	printf("\n[TCP 서버] 시작\n");
-	char ch;
-	while (1)
-	{
-		// 컨트롤?
-		ch = _getch();
-		if (ch == 'Q' || ch == 'q')
-			break;
-	}
-
-	WSACleanup();
-	return 0;
 }
 
-unsigned int WINAPI AcceptThread(LPVOID arg)
+unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 {
 	// 데이터 통신에 사용할 변수
 	SOCKET client_sock;
@@ -129,15 +103,12 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		}
 
 		// 비동기 입출력 시작
-		EnterCriticalSection(&_poolLock);
-		st_Session* ptr = _sessionPool->Alloc();//new st_Session;
-		LeaveCriticalSection(&_poolLock);
+		st_Session* ptr = new st_Session;
 		if (ptr == NULL) break;
 
 		// 소켓을 IOCP에 등록
 		CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)ptr, 0);
 
-		// 수정이 필요함
 		ZeroMemory(&ptr->recvOverlapped, sizeof(ptr->recvOverlapped));
 		ZeroMemory(&ptr->sendOverlapped, sizeof(ptr->sendOverlapped));
 		ptr->dwSessionID = _threadID++;
@@ -148,9 +119,9 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		ptr->sendBuf = new CRingBuffer(15000);
 		InitializeCriticalSection(&(ptr->CrtLock));
 
-		AcquireSRWLockExclusive(&_srwLock);
-		_sessionList.insert({ ptr->dwSessionID, ptr });
-		ReleaseSRWLockExclusive(&_srwLock);
+		EnterCriticalSection(&_sessionMapLock);
+		_sessionMap.insert({ ptr->dwSessionID, ptr });
+		LeaveCriticalSection(&_sessionMapLock);
 
 		WSABUF wsabuf;
 		flags = 0;
@@ -171,10 +142,10 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 	return 0;
 }
 
-unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
+unsigned int IOCPWorkerThread(LPVOID arg)
 {
 	char ipbuffer[50];
-	char tempBuffer[PROTOCOL_SIZE + 1];
+	char tempBuffer[PROTOCOL_MAX_SIZE + 1];
 	int retval;
 
 	while (1)
@@ -214,20 +185,6 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 					// 연결 끊기
 					ReleaseSession(ptr);
 					continue;
-				}
-			}
-
-			if (InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), TRUE) != TRUE)
-			{
-				if (!SendProc(ptr))
-				{
-					if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
-					{
-						LeaveCriticalSection(&(ptr->CrtLock));
-						// 연결 끊기
-						ReleaseSession(ptr);
-						continue;
-					}
 				}
 			}
 
@@ -299,7 +256,9 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 
 bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 {
-	char tempBuffer[PROTOCOL_SIZE + 1];
+	st_NetHeader header;
+	char tempBuffer[PROTOCOL_MAX_SIZE + 1];
+	CPacket* csPacket = new CPacket(PROTOCOL_MAX_SIZE);
 
 	// 받은 데이터 카피
 	ptr->recvBuf->MoveRear(cbTransferred);
@@ -309,25 +268,33 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 	while (1)
 	{
 		int useSize = ptr->recvBuf->GetUseSize();
-		if (useSize < PROTOCOL_SIZE)
+		if (useSize < sizeof(st_NetHeader))
 		{
 			break;
 		}
 
-		int dequeueRet = ptr->recvBuf->Dequeue(tempBuffer, PROTOCOL_SIZE);
-		if (dequeueRet != PROTOCOL_SIZE)
+		int peekRet = ptr->recvBuf->Peek((char*) & header, sizeof(st_NetHeader));
 		{
 			DebugBreak();
 			return false;
 		}
 
-		// sendQ 인큐
-		int enqueueRet = ptr->sendBuf->Enqueue(tempBuffer, PROTOCOL_SIZE);
-		if (enqueueRet != PROTOCOL_SIZE)
+		if (ptr->recvBuf->GetUseSize() < header.shLen + sizeof(st_NetHeader))
+		{
+			break;
+		}
+
+		ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
+		int dequeueRet = ptr->recvBuf->Dequeue(csPacket->GetBufferPtr(), header.shLen);
+		if (dequeueRet != header.shLen + sizeof(st_NetHeader))
 		{
 			DebugBreak();
 			return false;
 		}
+
+		csPacket->MoveWritePos(header.shLen);
+		//OnRecv()
+		csPacket->Clear();
 	}
 
 	return true;
@@ -375,40 +342,27 @@ bool SendProc(st_Session* ptr)
 
 void ReleaseSession(st_Session* ptr)
 {
-	AcquireSRWLockExclusive(&_srwLock);
-	_sessionList.erase(ptr->dwSessionID);
-	//EnterCriticalSection(&(ptr->CrtLock));
-	//LeaveCriticalSection(&(ptr->CrtLock));
-	ReleaseSRWLockExclusive(&_srwLock);
+	EnterCriticalSection(&_sessionMapLock);
+	_sessionMap.erase(ptr->dwSessionID);
+	EnterCriticalSection(&(ptr->CrtLock));
+	LeaveCriticalSection(&(ptr->CrtLock));
+	LeaveCriticalSection(&_sessionMapLock);
 
-	/*
+	//*
 	DeleteCriticalSection(&(ptr->CrtLock));
 	closesocket(ptr->sock);
-	
+
 	delete(ptr->recvBuf);
 	delete(ptr->sendBuf);
 	delete ptr;
 	//*/
 
+	/*
 	closesocket(ptr->sock);
 	ptr->recvBuf->ClearBuffer();
 	ptr->sendBuf->ClearBuffer();
 	EnterCriticalSection(&_poolLock);
 	_sessionPool->Free(ptr);
 	LeaveCriticalSection(&_poolLock);
-}
-
-// 소켓 함수 오류 출력 후 종료
-inline void err_quit(const char* msg)
-{
-	int err = WSAGetLastError();
-	printf("[%s] TCP Error Number : %d\n", msg, err);
-	exit(1);
-}
-
-inline void err_display(const char* msg)
-{
-	int err = WSAGetLastError();
-	printf("[%s] TCP Error Number : %d\n", msg, err);
-	return;
+	//*/
 }
