@@ -118,6 +118,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -130,6 +131,7 @@
     <ClCompile Include="CLanServer.cpp" />
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
+    <ClCompile Include="EchoServer.cpp" />
     <ClCompile Include="ServerNetworkLib.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -137,6 +139,7 @@
     <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="CSerializationBuffer.h" />
     <ClInclude Include="Debug.h" />
+    <ClInclude Include="EchoServer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
