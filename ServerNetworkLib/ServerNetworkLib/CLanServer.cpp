@@ -7,28 +7,21 @@
 #include "Debug.h"
 #include "CLanServer.h"
 
-//unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg);
-//unsigned int IOCPWorkerThread(LPVOID arg);
-
-bool RecvProc(st_Session* ptr, DWORD cbTransferred);
-bool SendProc(st_Session* ptr);
-
 SOCKET listen_sock;
 
+HANDLE _tpsThreadHandle;
 HANDLE _acceptThreadHandle;
 HANDLE _iocpHandle;
 HANDLE _iocpWorkerThreadHandleArr[50];
 
+unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
 unsigned int _iocpWorkerThreadID[50];
 
-DWORD _threadID = 0;
-CRITICAL_SECTION _sessionMapLock;
-std::unordered_map<DWORD, st_Session*> _sessionMap;
-
-bool CLanServer::Start(UCHAR* ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection)
+bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection)
 {
 	int retval;
+	_iSessionCount = 0;
 	InitializeCriticalSection(&_sessionMapLock);
 
 	// ¿©º” √ ±‚»≠
@@ -68,13 +61,18 @@ bool CLanServer::Start(UCHAR* ip, LONG port, int workerCount, int concurrentThre
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
-	_acceptThreadHandle = (HANDLE)_beginthreadex(NULL, 0, AcceptThread, 0, 0, &_acceptThreadID);
+	_acceptThreadHandle = (HANDLE)_beginthreadex(NULL, 0, AcceptThread, (LPVOID)this, 0, &_acceptThreadID);
 	if (_acceptThreadHandle == NULL)
+		return 1;
+
+	_hTPSUpdateEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	_tpsThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TPSThread, (LPVOID)this, 0, &_tpsThreadID);
+	if (_tpsThreadHandle == NULL)
 		return 1;
 
 	for (int i = 0; i < workerCount; i++)
 	{
-		_iocpWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, 0, 0, &_iocpWorkerThreadID[i]);
+		_iocpWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, (LPVOID)this, 0, &_iocpWorkerThreadID[i]);
 		if (_iocpWorkerThreadHandleArr[i] == NULL)
 			return 1;
 	}
@@ -84,6 +82,9 @@ bool CLanServer::Start(UCHAR* ip, LONG port, int workerCount, int concurrentThre
 
 unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 {
+	// static º±æ«ÿº≠ «‘ºˆ »£√‚¿ª ¿ß«— ∆˜¿Œ≈Õ
+	CLanServer* thisPtr = (CLanServer*)arg;
+
 	// µ•¿Ã≈Õ ≈ÎΩ≈ø° ªÁøÎ«“ ∫Øºˆ
 	SOCKET client_sock;
 	SOCKADDR_IN clientaddr;
@@ -93,60 +94,79 @@ unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 
 	while (1)
 	{
+		st_Session* ptr = NULL;
+
 		//accept()
-		addrlen = sizeof(clientaddr);
-		client_sock = accept(listen_sock, (SOCKADDR*)&clientaddr, &addrlen);
-		if (client_sock == INVALID_SOCKET)
+		if (!(thisPtr->AcceptProc(thisPtr, &ptr)))
 		{
-			err_display("accept()");
 			continue;
 		}
-
-		// ∫Òµø±‚ ¿‘√‚∑¬ Ω√¿€
-		st_Session* ptr = new st_Session;
-		if (ptr == NULL) break;
-
-		// º“ƒœ¿ª IOCPø° µÓ∑œ
-		CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)ptr, 0);
-
-		ZeroMemory(&ptr->recvOverlapped, sizeof(ptr->recvOverlapped));
-		ZeroMemory(&ptr->sendOverlapped, sizeof(ptr->sendOverlapped));
-		ptr->dwSessionID = _threadID++;
-		ptr->dwIOCount = 1;
-		ptr->bSendFlag = false;
-		ptr->sock = client_sock;
-		ptr->recvBuf = new CRingBuffer(15000);
-		ptr->sendBuf = new CRingBuffer(15000);
-		InitializeCriticalSection(&(ptr->CrtLock));
-
-		EnterCriticalSection(&_sessionMapLock);
-		_sessionMap.insert({ ptr->dwSessionID, ptr });
-		LeaveCriticalSection(&_sessionMapLock);
-
-		WSABUF wsabuf;
-		flags = 0;
-
-		wsabuf.buf = ptr->recvBuf->GetRearBufferPtr();
-		wsabuf.len = ptr->recvBuf->GetFreeSize();
-		int recvRet = WSARecv(ptr->sock, &wsabuf, 1, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
-		if (recvRet == SOCKET_ERROR)
-		{
-			if (WSAGetLastError() != WSA_IO_PENDING)
-			{
-				err_display("WSARecv()_Accept");
-				continue;
-			}
-		}
+		
+		thisPtr->SetWSARecv(ptr);
 	}
 
 	return 0;
 }
 
-unsigned int IOCPWorkerThread(LPVOID arg)
+bool CLanServer::AcceptProc(CLanServer* thisPtr, st_Session** ptr)
+{
+	// µ•¿Ã≈Õ ≈ÎΩ≈ø° ªÁøÎ«“ ∫Øºˆ
+	SOCKET client_sock;
+	SOCKADDR_IN clientaddr;
+	int addrlen;
+
+	addrlen = sizeof(clientaddr);
+	client_sock = accept(listen_sock, (SOCKADDR*)&clientaddr, &addrlen);
+	if (client_sock == INVALID_SOCKET)
+	{
+		err_display("accept()");
+		return false;
+	}
+
+	if (!thisPtr->OnConnectionRequest(clientaddr.sin_addr.S_un.S_addr, clientaddr.sin_port))
+	{
+		return false;
+	}
+
+	st_Session* newPtr = new st_Session;
+	if (newPtr == NULL)
+		return false;
+
+	
+	*ptr = newPtr;
+
+	// º“ƒœ¿ª IOCPø° µÓ∑œ
+	CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)newPtr, 0);
+
+	ZeroMemory(&newPtr->recvOverlapped, sizeof(newPtr->recvOverlapped));
+	ZeroMemory(&newPtr->sendOverlapped, sizeof(newPtr->sendOverlapped));
+	newPtr->ulSessionID = _threadID++;
+	newPtr->dwIOCount = 1;
+	newPtr->bSendFlag = false;
+	newPtr->sock = client_sock;
+	newPtr->recvBuf = new CRingBuffer(15000);
+	newPtr->sendBuf = new CRingBuffer(15000);
+	InitializeCriticalSection(&(newPtr->CrtLock));
+
+	EnterCriticalSection(&_sessionMapLock);
+	_sessionMap.insert({ newPtr->ulSessionID, newPtr });
+	LeaveCriticalSection(&_sessionMapLock);
+
+	thisPtr->OnAccept();
+	_iSessionCount++;
+	InterlockedIncrement((unsigned int*) & _iAcceptTPS);
+
+	*ptr = newPtr;
+
+	return true;
+}
+
+unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 {
 	char ipbuffer[50];
 	char tempBuffer[PROTOCOL_MAX_SIZE + 1];
 	int retval;
+	CLanServer* thisPtr = (CLanServer*)arg;
 
 	while (1)
 	{
@@ -169,7 +189,7 @@ unsigned int IOCPWorkerThread(LPVOID arg)
 			if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
 			{
 				// ø¨∞· ≤˜±‚
-				ReleaseSession(ptr);
+				thisPtr->ReleaseSession(ptr);
 			}
 			continue;
 		}
@@ -177,56 +197,29 @@ unsigned int IOCPWorkerThread(LPVOID arg)
 		if (&(ptr->recvOverlapped) == pOverlapped)
 		{
 			EnterCriticalSection(&(ptr->CrtLock));
-			if (!RecvProc(ptr, cbTransferred))
+			if (!(thisPtr->RecvProc(ptr, cbTransferred)))
 			{
+				LeaveCriticalSection(&(ptr->CrtLock));
 				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
 				{
-					LeaveCriticalSection(&(ptr->CrtLock));
 					// ø¨∞· ≤˜±‚
-					ReleaseSession(ptr);
+					thisPtr->ReleaseSession(ptr);
 					continue;
 				}
 			}
 
 			// WSARecv
-			WSABUF recvWsa[2];
-			int recvRet;
-			DWORD flags = 0, recvbytes = 0;
-			ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
-			ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
-			InterlockedIncrement((ULONGLONG*)&(ptr->dwIOCount));
-			if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
+			if (!(thisPtr->SetWSARecv(ptr)))
 			{
-				// µŒ∞≥∑Œ ≥™¥≤ πﬁæ∆æﬂ «‘
-				recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
-				recvWsa[0].len = ptr->recvBuf->DirectEnqueueSize();
-
-				recvWsa[1].buf = ptr->recvBuf->GetArrPtr();
-				recvWsa[1].len = ptr->recvBuf->GetFreeSize() - ptr->recvBuf->DirectEnqueueSize();
-
-				recvRet = WSARecv(ptr->sock, recvWsa, 2, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
-			}
-			else
-			{
-				recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
-				recvWsa[0].len = ptr->recvBuf->GetFreeSize();
-
-				recvRet = WSARecv(ptr->sock, &recvWsa[0], 1, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
+				LeaveCriticalSection(&(ptr->CrtLock));
+				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+				{
+					// ø¨∞· ≤˜±‚
+					thisPtr->ReleaseSession(ptr);
+				}
+				continue;
 			}
 			LeaveCriticalSection(&(ptr->CrtLock));
-
-			if (recvRet == SOCKET_ERROR)
-			{
-				if (WSAGetLastError() != WSA_IO_PENDING)
-				{
-					if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
-					{
-						// ø¨∞· ≤˜±‚
-						ReleaseSession(ptr);
-						continue;
-					}
-				}
-			}
 		}
 		else
 		{
@@ -235,7 +228,7 @@ unsigned int IOCPWorkerThread(LPVOID arg)
 			int useSize = ptr->sendBuf->GetUseSize();
 			if (useSize > 0)
 			{
-				SendProc(ptr);
+				thisPtr->SetWSASend(ptr);
 			}
 			else
 			{
@@ -247,14 +240,164 @@ unsigned int IOCPWorkerThread(LPVOID arg)
 		if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
 		{
 			// ø¨∞· ≤˜±‚
-			ReleaseSession(ptr);
+			thisPtr->ReleaseSession(ptr);
 		}
 	}
 
 	return 1;
 }
 
-bool RecvProc(st_Session* ptr, DWORD cbTransferred)
+bool CLanServer::Disconnect(ULONG sessionID)
+{
+	st_Session* pSession = NULL;
+	GetSession(sessionID, &pSession);
+	if (pSession == NULL)
+		return false;
+
+	CPacket packet;
+
+	// 0πŸ¿Ã∆Æ ΩÓ±‚
+	packet.Clear();
+
+	SendPacket(sessionID, &packet);
+
+	return true;
+}
+
+bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
+{
+	char temp[PROTOCOL_MAX_SIZE + 1];
+
+	st_Session* pSession = NULL;
+	GetSession(sessionID, &pSession);
+	if (pSession == NULL)
+		return false;
+
+	short shSize = cPacket->GetDataSize();
+	cPacket->GetData(temp, shSize);
+
+	st_NetHeader header;
+	header.shLen = shSize;
+	
+	EnterCriticalSection(&pSession->CrtLock);
+	if (pSession->sendBuf->GetFreeSize() < sizeof(st_NetHeader) + shSize)
+	{
+		DebugBreak();
+		LeaveCriticalSection(&pSession->CrtLock);
+		Disconnect(sessionID);
+		return false;
+	}
+
+	int ret = pSession->sendBuf->Enqueue((char*)&header, sizeof(st_NetHeader));
+	if (ret != sizeof(st_NetHeader))
+	{
+		// ø¨∞· ≤˜±‚
+		DebugBreak();
+		LeaveCriticalSection(&pSession->CrtLock);
+		Disconnect(sessionID);
+		return false;
+	}
+
+	ret = pSession->sendBuf->Enqueue(temp, shSize);
+	if (ret != header.shLen)
+	{
+		// ø¨∞· ≤˜±‚
+		DebugBreak();
+		LeaveCriticalSection(&pSession->CrtLock);
+		Disconnect(sessionID);
+		return false;
+	}
+
+	if (InterlockedExchange((ULONGLONG*)&(pSession->bSendFlag), TRUE) != TRUE)
+	{
+		SetWSASend(pSession);
+	}
+
+	LeaveCriticalSection(&pSession->CrtLock);
+	InterlockedIncrement((unsigned int*) & _iSendMessageTPS);
+
+	return true;
+}
+
+void CLanServer::GetSession(ULONG ulSessionID, st_Session** pSession)
+{
+	EnterCriticalSection(&_sessionMapLock);
+	std::unordered_map<ULONG, st_Session*>::iterator it = _sessionMap.find(ulSessionID);
+	if (it == _sessionMap.end())
+	{
+		LeaveCriticalSection(&_sessionMapLock);
+		*pSession = NULL;
+		return;
+	}
+
+	*pSession = (it->second);
+	LeaveCriticalSection(&_sessionMapLock);
+	return;
+}
+
+unsigned int WINAPI CLanServer::TPSThread(LPVOID arg)
+{
+	CLanServer* thisPtr = (CLanServer*)arg;
+	while (1)
+	{
+		thisPtr->ResetTPS();
+	}
+}
+
+void CLanServer::ResetTPS()
+{
+	_iAcceptTPS = 0;
+	_iRecvMessageTPS = 0;
+	_iSendMessageTPS = 0;
+
+	WaitForSingleObject(_hTPSUpdateEvent, 1000);
+}
+
+bool CLanServer::SetWSARecv(st_Session* ptr)
+{
+	// WSARecv
+	WSABUF recvWsa[2];
+	int recvRet;
+	DWORD flags = 0, recvbytes = 0;
+	ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
+	ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
+	InterlockedIncrement((ULONGLONG*)&(ptr->dwIOCount));
+	if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
+	{
+		// µŒ∞≥∑Œ ≥™¥≤ πﬁæ∆æﬂ «‘
+		recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
+		recvWsa[0].len = ptr->recvBuf->DirectEnqueueSize();
+
+		recvWsa[1].buf = ptr->recvBuf->GetArrPtr();
+		recvWsa[1].len = ptr->recvBuf->GetFreeSize() - ptr->recvBuf->DirectEnqueueSize();
+
+		recvRet = WSARecv(ptr->sock, recvWsa, 2, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
+	}
+	else
+	{
+		recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
+		recvWsa[0].len = ptr->recvBuf->GetFreeSize();
+
+		recvRet = WSARecv(ptr->sock, &recvWsa[0], 1, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
+	}
+
+	if (recvRet == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != WSA_IO_PENDING)
+		{
+			if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+			{
+				// ø¨∞· ≤˜±‚
+				ReleaseSession(ptr);
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 {
 	st_NetHeader header;
 	char tempBuffer[PROTOCOL_MAX_SIZE + 1];
@@ -264,7 +407,7 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 	ptr->recvBuf->MoveRear(cbTransferred);
 
 	int sum = 0;
-	// πﬁ¿∫ µ•¿Ã≈Õ∏¶ ¿¸∫Œ ºˆΩ≈ ∏µπˆ∆€ø°º≠ ª©∞Ì, øœº∫µ» ∆–≈∂µÈ¿ª ¿–¿∏∏Á Send∏µπˆ∆€ø° Enqueue
+	// πﬁ¿∫ µ•¿Ã≈Õ∏¶ ¿¸∫Œ ºˆΩ≈ ∏µπˆ∆€ø°º≠ ª©∏Èº≠ OnRecv»£≠Ñ
 	while (1)
 	{
 		int useSize = ptr->recvBuf->GetUseSize();
@@ -274,8 +417,10 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 		}
 
 		int peekRet = ptr->recvBuf->Peek((char*) & header, sizeof(st_NetHeader));
+		if(peekRet != sizeof(st_NetHeader))
 		{
 			DebugBreak();
+			Disconnect(ptr->ulSessionID);
 			return false;
 		}
 
@@ -286,21 +431,23 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 
 		ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
 		int dequeueRet = ptr->recvBuf->Dequeue(csPacket->GetBufferPtr(), header.shLen);
-		if (dequeueRet != header.shLen + sizeof(st_NetHeader))
+		if (dequeueRet != header.shLen)
 		{
 			DebugBreak();
+			Disconnect(ptr->ulSessionID);
 			return false;
 		}
 
 		csPacket->MoveWritePos(header.shLen);
-		//OnRecv()
+		OnRecv(ptr->ulSessionID, csPacket);
 		csPacket->Clear();
+		InterlockedIncrement((unsigned int*)&_iRecvMessageTPS);
 	}
 
 	return true;
 }
 
-bool SendProc(st_Session* ptr)
+bool CLanServer::SetWSASend(st_Session* ptr)
 {
 	int retval;
 	DWORD sendbytes;
@@ -340,29 +487,19 @@ bool SendProc(st_Session* ptr)
 	return true;
 }
 
-void ReleaseSession(st_Session* ptr)
+void CLanServer::ReleaseSession(st_Session* ptr)
 {
 	EnterCriticalSection(&_sessionMapLock);
-	_sessionMap.erase(ptr->dwSessionID);
+	_sessionMap.erase(ptr->ulSessionID);
 	EnterCriticalSection(&(ptr->CrtLock));
 	LeaveCriticalSection(&(ptr->CrtLock));
 	LeaveCriticalSection(&_sessionMapLock);
 
-	//*
 	DeleteCriticalSection(&(ptr->CrtLock));
 	closesocket(ptr->sock);
 
+	OnRelease(ptr->ulSessionID);
 	delete(ptr->recvBuf);
 	delete(ptr->sendBuf);
 	delete ptr;
-	//*/
-
-	/*
-	closesocket(ptr->sock);
-	ptr->recvBuf->ClearBuffer();
-	ptr->sendBuf->ClearBuffer();
-	EnterCriticalSection(&_poolLock);
-	_sessionPool->Free(ptr);
-	LeaveCriticalSection(&_poolLock);
-	//*/
 }
