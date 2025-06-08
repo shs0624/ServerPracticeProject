@@ -22,6 +22,9 @@
     <Filter Include="Debug">
       <UniqueIdentifier>{8316546d-5820-4d67-b0ba-5897840da161}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Profiler">
+      <UniqueIdentifier>{8a979168-4f02-4ecc-bf94-5ece9b6b57fd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ServerNetworkLib.cpp">
@@ -39,6 +42,9 @@
     <ClCompile Include="EchoServer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="ProcademyProfiler.cpp">
+      <Filter>Profiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CLanServer.h">
@@ -55,6 +61,9 @@
     </ClInclude>
     <ClInclude Include="EchoServer.h">
       <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcademyProfiler.h">
+      <Filter>Profiler</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

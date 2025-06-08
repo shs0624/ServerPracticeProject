@@ -1,4 +1,5 @@
 #include "EchoServer.h"
+#include "ProcademyProfiler.h"
 #include <conio.h>
 
 int main()
@@ -15,6 +16,11 @@ int main()
 			_echoServer->QuitServer();
 			break;
 		}
+		if (ch == 'P' || ch == 'p')
+		{
+			ProfileDataOutText("ProfileData_NoLock.txt");
+		}
+
 	}
 }
 
@@ -30,6 +36,7 @@ void EchoServer::OnRelease(ULONG SessionID)
 
 void EchoServer::OnRecv(ULONG SessionID, CPacket* cpacket)
 {
+	Profiler pro("OnRecv");
 	char temp[PROTOCOL_MAX_SIZE + 1];
 
 	int iSize = cpacket->GetDataSize();

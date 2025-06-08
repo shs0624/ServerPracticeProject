@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include "Debug.h"
 #include "CLanServer.h"
+#include "ProcademyProfiler.h"
 
 SOCKET listen_sock;
 
@@ -119,6 +120,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		return false;
 	}
 
+	Profiler pro("AcceptProc");
 	if (!thisPtr->OnConnectionRequest(clientaddr.sin_addr.S_un.S_addr, clientaddr.sin_port))
 	{
 		return false;
@@ -190,33 +192,37 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		if (&(ptr->recvOverlapped) == pOverlapped)
 		{
 			EnterCriticalSection(&(ptr->CrtLock));
-			if (!(thisPtr->RecvProc(ptr, cbTransferred)))
 			{
-				LeaveCriticalSection(&(ptr->CrtLock));
-				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+				Profiler pro("RecvOverlapped");
+				if (!(thisPtr->RecvProc(ptr, cbTransferred)))
 				{
-					// ¿¬°á ²÷±â
-					thisPtr->ReleaseSession(ptr);
+					LeaveCriticalSection(&(ptr->CrtLock));
+					if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+					{
+						// ¿¬°á ²÷±â
+						thisPtr->ReleaseSession(ptr);
+						continue;
+					}
+				}
+
+				// WSARecv
+				if (!(thisPtr->SetWSARecv(ptr)))
+				{
+					LeaveCriticalSection(&(ptr->CrtLock));
+					if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+					{
+						// ¿¬°á ²÷±â
+						thisPtr->ReleaseSession(ptr);
+					}
 					continue;
 				}
-			}
-
-			// WSARecv
-			if (!(thisPtr->SetWSARecv(ptr)))
-			{
-				LeaveCriticalSection(&(ptr->CrtLock));
-				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
-				{
-					// ¿¬°á ²÷±â
-					thisPtr->ReleaseSession(ptr);
-				}
-				continue;
 			}
 			LeaveCriticalSection(&(ptr->CrtLock));
 		}
 		else
 		{
 			EnterCriticalSection(&(ptr->CrtLock));
+			PRO_BEGIN("SendOverlapped");
 			ptr->sendBuf->MoveFront(cbTransferred);
 			int useSize = ptr->sendBuf->GetUseSize();
 			if (useSize > 0)
@@ -227,6 +233,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			{
 				InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), FALSE);
 			}
+			PRO_END("SendOverlapped");
 			LeaveCriticalSection(&(ptr->CrtLock));
 		}
 
@@ -243,9 +250,12 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 bool CLanServer::Disconnect(ULONG sessionID)
 {
 	st_Session* pSession = NULL;
-	GetSession(sessionID, &pSession);
-	if (pSession == NULL)
-		return false;
+	{
+		Profiler("GetSession");
+		GetSession(sessionID, &pSession);
+		if (pSession == NULL)
+			return false;
+	}
 
 	CPacket packet;
 
@@ -262,9 +272,12 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 	char temp[PROTOCOL_MAX_SIZE + 1];
 
 	st_Session* pSession = NULL;
-	GetSession(sessionID, &pSession);
-	if (pSession == NULL)
-		return false;
+	{
+		Profiler("GetSession");
+		GetSession(sessionID, &pSession);
+		if (pSession == NULL)
+			return false;
+	}
 
 	short shSize = cPacket->GetDataSize();
 	cPacket->GetData(temp, shSize);
@@ -403,38 +416,41 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 	// ¹ÞÀº µ¥ÀÌÅÍ¸¦ ÀüºÎ ¼ö½Å ¸µ¹öÆÛ¿¡¼­ »©¸é¼­ OnRecvÈ£­„
 	while (1)
 	{
-		int useSize = ptr->recvBuf->GetUseSize();
-		if (useSize < sizeof(st_NetHeader))
 		{
-			break;
-		}
+			Profiler pro("RecvProc_loop");
+			int useSize = ptr->recvBuf->GetUseSize();
+			if (useSize < sizeof(st_NetHeader))
+			{
+				break;
+			}
 
-		int peekRet = ptr->recvBuf->Peek((char*) & header, sizeof(st_NetHeader));
-		if(peekRet != sizeof(st_NetHeader))
-		{
-			DebugBreak();
-			Disconnect(ptr->ulSessionID);
-			return false;
-		}
+			int peekRet = ptr->recvBuf->Peek((char*)&header, sizeof(st_NetHeader));
+			if (peekRet != sizeof(st_NetHeader))
+			{
+				DebugBreak();
+				Disconnect(ptr->ulSessionID);
+				return false;
+			}
 
-		if (ptr->recvBuf->GetUseSize() < header.shLen + sizeof(st_NetHeader))
-		{
-			break;
-		}
+			if (ptr->recvBuf->GetUseSize() < header.shLen + sizeof(st_NetHeader))
+			{
+				break;
+			}
 
-		ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
-		int dequeueRet = ptr->recvBuf->Dequeue(csPacket->GetBufferPtr(), header.shLen);
-		if (dequeueRet != header.shLen)
-		{
-			DebugBreak();
-			Disconnect(ptr->ulSessionID);
-			return false;
-		}
+			ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
+			int dequeueRet = ptr->recvBuf->Dequeue(csPacket->GetBufferPtr(), header.shLen);
+			if (dequeueRet != header.shLen)
+			{
+				DebugBreak();
+				Disconnect(ptr->ulSessionID);
+				return false;
+			}
 
-		csPacket->MoveWritePos(header.shLen);
-		OnRecv(ptr->ulSessionID, csPacket);
-		csPacket->Clear();
-		InterlockedIncrement((unsigned int*)&_iRecvMessageTPS);
+			csPacket->MoveWritePos(header.shLen);
+			OnRecv(ptr->ulSessionID, csPacket);
+			csPacket->Clear();
+			InterlockedIncrement((unsigned int*)&_iRecvMessageTPS);
+		}
 	}
 
 	return true;
@@ -489,6 +505,7 @@ void CLanServer::ReleaseSession(st_Session* ptr)
 	LeaveCriticalSection(&_sessionMapLock);
 
 	DeleteCriticalSection(&(ptr->CrtLock));
+	Profiler pro("ReleaseSession");
 	closesocket(ptr->sock);
 
 	_iSessionCount--;

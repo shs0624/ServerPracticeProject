@@ -132,6 +132,7 @@
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
     <ClCompile Include="EchoServer.cpp" />
+    <ClCompile Include="ProcademyProfiler.cpp" />
     <ClCompile Include="ServerNetworkLib.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -140,6 +141,7 @@
     <ClInclude Include="CSerializationBuffer.h" />
     <ClInclude Include="Debug.h" />
     <ClInclude Include="EchoServer.h" />
+    <ClInclude Include="ProcademyProfiler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
