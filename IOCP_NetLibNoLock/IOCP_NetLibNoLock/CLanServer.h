@@ -22,6 +22,7 @@ struct st_Session
 	CRITICAL_SECTION CrtLock;
 	DWORD dwIOCount;
 	BOOL bSendFlag;
+	BOOL bSessionUsing;
 };
 
 class CLanServer
@@ -30,6 +31,7 @@ public:
 	bool Start(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection);
 	void Stop();
 	int GetSessionCount();
+	virtual void QuitServer();
 
 	bool Disconnect(ULONG sessionID);
 	bool SendPacket(ULONG sessionID, CPacket* cPacket);
@@ -51,16 +53,20 @@ public:
 	//	virtual void OnWorkerThreadEnd() = 0;                      < 워커스레드 1루프 종료 후
 	virtual void OnError(int errorcode, WCHAR* message) = 0; 
 protected:
+	int _workerCount;
 	int _iSessionCount;
+	int _imaxConnection;
 	int _iAcceptTPS;
 	int _iRecvMessageTPS;
 	int _iSendMessageTPS;
 
 	HANDLE _hTPSUpdateEvent;
 
-	DWORD _threadID = 0;
-	std::unordered_map<ULONG, st_Session*> _sessionMap;
-	CRITICAL_SECTION _sessionMapLock;
+	DWORD _threadID = 1;
+	st_Session* _sessionArr;
+
+	// 초기화 함수
+	void InitializeSessions(int maxConnection);
 
 	// 스레드 함수들
 	static unsigned int WINAPI TPSThread(LPVOID arg);

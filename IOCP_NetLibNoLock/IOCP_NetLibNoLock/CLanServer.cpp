@@ -18,11 +18,13 @@ unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
 unsigned int _iocpWorkerThreadID[50];
 
+bool _bServerEnabled = true;
+
 bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection)
 {
 	int retval;
-	_iSessionCount = 0;
-	InitializeCriticalSection(&_sessionMapLock);
+
+	InitializeSessions(maxConnection);
 
 	// 윈속 초기화
 	WSADATA wsa;
@@ -57,10 +59,6 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 	if (retval == SOCKET_ERROR)
 		err_quit("listen()");
 
-	//CPU 개수 확인
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
-
 	_acceptThreadHandle = (HANDLE)_beginthreadex(NULL, 0, AcceptThread, (LPVOID)this, 0, &_acceptThreadID);
 	if (_acceptThreadHandle == NULL)
 		return 1;
@@ -70,6 +68,7 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 	if (_tpsThreadHandle == NULL)
 		return 1;
 
+	_workerCount = workerCount;
 	for (int i = 0; i < workerCount; i++)
 	{
 		_iocpWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, (LPVOID)this, 0, &_iocpWorkerThreadID[i]);
@@ -78,6 +77,24 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 	}
 
 	printf("\n[TCP 서버] 시작\n");
+}
+
+void CLanServer::InitializeSessions(int maxConnection)
+{
+	_iSessionCount = 0;
+	_imaxConnection = maxConnection;
+	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * maxConnection);
+
+	for (int i = 0; i < _imaxConnection; i++)
+	{
+		ZeroMemory(&_sessionArr[i].recvOverlapped, sizeof(_sessionArr[i].recvOverlapped));
+		ZeroMemory(&_sessionArr[i].sendOverlapped, sizeof(_sessionArr[i].sendOverlapped));
+		_sessionArr[i].bSendFlag = false;
+		_sessionArr[i].bSessionUsing = false;
+		_sessionArr[i].recvBuf = new CRingBuffer(15000);
+		_sessionArr[i].sendBuf = new CRingBuffer(15000);
+		InitializeCriticalSection(&(_sessionArr[i].CrtLock));
+	}
 }
 
 unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
@@ -94,11 +111,15 @@ unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 
 	while (1)
 	{
+		st_Session* ptr = NULL;
+
 		//accept()
 		if (!(thisPtr->AcceptProc(thisPtr)))
 		{
 			continue;
 		}
+		
+		//thisPtr->SetWSARecv(ptr);
 	}
 
 	return 0;
@@ -122,34 +143,37 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	if (!thisPtr->OnConnectionRequest(clientaddr.sin_addr.S_un.S_addr, clientaddr.sin_port))
 	{
 		return false;
+	}	
+
+	// 사용 안하는 세션 찾아서 등록
+	int index = 0;
+	for (int i = 0; i < _imaxConnection; i++)
+	{
+		if (!_sessionArr[i].bSessionUsing)
+		{
+			index = i;
+
+			ZeroMemory(&_sessionArr[i].recvOverlapped, sizeof(_sessionArr[i].recvOverlapped));
+			ZeroMemory(&_sessionArr[i].sendOverlapped, sizeof(_sessionArr[i].sendOverlapped));
+			_sessionArr[i].ulSessionID = _threadID++;
+			_sessionArr[i].dwIOCount = 0;
+			_sessionArr[i].bSendFlag = false;
+			_sessionArr[i].sock = client_sock;
+			_sessionArr[i].recvBuf->ClearBuffer();
+			_sessionArr[i].sendBuf->ClearBuffer();
+
+			// 소켓을 IOCP에 등록
+			CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)&_sessionArr[i], 0);
+			_sessionArr[i].bSessionUsing = true;
+			break;
+		}
 	}
-
-	st_Session* newPtr = new st_Session;
-	if (newPtr == NULL)
-		return false;
-
-	// 소켓을 IOCP에 등록
-	CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)newPtr, 0);
-
-	ZeroMemory(&newPtr->recvOverlapped, sizeof(newPtr->recvOverlapped));
-	ZeroMemory(&newPtr->sendOverlapped, sizeof(newPtr->sendOverlapped));
-	newPtr->ulSessionID = _threadID++;
-	newPtr->dwIOCount = 0;
-	newPtr->bSendFlag = false;
-	newPtr->sock = client_sock;
-	newPtr->recvBuf = new CRingBuffer(15000);
-	newPtr->sendBuf = new CRingBuffer(15000);
-	InitializeCriticalSection(&(newPtr->CrtLock));
-
-	EnterCriticalSection(&_sessionMapLock);
-	_sessionMap.insert({ newPtr->ulSessionID, newPtr });
-	LeaveCriticalSection(&_sessionMapLock);
 
 	thisPtr->OnAccept();
 	_iSessionCount++;
 	InterlockedIncrement((unsigned int*) & _iAcceptTPS);
 
-	SetWSARecv(newPtr);
+	SetWSARecv(&_sessionArr[index]);
 
 	return true;
 }
@@ -174,12 +198,13 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		if (pOverlapped == 0 && cbTransferred == 0 && ptr == 0)
 		{
 			// 종료
+			printf("IOCP Worker Thread Exit\n");
 			break;
 		}
 
 		if (retval == 0 || cbTransferred == 0)
 		{
-			if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 			{
 				// 연결 끊기
 				thisPtr->ReleaseSession(ptr);
@@ -189,30 +214,26 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 
 		if (&(ptr->recvOverlapped) == pOverlapped)
 		{
-			EnterCriticalSection(&(ptr->CrtLock));
 			if (!(thisPtr->RecvProc(ptr, cbTransferred)))
 			{
-				LeaveCriticalSection(&(ptr->CrtLock));
-				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
-				{
-					// 연결 끊기
-					thisPtr->ReleaseSession(ptr);
-					continue;
-				}
-			}
-
-			// WSARecv
-			if (!(thisPtr->SetWSARecv(ptr)))
-			{
-				LeaveCriticalSection(&(ptr->CrtLock));
-				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+				if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 				{
 					// 연결 끊기
 					thisPtr->ReleaseSession(ptr);
 				}
 				continue;
 			}
-			LeaveCriticalSection(&(ptr->CrtLock));
+
+			// WSARecv
+			if (!(thisPtr->SetWSARecv(ptr)))
+			{
+				if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+				{
+					// 연결 끊기
+					thisPtr->ReleaseSession(ptr);
+				}
+				continue;
+			}
 		}
 		else
 		{
@@ -225,12 +246,12 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			}
 			else
 			{
-				InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), FALSE);
+				InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 			}
 			LeaveCriticalSection(&(ptr->CrtLock));
 		}
 
-		if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
 			// 연결 끊기
 			thisPtr->ReleaseSession(ptr);
@@ -238,6 +259,29 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 	}
 
 	return 1;
+}
+
+void CLanServer::QuitServer()
+{
+	printf("CLanServer::Quit();\n");
+	for (int i = 0; i < _workerCount; i++)
+	{
+		PostQueuedCompletionStatus(_iocpHandle, 0, 0, 0);
+	}
+
+	for (int i = 0; i < _imaxConnection; i++)
+	{
+		if (_sessionArr[i].bSessionUsing)
+		{
+			EnterCriticalSection(&_sessionArr[i].CrtLock);
+			LeaveCriticalSection(&_sessionArr[i].CrtLock);
+		}
+
+		DeleteCriticalSection(&_sessionArr[i].CrtLock);
+		closesocket(_sessionArr[i].sock);
+		delete(_sessionArr[i].recvBuf);
+		delete(_sessionArr[i].sendBuf);
+	}
 }
 
 bool CLanServer::Disconnect(ULONG sessionID)
@@ -253,7 +297,6 @@ bool CLanServer::Disconnect(ULONG sessionID)
 	packet.Clear();
 
 	SendPacket(sessionID, &packet);
-
 	return true;
 }
 
@@ -301,7 +344,7 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 		return false;
 	}
 
-	if (InterlockedExchange((ULONGLONG*)&(pSession->bSendFlag), TRUE) != TRUE)
+	if (InterlockedExchange((LONG*)&(pSession->bSendFlag), TRUE) != TRUE)
 	{
 		SetWSASend(pSession);
 	}
@@ -314,17 +357,16 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 
 void CLanServer::GetSession(ULONG ulSessionID, st_Session** pSession)
 {
-	EnterCriticalSection(&_sessionMapLock);
-	std::unordered_map<ULONG, st_Session*>::iterator it = _sessionMap.find(ulSessionID);
-	if (it == _sessionMap.end())
+	for (int i = 0; i < _imaxConnection; i++)
 	{
-		LeaveCriticalSection(&_sessionMapLock);
-		*pSession = NULL;
-		return;
+		if (_sessionArr[i].bSessionUsing && _sessionArr[i].ulSessionID == ulSessionID)
+		{
+			*pSession = &_sessionArr[i];
+			return;
+		}
 	}
 
-	*pSession = (it->second);
-	LeaveCriticalSection(&_sessionMapLock);
+	*pSession = NULL;
 	return;
 }
 
@@ -354,7 +396,7 @@ bool CLanServer::SetWSARecv(st_Session* ptr)
 	DWORD flags = 0, recvbytes = 0;
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
-	InterlockedIncrement((ULONGLONG*)&(ptr->dwIOCount));
+	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
 	if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
 	{
 		// 두개로 나눠 받아야 함
@@ -378,7 +420,7 @@ bool CLanServer::SetWSARecv(st_Session* ptr)
 	{
 		if (WSAGetLastError() != WSA_IO_PENDING)
 		{
-			if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 			{
 				// 연결 끊기
 				ReleaseSession(ptr);
@@ -482,18 +524,12 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 
 void CLanServer::ReleaseSession(st_Session* ptr)
 {
-	EnterCriticalSection(&_sessionMapLock);
-	_sessionMap.erase(ptr->ulSessionID);
 	EnterCriticalSection(&(ptr->CrtLock));
 	LeaveCriticalSection(&(ptr->CrtLock));
-	LeaveCriticalSection(&_sessionMapLock);
 
-	DeleteCriticalSection(&(ptr->CrtLock));
 	closesocket(ptr->sock);
-
-	_iSessionCount--;
 	OnRelease(ptr->ulSessionID);
-	delete(ptr->recvBuf);
-	delete(ptr->sendBuf);
-	delete ptr;
+	ptr->recvBuf->ClearBuffer();
+	ptr->sendBuf->ClearBuffer();
+	ptr->bSessionUsing = false;
 }
