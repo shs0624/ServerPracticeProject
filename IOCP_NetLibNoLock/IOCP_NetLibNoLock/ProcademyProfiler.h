@@ -13,15 +13,15 @@
 class Profiler
 {
 public:
-	Profiler(const char* tag);
+	Profiler(const WCHAR* tag);
 	~Profiler();
 private:
-	const char* tag;
+	const WCHAR* tag;
 };
 
-void ProfileBegin(const CHAR* tagName);
+void ProfileBegin(const WCHAR* tagName);
 
-void ProfileEnd(const CHAR* tagName);
+void ProfileEnd(const WCHAR* tagName);
 
 void ProfileDataOutText(const CHAR* szFileName);
 

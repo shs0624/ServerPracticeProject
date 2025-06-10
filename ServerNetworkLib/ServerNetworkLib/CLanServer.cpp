@@ -8,6 +8,7 @@
 #include "CLanServer.h"
 #include "ProcademyProfiler.h"
 
+procademy::CCrashDump cCrashDump;
 SOCKET listen_sock;
 
 HANDLE _tpsThreadHandle;

@@ -42,6 +42,9 @@
     <ClCompile Include="ProcademyProfiler.cpp">
       <Filter>Profiler</Filter>
     </ClCompile>
+    <ClCompile Include="CCrashDump.h">
+      <Filter>Debug</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CLanServer.h">

@@ -1,15 +1,22 @@
 ﻿#include "ProcademyProfiler.h"
 #include <iostream>
+#include <unordered_map>
 #define STRUCT_ARR_MAX 50
+#define THREAD_ARR_MAX 200
 
 CHAR _Line[200] = "--------------------------------------------------------------------------------------------------\n";
 CHAR _Header[200] = "               Name |          Average |             Min |              Max |       Call |\n";
 
-struct Profile_Struct
+struct stProfile_Count
 {
+	WCHAR _Tag[64];
+	LARGE_INTEGER _StartTime;
 	bool _IsUsing = false;
-	bool _IsCounting = false;
-	CHAR _Tag[64];
+};
+
+struct stProfile_Result
+{
+	WCHAR _Tag[64];
 	LARGE_INTEGER _StartTime;
 	__int64 _TotalTime;
 	__int64 _MinTime;
@@ -17,9 +24,9 @@ struct Profile_Struct
 	__int64 _CallCount;
 };
 
-void ProfileBegin(const CHAR* tagName);
+void ProfileBegin(const WCHAR* tagName);
 
-void ProfileEnd(const CHAR* tagName);
+void ProfileEnd(const WCHAR* tagName);
 
 void ProfileDataOutText(const CHAR* szFileName);
 
@@ -32,127 +39,155 @@ public:
 	{
 		QueryPerformanceFrequency(&_Freq);
 	}
-
-	bool FindProfile(int* idx, const CHAR* tag)
+	 
+	bool FindProfile(DWORD threadID, const WCHAR* tag, stProfile_Count** pProfile)
 	{
-		for (int i = 0; i < STRUCT_ARR_MAX; i++)
+		std::unordered_map<DWORD, stProfile_Count*>::iterator it;
+		it = _CountMap.find(threadID);
+		if (it != _CountMap.end())
 		{
-			if (false == _ProfileArr[i]._IsUsing)
+			// threadID는 등록되어 있음
+			stProfile_Count* ptr = it->second;
+			for (int i = 0; i < STRUCT_ARR_MAX; i++)
 			{
-				continue;
+				if (wcscmp((ptr + i)->_Tag, tag))
+				{
+					(*pProfile) = (ptr + i);
+					return true;
+				}
 			}
-
-			if (!strcmp(_ProfileArr[i]._Tag, tag))
-			{
-				*idx = i;
-				return true;
-			}
+		}
+		else
+		{
+			// CountMap에 스레드ID는 추가
+			stProfile_Count* arr = (stProfile_Count*)malloc(sizeof(stProfile_Count) * THREAD_ARR_MAX);
+			_CountMap.insert({ threadID, arr });
+			(*pProfile) = arr;
 		}
 
 		return false;
 	}
 
-	void AddProfile(int* idx, LARGE_INTEGER starTime, const CHAR* tag)
+	void AddCountProfile(DWORD threadID, stProfile_Count** pProfile, const WCHAR* tag)
 	{
-		*idx = -1;
-		for (int i = 0; i < STRUCT_ARR_MAX; i++)
+		std::unordered_map<DWORD, stProfile_Count*>::iterator it;
+		it = _CountMap.find(threadID);
+		if (it != _CountMap.end())
 		{
-			if (false == _ProfileArr[i]._IsUsing)
+			// 있음
+			stProfile_Count* ptr = it->second;
+			for (int i = 0; i < THREAD_ARR_MAX; i++)
 			{
-				*idx = i;
+				if ((ptr + i)->_IsUsing == true)
+					continue;
+
+				(ptr + i)->_IsUsing = true;
+				//(ptr + i)->_StartTime = starTime;
+				wcscpy_s((ptr + i)->_Tag, 64, tag);
+				*pProfile = (ptr + i);
 				break;
 			}
 		}
-
-		if (*idx == -1)
+		else
 		{
-			throw -1;
+			DebugBreak();
 		}
-
-		_ProfileArr[*idx]._IsUsing = true;
-		_ProfileArr[*idx]._StartTime = starTime;
-		_ProfileArr[*idx]._MinTime = LLONG_MAX;
-		_ProfileArr[*idx]._TotalTime = 0;
-		_ProfileArr[*idx]._CallCount = 0;
-		strcpy_s(_ProfileArr[*idx]._Tag, 64, tag);
 	}
 
-	bool BeginCount(int idx, LARGE_INTEGER starTime)
+	bool BeginCount(DWORD threadID, stProfile_Count* pProfile)
 	{
-		if (true == _ProfileArr[idx]._IsCounting)
+		if (false == pProfile->_IsUsing)
 		{
 			return false;
 		}
 
-		_ProfileArr[idx]._StartTime = starTime;
-		_ProfileArr[idx]._IsCounting = true;
+		QueryPerformanceCounter(&(pProfile->_StartTime));
+		pProfile->_IsUsing = true;
 		return true;
 	}
 
-	bool EndCount(int idx, LARGE_INTEGER endTime)
+	bool EndCount(stProfile_Count* pProfile, LARGE_INTEGER endTime)
 	{
-		if (false == _ProfileArr[idx]._IsCounting)
+		if (false == pProfile->_IsUsing)
 		{
 			return false;
 		}
 
-		__int64 time = endTime.QuadPart - _ProfileArr[idx]._StartTime.QuadPart;
-		_ProfileArr[idx]._TotalTime += time;
-		_ProfileArr[idx]._MaxTime = max(_ProfileArr[idx]._MaxTime, time);
-		_ProfileArr[idx]._MinTime = min(_ProfileArr[idx]._MinTime, time);
-		_ProfileArr[idx]._CallCount++;
-		_ProfileArr[idx]._IsCounting = false;
+		SaveCount(pProfile, endTime);
+		return true;
+	}
 
+	bool SaveCount(stProfile_Count* pProfile, LARGE_INTEGER endTime)
+	{
+		__int64 time = endTime.QuadPart - pProfile->_StartTime.QuadPart;
+
+		std::unordered_map<WCHAR*, stProfile_Result*>::iterator it;
+		it = _ResultMap.find(pProfile->_Tag);
+
+		stProfile_Result* ptr;
+		if (it == _ResultMap.end())
+		{
+			ptr = new stProfile_Result;
+			_ResultMap.insert({ pProfile->_Tag, ptr });
+		}
+		else
+		{
+			ptr = it->second;
+		}
+
+		// 결과를 저장
+		ptr->_TotalTime += time;
+		ptr->_MaxTime = max(ptr->_MaxTime, time);
+		ptr->_MinTime = min(ptr->_MinTime, time);
+		ptr->_CallCount++;
 		return true;
 	}
 
 	void WriteFile(FILE* file)
 	{
-		for (int i = 0; i < STRUCT_ARR_MAX; i++)
+		stProfile_Result* ptr;
+		std::unordered_map<WCHAR*, stProfile_Result*>::iterator it;
+		for (it = _ResultMap.begin(); it != _ResultMap.end(); it++)
 		{
-			if (false == _ProfileArr[i]._IsUsing)
-			{
-				continue;
-			}
+			ptr = it->second;
 
-			// 사용중인 배열이면, 계산 후 받은 파일에 정보 fwrite
 			// 1 마이크로 세컨드 = 100만분의 1초, 1초 = 100만 마이크로 세컨드, 0.1초 = 10만 마이크로 세컨드
 			//  Freq로 나눠서 초단위로 변환하고, 100만을 곱해주면 그게 마이크로 세컨드.
 			CHAR context[200];
-			double average = _ProfileArr[i]._TotalTime - (_ProfileArr[i]._MaxTime + _ProfileArr[i]._MinTime);
-			average = ((average / (_ProfileArr[i]._CallCount - 2))) * (1000000.0f / (float)_Freq.QuadPart);
-			double min = (double)((double)_ProfileArr[i]._MinTime) * (1000000.0f / (float)_Freq.QuadPart);
-			double max = (double)((double)_ProfileArr[i]._MaxTime) * (1000000.0f / (float)_Freq.QuadPart);
+			double average = ptr->_TotalTime - (ptr->_MaxTime + ptr->_MinTime);
+			average = ((average / (ptr->_CallCount - 2))) * (1000000.0f / (float)_Freq.QuadPart);
+			double min = (double)((double)ptr->_MinTime) * (1000000.0f / (float)_Freq.QuadPart);
+			double max = (double)((double)ptr->_MaxTime) * (1000000.0f / (float)_Freq.QuadPart);
 			sprintf_s(context, 200, "%20s | %.4f㎲ | %.4f㎲ | %.4f㎲ | %lld\n",
-				_ProfileArr[i]._Tag, average, min, max, _ProfileArr[i]._CallCount);
+				ptr->_Tag, average, min, max, ptr->_CallCount);
 			fwrite(&context, strlen(context), 1, file);
 		}
 	}
 
 	void ResetProfiles()
 	{
-		for (int i = 0; i < STRUCT_ARR_MAX; i++)
-		{
-			if (false == _ProfileArr[i]._IsUsing)
-			{
-				continue;
-			}
+		std::unordered_map<WCHAR*, stProfile_Result*>::iterator it;
 
-			_ProfileArr[i]._TotalTime = 0;
-			_ProfileArr[i]._MaxTime = 0;
-			_ProfileArr[i]._MinTime = LLONG_MAX;
-			_ProfileArr[i]._CallCount = 0;
+		for (it = _ResultMap.begin(); it != _ResultMap.end(); it++)
+		{
+			it->second->_TotalTime = 0;
+			it->second->_MaxTime = 0;
+			it->second->_MinTime = LLONG_MAX;
+			it->second->_CallCount = 0;
 		}
 	}
 
 private:
-	Profile_Struct _ProfileArr[STRUCT_ARR_MAX];
+	// 스레드ID - 카운트용 배열로 매핑된 Map
+	std::unordered_map<DWORD, stProfile_Count*> _CountMap;
+	// Tag - 결과 구조체로 매핑된 Map
+	std::unordered_map<WCHAR*, stProfile_Result*> _ResultMap;
 	LARGE_INTEGER _Freq;
 };
 
 PrivateProfiler _Profiler;
 
-Profiler::Profiler(const char* tag)
+Profiler::Profiler(const WCHAR* tag)
 {
 	PRO_BEGIN(tag);
 	this->tag = tag;
@@ -163,40 +198,40 @@ Profiler::~Profiler()
 	PRO_END(tag);
 }
 
-void ProfileBegin(const CHAR* tagName)
+void ProfileBegin(const WCHAR* tagName)
 {
 	int idx;
-	LARGE_INTEGER startTime;
+	stProfile_Count* pProfile = NULL;
 
-	QueryPerformanceCounter(&startTime);
-	if (false == _Profiler.FindProfile(&idx, tagName))
+	if (false == _Profiler.FindProfile(GetCurrentThreadId(), tagName, &pProfile))
 	{
 		//구조체 추가
-		_Profiler.AddProfile(&idx, startTime, tagName);
+		_Profiler.AddCountProfile(GetCurrentThreadId(), &pProfile, tagName);
 	}
 
 	// Begin-Begin 구조인지 확인
-	if (false == _Profiler.BeginCount(idx, startTime))
+	if (false == _Profiler.BeginCount(GetCurrentThreadId(), pProfile))
 	{
 		// Begin-Begin구조면 크래쉬
 		throw 1;
 	}
 }
 
-void ProfileEnd(const CHAR* tagName)
+void ProfileEnd(const WCHAR* tagName)
 {
 	int idx;
 	LARGE_INTEGER endTime;
+	stProfile_Count* pProfile = NULL;
 
 	QueryPerformanceCounter(&endTime);
-	if (false == _Profiler.FindProfile(&idx, tagName))
+	if (false == _Profiler.FindProfile(GetCurrentThreadId(), tagName, &pProfile))
 	{
 		// 없는 태그를 End했음. 이걸 알려야 할까?
 		DebugBreak();
 		return;
 	}
 
-	if (false == _Profiler.EndCount(idx, endTime))
+	if (false == _Profiler.EndCount(pProfile, endTime))
 	{
 		// End-End 구조면 크래쉬
 		throw 1;

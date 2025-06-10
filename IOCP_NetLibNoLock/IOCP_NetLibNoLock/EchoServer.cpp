@@ -14,7 +14,7 @@ int main()
 		if (ch == 'Q' || ch == 'q')
 		{
 			_echoServer->QuitServer();
-			break;
+			//break;
 		}
 		if (ch == 'P' || ch == 'p')
 		{
@@ -36,7 +36,7 @@ void EchoServer::OnRelease(ULONG SessionID)
 
 void EchoServer::OnRecv(ULONG SessionID, CPacket* cpacket)
 {
-	Profiler pro("OnRecv");
+	//Profiler pro(L"OnRecv");
 	char temp[PROTOCOL_MAX_SIZE + 1];
 
 	int iSize = cpacket->GetDataSize();

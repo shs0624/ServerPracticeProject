@@ -7,7 +7,12 @@
 #include "Debug.h"
 #include "CLanServer.h"
 #include "ProcademyProfiler.h"
+#include <crtdbg.h>
+#include <iostream>
+#include <minidumpapiset.h>
+#include "CCrashDump.h"
 
+procademy::CCrashDump cCrashDump;
 SOCKET listen_sock;
 
 HANDLE _tpsThreadHandle;
@@ -141,7 +146,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		return false;
 	}
 	{
-		Profiler pro("AcceptProc");
+		//Profiler pro(L"AcceptProc");
 		if (!thisPtr->OnConnectionRequest(clientaddr.sin_addr.S_un.S_addr, clientaddr.sin_port))
 		{
 			return false;
@@ -217,7 +222,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		if (&(ptr->recvOverlapped) == pOverlapped)
 		{
 			{
-				Profiler pro("RecvOverlapped");
+				//Profiler pro(L"RecvOverlapped");
 				if (!(thisPtr->RecvProc(ptr, cbTransferred)))
 				{
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
@@ -243,7 +248,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		else
 		{
 			EnterCriticalSection(&(ptr->CrtLock));
-			PRO_BEGIN("SendOverlapped");
+			//PRO_BEGIN(L"SendOverlapped");
 			ptr->sendBuf->MoveFront(cbTransferred);
 			int useSize = ptr->sendBuf->GetUseSize();
 			if (useSize > 0)
@@ -254,7 +259,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			{
 				InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 			}
-			PRO_END("SendOverlapped");
+			//PRO_END(L"SendOverlapped");
 			LeaveCriticalSection(&(ptr->CrtLock));
 		}
 
@@ -271,23 +276,22 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 void CLanServer::QuitServer()
 {
 	printf("CLanServer::Quit();\n");
-	for (int i = 0; i < _workerCount; i++)
-	{
-		PostQueuedCompletionStatus(_iocpHandle, 0, 0, 0);
-	}
-
 	for (int i = 0; i < _imaxConnection; i++)
 	{
-		if (_sessionArr[i].bSessionUsing)
-		{
-			EnterCriticalSection(&_sessionArr[i].CrtLock);
-			LeaveCriticalSection(&_sessionArr[i].CrtLock);
-		}
+		//if (_sessionArr[i].bSessionUsing)
+		//{
+		//	EnterCriticalSection(&_sessionArr[i].CrtLock);
+		//	LeaveCriticalSection(&_sessionArr[i].CrtLock);
+		//}
 
-		DeleteCriticalSection(&_sessionArr[i].CrtLock);
 		closesocket(_sessionArr[i].sock);
 		delete(_sessionArr[i].recvBuf);
 		delete(_sessionArr[i].sendBuf);
+	}
+
+	for (int i = 0; i < _workerCount; i++)
+	{
+		PostQueuedCompletionStatus(_iocpHandle, 0, 0, 0);
 	}
 }
 
@@ -313,7 +317,7 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 
 	st_Session* pSession = NULL;
 	{
-		Profiler("GetSession");
+		//Profiler(L"GetSession");
 		GetSession(sessionID, &pSession);
 		if (pSession == NULL)
 			return false;
@@ -456,7 +460,7 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 	while (1)
 	{
 		{
-			Profiler pro("RecvPro_loop");
+			//Profiler pro(L"RecvPro_loop");
 			int useSize = ptr->recvBuf->GetUseSize();
 			if (useSize < sizeof(st_NetHeader))
 			{
@@ -537,7 +541,7 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 
 void CLanServer::ReleaseSession(st_Session* ptr)
 {
-	Profiler pro("ReleaseSession");
+	//Profiler pro(L"ReleaseSession");
 	EnterCriticalSection(&(ptr->CrtLock));
 	LeaveCriticalSection(&(ptr->CrtLock));
 
