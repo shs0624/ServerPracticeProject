@@ -1,6 +1,7 @@
 #pragma once
 #include "CSerializationBuffer.h"
 #include "CRingBuffer.h"
+#include <stack>
 #define PROTOCOL_MAX_SIZE 16
 
 #pragma pack(1)
@@ -14,11 +15,12 @@ struct st_Session
 {
 	OVERLAPPED sendOverlapped;
 	OVERLAPPED recvOverlapped;
-	ULONG ulSessionID;
+	ULONGLONG ulSessionID;
 	SOCKET sock;
 	CRingBuffer* sendBuf;
 	CRingBuffer* recvBuf;
 
+	WORD wIndex;
 	DWORD dwIOCount;
 	BOOL bSendFlag;
 	BOOL bSessionUsing;
@@ -27,13 +29,13 @@ struct st_Session
 class CLanServer
 {
 public:
-	bool Start(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection);
+	bool Start(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, WORD maxConnection);
 	void Stop();
 	int GetSessionCount();
 	virtual void QuitServer();
 
-	bool Disconnect(ULONG sessionID);
-	bool SendPacket(ULONG sessionID, CPacket* cPacket);
+	bool Disconnect(ULONGLONG sessionID);
+	bool SendPacket(ULONGLONG sessionID, CPacket* cPacket);
 
 	int getAcceptTPS() { return _iAcceptTPS; }
 	int getRecvMessageTPS() { return _iRecvMessageTPS; }
@@ -43,9 +45,9 @@ public:
 	//virtual void OnClientJoin(Client 정보 / SessionID / 기타등등) = 0;
 	virtual void OnAccept() = 0; // Accept 후 접속처리 완료 후 호출
 
-	virtual void OnRelease(ULONG SessionID) = 0;
+	virtual void OnRelease(ULONGLONG SessionID) = 0;
 
-	virtual void OnRecv(ULONG SessionID, CPacket* cpacket) = 0;
+	virtual void OnRecv(ULONGLONG SessionID, CPacket* cpacket) = 0;
 	//virtual void OnMessage() = 0;
 
 	//	virtual void OnWorkerThreadBegin() = 0;                    < 워커스레드 GQCS 바로 하단에서 호출
@@ -61,11 +63,13 @@ protected:
 
 	HANDLE _hTPSUpdateEvent;
 
-	DWORD _threadID = 1;
+	// 상위 2바이트 = 인덱스 / 하위 6바이트는 스레드ID
+	ULONGLONG _threadID = 0;
 	st_Session* _sessionArr;
+	std::stack<WORD> _indexStack;
 
 	// 초기화 함수
-	void InitializeSessions(int maxConnection);
+	void InitializeSessions(WORD maxConnection);
 
 	// 스레드 함수들
 	static unsigned int WINAPI TPSThread(LPVOID arg);
@@ -73,7 +77,7 @@ protected:
 	static unsigned int WINAPI IOCPWorkerThread(LPVOID arg);
 
 	// 메세지 처리를 위한 함수
-	void GetSession(ULONG ulSessionID, st_Session** pSession);
+	void GetSession(ULONGLONG ulSessionID, st_Session** pSession);
 	bool AcceptProc(CLanServer* thisPtr);
 	bool SetWSARecv(st_Session* ptr);
 	bool SetWSASend(st_Session* ptr);

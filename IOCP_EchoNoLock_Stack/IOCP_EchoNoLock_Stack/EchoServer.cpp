@@ -1,4 +1,3 @@
-#include <unordered_map>
 #include "EchoServer.h"
 #include "ProcademyProfiler.h"
 #include <conio.h>
@@ -13,11 +12,15 @@ int main()
 		// ÄÁÆ®·Ñ?
 		ch = _getch();
 		if (ch == 'Q' || ch == 'q')
-			break;
+		{
+			_echoServer->QuitServer();
+			//break;
+		}
 		if (ch == 'P' || ch == 'p')
 		{
-			ProfileDataOutText("ProfileData.txt");
+			ProfileDataOutText("ProfileData_NoLock.txt");
 		}
+
 	}
 }
 
@@ -26,14 +29,14 @@ void EchoServer::OnAccept()
 
 }
 
-void EchoServer::OnRelease(ULONG SessionID)
+void EchoServer::OnRelease(ULONGLONG SessionID)
 {
 
 }
 
-void EchoServer::OnRecv(ULONG SessionID, CPacket* cpacket)
+void EchoServer::OnRecv(ULONGLONG SessionID, CPacket* cpacket)
 {
-	//Profiler pro("OnRecv");
+	//Profiler pro(L"OnRecv");
 	char temp[PROTOCOL_MAX_SIZE + 1];
 
 	int iSize = cpacket->GetDataSize();

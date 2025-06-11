@@ -14,47 +14,27 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="CRingBuffer">
-      <UniqueIdentifier>{3604525d-fdfc-4a02-8e56-78f96acfd73f}</UniqueIdentifier>
+      <UniqueIdentifier>{f3d1d1b9-43cb-48de-91cd-57f340a28775}</UniqueIdentifier>
     </Filter>
     <Filter Include="CPacket">
-      <UniqueIdentifier>{1fe3e366-b1a7-42f8-b3b2-7f8bec46d3d5}</UniqueIdentifier>
+      <UniqueIdentifier>{f07f5342-2f26-4e9c-aca9-55c419c46944}</UniqueIdentifier>
     </Filter>
     <Filter Include="Debug">
-      <UniqueIdentifier>{eb21903f-d8a3-47b5-b185-d64d6ddb05ae}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Profiler">
-      <UniqueIdentifier>{5c0756f3-9bd7-461d-82b7-2520ca7c6906}</UniqueIdentifier>
+      <UniqueIdentifier>{bf4f4c9d-c441-4ee4-b4ff-27469b8e66d5}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CLanServer.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="CSerializationBuffer.cpp">
-      <Filter>CPacket</Filter>
-    </ClCompile>
-    <ClCompile Include="EchoServer.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="CCrashDump.h">
+    <ClInclude Include="CCrashDump.h">
       <Filter>Debug</Filter>
-    </ClCompile>
-    <ClCompile Include="ProcademyProfiler_temp.cpp">
-      <Filter>Profiler</Filter>
-    </ClCompile>
-    <ClCompile Include="ProcademyProfiler.cpp">
-      <Filter>Profiler</Filter>
-    </ClCompile>
-    <ClCompile Include="CRingBuffer.cpp">
-      <Filter>CRingBuffer</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
+    </ClInclude>
     <ClInclude Include="CLanServer.h">
       <Filter>소스 파일</Filter>
     </ClInclude>
+    <ClInclude Include="CRingBuffer.h">
+      <Filter>CRingBuffer</Filter>
+    </ClInclude>
     <ClInclude Include="CSerializationBuffer.h">
-      <Filter>CPacket</Filter>
+      <Filter>CRingBuffer</Filter>
     </ClInclude>
     <ClInclude Include="Debug.h">
       <Filter>Debug</Filter>
@@ -62,14 +42,25 @@
     <ClInclude Include="EchoServer.h">
       <Filter>소스 파일</Filter>
     </ClInclude>
-    <ClInclude Include="ProcademyProfiler_temp.h">
-      <Filter>Profiler</Filter>
-    </ClInclude>
     <ClInclude Include="ProcademyProfiler.h">
-      <Filter>Profiler</Filter>
+      <Filter>Debug</Filter>
     </ClInclude>
-    <ClInclude Include="CRingBuffer.h">
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CLanServer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="CRingBuffer.cpp">
       <Filter>CRingBuffer</Filter>
-    </ClInclude>
+    </ClCompile>
+    <ClCompile Include="CSerializationBuffer.cpp">
+      <Filter>CRingBuffer</Filter>
+    </ClCompile>
+    <ClCompile Include="EchoServer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcademyProfiler.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

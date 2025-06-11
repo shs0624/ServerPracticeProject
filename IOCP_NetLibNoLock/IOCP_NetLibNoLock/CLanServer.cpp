@@ -88,6 +88,7 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 void CLanServer::InitializeSessions(int maxConnection)
 {
 	_iSessionCount = 0;
+	_bServerEnabled = true;
 	_imaxConnection = maxConnection;
 	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * maxConnection);
 
@@ -99,7 +100,6 @@ void CLanServer::InitializeSessions(int maxConnection)
 		_sessionArr[i].bSessionUsing = false;
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
 		_sessionArr[i].sendBuf = new CRingBuffer(15000);
-		InitializeCriticalSection(&(_sessionArr[i].CrtLock));
 	}
 }
 
@@ -117,15 +117,16 @@ unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 
 	while (1)
 	{
-		st_Session* ptr = NULL;
+		if (!_bServerEnabled)
+		{
+			break;
+		}
 
 		//accept()
 		if (!(thisPtr->AcceptProc(thisPtr)))
 		{
 			continue;
 		}
-		
-		//thisPtr->SetWSARecv(ptr);
 	}
 
 	return 0;
@@ -247,7 +248,6 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		}
 		else
 		{
-			EnterCriticalSection(&(ptr->CrtLock));
 			//PRO_BEGIN(L"SendOverlapped");
 			ptr->sendBuf->MoveFront(cbTransferred);
 			int useSize = ptr->sendBuf->GetUseSize();
@@ -260,7 +260,6 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 				InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 			}
 			//PRO_END(L"SendOverlapped");
-			LeaveCriticalSection(&(ptr->CrtLock));
 		}
 
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
@@ -276,17 +275,11 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 void CLanServer::QuitServer()
 {
 	printf("CLanServer::Quit();\n");
+	_bServerEnabled = false;
+
 	for (int i = 0; i < _imaxConnection; i++)
 	{
-		//if (_sessionArr[i].bSessionUsing)
-		//{
-		//	EnterCriticalSection(&_sessionArr[i].CrtLock);
-		//	LeaveCriticalSection(&_sessionArr[i].CrtLock);
-		//}
-
-		closesocket(_sessionArr[i].sock);
-		delete(_sessionArr[i].recvBuf);
-		delete(_sessionArr[i].sendBuf);
+ 		closesocket(_sessionArr[i].sock);
 	}
 
 	for (int i = 0; i < _workerCount; i++)
@@ -302,12 +295,8 @@ bool CLanServer::Disconnect(ULONG sessionID)
 	if (pSession == NULL)
 		return false;
 
-	CPacket packet;
+	closesocket(pSession->sock);
 
-	// 0바이트 쏘기
-	packet.Clear();
-
-	SendPacket(sessionID, &packet);
 	return true;
 }
 
@@ -329,11 +318,9 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 	st_NetHeader header;
 	header.shLen = shSize;
 	
-	EnterCriticalSection(&pSession->CrtLock);
 	if (pSession->sendBuf->GetFreeSize() < sizeof(st_NetHeader) + shSize)
 	{
 		DebugBreak();
-		LeaveCriticalSection(&pSession->CrtLock);
 		Disconnect(sessionID);
 		return false;
 	}
@@ -343,7 +330,6 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 	{
 		// 연결 끊기
 		DebugBreak();
-		LeaveCriticalSection(&pSession->CrtLock);
 		Disconnect(sessionID);
 		return false;
 	}
@@ -353,7 +339,6 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 	{
 		// 연결 끊기
 		DebugBreak();
-		LeaveCriticalSection(&pSession->CrtLock);
 		Disconnect(sessionID);
 		return false;
 	}
@@ -363,7 +348,6 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 		SetWSASend(pSession);
 	}
 
-	LeaveCriticalSection(&pSession->CrtLock);
 	InterlockedIncrement((unsigned int*) & _iSendMessageTPS);
 
 	return true;
@@ -411,7 +395,7 @@ bool CLanServer::SetWSARecv(st_Session* ptr)
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
-	if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
+	if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize()) 
 	{
 		// 두개로 나눠 받아야 함
 		recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
@@ -542,10 +526,8 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 void CLanServer::ReleaseSession(st_Session* ptr)
 {
 	//Profiler pro(L"ReleaseSession");
-	EnterCriticalSection(&(ptr->CrtLock));
-	LeaveCriticalSection(&(ptr->CrtLock));
-
 	closesocket(ptr->sock);
+
 	OnRelease(ptr->ulSessionID);
 	ptr->recvBuf->ClearBuffer();
 	ptr->sendBuf->ClearBuffer();
