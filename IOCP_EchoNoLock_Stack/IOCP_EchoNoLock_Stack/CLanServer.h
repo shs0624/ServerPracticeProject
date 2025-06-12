@@ -15,12 +15,13 @@ struct st_Session
 {
 	OVERLAPPED sendOverlapped;
 	OVERLAPPED recvOverlapped;
+
+	// 상위 2바이트 = 인덱스, 하위 6바이트 = 세션ID
 	ULONGLONG ulSessionID;
 	SOCKET sock;
 	CRingBuffer* sendBuf;
 	CRingBuffer* recvBuf;
 
-	WORD wIndex;
 	DWORD dwIOCount;
 	BOOL bSendFlag;
 	BOOL bSessionUsing;
@@ -53,6 +54,11 @@ public:
 	//	virtual void OnWorkerThreadBegin() = 0;                    < 워커스레드 GQCS 바로 하단에서 호출
 	//	virtual void OnWorkerThreadEnd() = 0;                      < 워커스레드 1루프 종료 후
 	virtual void OnError(int errorcode, WCHAR* message) = 0; 
+
+	/*static void* operator new(size_t size)
+	{
+
+	}*/
 protected:
 	int _workerCount;
 	int _iSessionCount;

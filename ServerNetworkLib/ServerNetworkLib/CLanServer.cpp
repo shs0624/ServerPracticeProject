@@ -11,6 +11,8 @@
 procademy::CCrashDump cCrashDump;
 SOCKET listen_sock;
 
+CRITICAL_SECTION _csProfilerCS;
+
 HANDLE _tpsThreadHandle;
 HANDLE _acceptThreadHandle;
 HANDLE _iocpHandle;
@@ -25,6 +27,7 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 	int retval;
 	_iSessionCount = 0;
 	InitializeCriticalSection(&_sessionMapLock);
+	InitializeCriticalSection(&_csProfilerCS);
 
 	// 윈속 초기화
 	WSADATA wsa;
@@ -251,12 +254,17 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 bool CLanServer::Disconnect(ULONG sessionID)
 {
 	st_Session* pSession = NULL;
+	EnterCriticalSection(&_csProfilerCS);
 	{
 		Profiler("GetSession");
 		GetSession(sessionID, &pSession);
 		if (pSession == NULL)
+		{
+			LeaveCriticalSection(&_csProfilerCS);
 			return false;
+		}
 	}
+	LeaveCriticalSection(&_csProfilerCS);
 
 	CPacket packet;
 
@@ -329,17 +337,14 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 
 void CLanServer::GetSession(ULONG ulSessionID, st_Session** pSession)
 {
-	EnterCriticalSection(&_sessionMapLock);
 	std::unordered_map<ULONG, st_Session*>::iterator it = _sessionMap.find(ulSessionID);
 	if (it == _sessionMap.end())
 	{
-		LeaveCriticalSection(&_sessionMapLock);
 		*pSession = NULL;
 		return;
 	}
 
 	*pSession = (it->second);
-	LeaveCriticalSection(&_sessionMapLock);
 	return;
 }
 

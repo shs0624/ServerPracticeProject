@@ -22,6 +22,9 @@
     <Filter Include="Debug">
       <UniqueIdentifier>{bf4f4c9d-c441-4ee4-b4ff-27469b8e66d5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="CFreeList">
+      <UniqueIdentifier>{f05617b8-a898-4483-9e25-5b3c74c416b2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CCrashDump.h">
@@ -33,9 +36,6 @@
     <ClInclude Include="CRingBuffer.h">
       <Filter>CRingBuffer</Filter>
     </ClInclude>
-    <ClInclude Include="CSerializationBuffer.h">
-      <Filter>CRingBuffer</Filter>
-    </ClInclude>
     <ClInclude Include="Debug.h">
       <Filter>Debug</Filter>
     </ClInclude>
@@ -45,6 +45,12 @@
     <ClInclude Include="ProcademyProfiler.h">
       <Filter>Debug</Filter>
     </ClInclude>
+    <ClInclude Include="CSerializationBuffer.h">
+      <Filter>CPacket</Filter>
+    </ClInclude>
+    <ClInclude Include="CFreeList.h">
+      <Filter>CFreeList</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CLanServer.cpp">
@@ -53,14 +59,14 @@
     <ClCompile Include="CRingBuffer.cpp">
       <Filter>CRingBuffer</Filter>
     </ClCompile>
-    <ClCompile Include="CSerializationBuffer.cpp">
-      <Filter>CRingBuffer</Filter>
-    </ClCompile>
     <ClCompile Include="EchoServer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="ProcademyProfiler.cpp">
       <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="CSerializationBuffer.cpp">
+      <Filter>CPacket</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

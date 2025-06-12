@@ -21,6 +21,7 @@ HANDLE _iocpHandle;
 HANDLE _iocpWorkerThreadHandleArr[50];
 
 CRITICAL_SECTION _csIndexStackCS;
+CRITICAL_SECTION _csProfilerCS;
 
 unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
@@ -92,11 +93,13 @@ void CLanServer::InitializeSessions(WORD maxConnection)
 	_iSessionCount = 0;
 	_bServerEnabled = true;
 	_imaxConnection = maxConnection;
+
 	InitializeCriticalSection(&_csIndexStackCS);
+	InitializeCriticalSection(&_csProfilerCS);
 
 	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * maxConnection);
 
-	for (WORD i = 0; i < _imaxConnection; i++)
+	for (ULONGLONG i = 0; i < _imaxConnection; i++)
 	{
 		ZeroMemory(&_sessionArr[i].recvOverlapped, sizeof(_sessionArr[i].recvOverlapped));
 		ZeroMemory(&_sessionArr[i].sendOverlapped, sizeof(_sessionArr[i].sendOverlapped));
@@ -104,7 +107,11 @@ void CLanServer::InitializeSessions(WORD maxConnection)
 		_sessionArr[i].bSessionUsing = false;
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
 		_sessionArr[i].sendBuf = new CRingBuffer(15000);
-		_sessionArr[i].wIndex = i;
+
+		// 인덱스만 설정하고 thraedID는 accept에서. accept도 수정하기
+		ULONGLONG index = i << 48;
+		//ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
+		_sessionArr[i].ulSessionID = (i << 48);
 
 		_indexStack.push(i);
 	}
@@ -162,30 +169,42 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 
 		// 사용 안하는 세션 찾아서 등록
 
+		ULONGLONG index;
+		EnterCriticalSection(&_csProfilerCS);
 		EnterCriticalSection(&_csIndexStackCS);
-		int index = _indexStack.top();
-		_indexStack.pop();
-		LeaveCriticalSection(&_csIndexStackCS);
-
-		if (!_sessionArr[index].bSessionUsing)
 		{
-			ZeroMemory(&_sessionArr[index].recvOverlapped, sizeof(_sessionArr[index].recvOverlapped));
-			ZeroMemory(&_sessionArr[index].sendOverlapped, sizeof(_sessionArr[index].sendOverlapped));
-			_sessionArr[index].ulSessionID = _threadID++;
-			_sessionArr[index].dwIOCount = 0;
-			_sessionArr[index].bSendFlag = false;
-			_sessionArr[index].sock = client_sock;
-			_sessionArr[index].recvBuf->ClearBuffer();
-			_sessionArr[index].sendBuf->ClearBuffer();
+			{
+				Profiler("GetIndex");
+				index = _indexStack.top();
+				_indexStack.pop();
+			}
+			LeaveCriticalSection(&_csIndexStackCS);
 
-			// 소켓을 IOCP에 등록
-			CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)&_sessionArr[index], 0);
-			_sessionArr[index].bSessionUsing = true;
+			if (!_sessionArr[index].bSessionUsing)
+			{
+				ZeroMemory(&_sessionArr[index].recvOverlapped, sizeof(_sessionArr[index].recvOverlapped));
+				ZeroMemory(&_sessionArr[index].sendOverlapped, sizeof(_sessionArr[index].sendOverlapped));
+				_sessionArr[index].dwIOCount = 0;
+				_sessionArr[index].bSendFlag = false;
+				_sessionArr[index].sock = client_sock;
+				_sessionArr[index].recvBuf->ClearBuffer();
+				_sessionArr[index].sendBuf->ClearBuffer();
+
+				ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
+				ULONGLONG idx = (index << 48);
+				_sessionArr[index].ulSessionID = (idx | id);
+				//ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
+
+				// 소켓을 IOCP에 등록
+				CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)&_sessionArr[index], 0);
+				_sessionArr[index].bSessionUsing = true;
+			}
+			else
+			{
+				DebugBreak();
+			}
 		}
-		else
-		{
-			DebugBreak();
-		}
+		LeaveCriticalSection(&_csProfilerCS);
 
 		thisPtr->OnAccept();
 		_iSessionCount++;
@@ -301,10 +320,16 @@ void CLanServer::QuitServer()
 bool CLanServer::Disconnect(ULONGLONG sessionID)
 {
 	st_Session* pSession = NULL;
-	GetSession(sessionID, &pSession);
-	if (pSession == NULL)
-		return false;
-
+	EnterCriticalSection(&_csProfilerCS);
+	{
+		GetSession(sessionID, &pSession);
+		if (pSession == NULL)
+		{
+			LeaveCriticalSection(&_csProfilerCS);
+			return false;
+		}
+	}
+	LeaveCriticalSection(&_csProfilerCS);
 	closesocket(pSession->sock);
 
 	return true;
@@ -315,12 +340,14 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, CPacket* cPacket)
 	char temp[PROTOCOL_MAX_SIZE + 1];
 
 	st_Session* pSession = NULL;
+	EnterCriticalSection(&_csProfilerCS);
 	{
-		//Profiler(L"GetSession");
+		Profiler("GetSession");
 		GetSession(sessionID, &pSession);
 		if (pSession == NULL)
 			return false;
 	}
+	LeaveCriticalSection(&_csProfilerCS);
 
 	short shSize = cPacket->GetDataSize();
 	cPacket->GetData(temp, shSize);
@@ -365,16 +392,13 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, CPacket* cPacket)
 
 void CLanServer::GetSession(ULONGLONG ulSessionID, st_Session** pSession)
 {
-	for (int i = 0; i < _imaxConnection; i++)
 	{
-		if (_sessionArr[i].bSessionUsing && _sessionArr[i].ulSessionID == ulSessionID)
-		{
-			*pSession = &_sessionArr[i];
-			return;
-		}
+		Profiler("FindIdx");
+		ULONGLONG idx = (ulSessionID) >> 48;
+		*pSession = &_sessionArr[idx];
+		//if ((*pSession)->bSessionUsing == false)
+			//DebugBreak();
 	}
-
-	*pSession = NULL;
 	return;
 }
 
@@ -444,7 +468,7 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 {
 	st_NetHeader header;
 	char tempBuffer[PROTOCOL_MAX_SIZE + 1];
-	CPacket* csPacket = new CPacket(PROTOCOL_MAX_SIZE);
+	CPacket csPacket(PROTOCOL_MAX_SIZE);
 
 	// 받은 데이터 카피
 	ptr->recvBuf->MoveRear(cbTransferred);
@@ -475,7 +499,7 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 			}
 
 			ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
-			int dequeueRet = ptr->recvBuf->Dequeue(csPacket->GetBufferPtr(), header.shLen);
+			int dequeueRet = ptr->recvBuf->Dequeue(csPacket.GetBufferPtr(), header.shLen);
 			if (dequeueRet != header.shLen)
 			{
 				DebugBreak();
@@ -483,9 +507,9 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 				return false;
 			}
 
-			csPacket->MoveWritePos(header.shLen);
-			OnRecv(ptr->ulSessionID, csPacket);
-			csPacket->Clear();
+			csPacket.MoveWritePos(header.shLen);
+			OnRecv(ptr->ulSessionID, &csPacket);
+			csPacket.Clear();
 			InterlockedIncrement((unsigned int*)&_iRecvMessageTPS);
 		}
 	}
@@ -544,6 +568,7 @@ void CLanServer::ReleaseSession(st_Session* ptr)
 	ptr->bSessionUsing = false;
 
 	EnterCriticalSection(&_csIndexStackCS);
-	_indexStack.push(ptr->wIndex);
+	ULONGLONG idx = (ptr->ulSessionID) >> 48;
+	_indexStack.push(idx);
 	LeaveCriticalSection(&_csIndexStackCS);
 }

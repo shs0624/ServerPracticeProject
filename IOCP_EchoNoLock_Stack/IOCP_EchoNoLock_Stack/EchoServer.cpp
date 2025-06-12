@@ -18,7 +18,7 @@ int main()
 		}
 		if (ch == 'P' || ch == 'p')
 		{
-			ProfileDataOutText("ProfileData_NoLock.txt");
+			ProfileDataOutText("ProfileData_IdxStack.txt");
 		}
 
 	}

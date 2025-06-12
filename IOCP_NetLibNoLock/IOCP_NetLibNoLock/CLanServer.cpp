@@ -20,6 +20,8 @@ HANDLE _acceptThreadHandle;
 HANDLE _iocpHandle;
 HANDLE _iocpWorkerThreadHandleArr[50];
 
+CRITICAL_SECTION _csProfilerCS;
+
 unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
 unsigned int _iocpWorkerThreadID[50];
@@ -90,7 +92,9 @@ void CLanServer::InitializeSessions(int maxConnection)
 	_iSessionCount = 0;
 	_bServerEnabled = true;
 	_imaxConnection = maxConnection;
+	InitializeCriticalSection(&_csProfilerCS);
 	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * maxConnection);
+
 
 	for (int i = 0; i < _imaxConnection; i++)
 	{
@@ -153,28 +157,34 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 			return false;
 		}
 
-		// 사용 안하는 세션 찾아서 등록
-		int index = 0;
-		for (int i = 0; i < _imaxConnection; i++)
+		int index;
 		{
-			if (!_sessionArr[i].bSessionUsing)
 			{
-				index = i;
-
-				ZeroMemory(&_sessionArr[i].recvOverlapped, sizeof(_sessionArr[i].recvOverlapped));
-				ZeroMemory(&_sessionArr[i].sendOverlapped, sizeof(_sessionArr[i].sendOverlapped));
-				_sessionArr[i].ulSessionID = _threadID++;
-				_sessionArr[i].dwIOCount = 0;
-				_sessionArr[i].bSendFlag = false;
-				_sessionArr[i].sock = client_sock;
-				_sessionArr[i].recvBuf->ClearBuffer();
-				_sessionArr[i].sendBuf->ClearBuffer();
-
-				// 소켓을 IOCP에 등록
-				CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)&_sessionArr[i], 0);
-				_sessionArr[i].bSessionUsing = true;
-				break;
+				Profiler("GetIndex");
+				// 사용 안하는 세션 찾아서 등록
+				index = 0;
+				for (int i = 0; i < _imaxConnection; i++)
+				{
+					if (!_sessionArr[i].bSessionUsing)
+					{
+						index = i;
+						break;
+					}
+				}
 			}
+
+			ZeroMemory(&_sessionArr[index].recvOverlapped, sizeof(_sessionArr[index].recvOverlapped));
+			ZeroMemory(&_sessionArr[index].sendOverlapped, sizeof(_sessionArr[index].sendOverlapped));
+			_sessionArr[index].ulSessionID = _threadID++;
+			_sessionArr[index].dwIOCount = 0;
+			_sessionArr[index].bSendFlag = false;
+			_sessionArr[index].sock = client_sock;
+			_sessionArr[index].recvBuf->ClearBuffer();
+			_sessionArr[index].sendBuf->ClearBuffer();
+
+			// 소켓을 IOCP에 등록
+			CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)&_sessionArr[index], 0);
+			_sessionArr[index].bSessionUsing = true;
 		}
 
 		thisPtr->OnAccept();
@@ -291,10 +301,17 @@ void CLanServer::QuitServer()
 bool CLanServer::Disconnect(ULONG sessionID)
 {
 	st_Session* pSession = NULL;
-	GetSession(sessionID, &pSession);
-	if (pSession == NULL)
-		return false;
-
+	EnterCriticalSection(&_csProfilerCS);
+	{
+		Profiler("GetSession");
+		GetSession(sessionID, &pSession);
+		if (pSession == NULL)
+		{
+			LeaveCriticalSection(&_csProfilerCS);
+			return false;
+		}
+	}
+	EnterCriticalSection(&_csProfilerCS);
 	closesocket(pSession->sock);
 
 	return true;
@@ -305,12 +322,17 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 	char temp[PROTOCOL_MAX_SIZE + 1];
 
 	st_Session* pSession = NULL;
+	EnterCriticalSection(&_csProfilerCS);
 	{
-		//Profiler(L"GetSession");
+		Profiler("GetSession");
 		GetSession(sessionID, &pSession);
 		if (pSession == NULL)
+		{
+			LeaveCriticalSection(&_csProfilerCS);
 			return false;
+		}
 	}
+	LeaveCriticalSection(&_csProfilerCS);
 
 	short shSize = cPacket->GetDataSize();
 	cPacket->GetData(temp, shSize);
@@ -355,6 +377,7 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 
 void CLanServer::GetSession(ULONG ulSessionID, st_Session** pSession)
 {
+	Profiler("FindIdx");
 	for (int i = 0; i < _imaxConnection; i++)
 	{
 		if (_sessionArr[i].bSessionUsing && _sessionArr[i].ulSessionID == ulSessionID)
