@@ -1,7 +1,8 @@
 #pragma once
 #include "CSerializationBuffer.h"
 #include "CRingBuffer.h"
-#include <stack>
+//#include <stack>
+#include "TestStack.h"
 #define PROTOCOL_MAX_SIZE 16
 
 #pragma pack(1)
@@ -72,7 +73,8 @@ protected:
 	// 상위 2바이트 = 인덱스 / 하위 6바이트는 스레드ID
 	ULONGLONG _threadID = 0;
 	st_Session* _sessionArr;
-	std::stack<WORD> _indexStack;
+	//std::stack<WORD> _indexStack;
+	TestStack<ULONGLONG> _indexStack;
 
 	// 초기화 함수
 	void InitializeSessions(WORD maxConnection);

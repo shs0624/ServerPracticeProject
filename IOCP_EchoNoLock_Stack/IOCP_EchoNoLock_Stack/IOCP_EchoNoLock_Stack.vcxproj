@@ -144,6 +144,7 @@
     <ClCompile Include="CSerializationBuffer.cpp" />
     <ClCompile Include="EchoServer.cpp" />
     <ClCompile Include="ProcademyProfiler.cpp" />
+    <ClCompile Include="TestStack.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

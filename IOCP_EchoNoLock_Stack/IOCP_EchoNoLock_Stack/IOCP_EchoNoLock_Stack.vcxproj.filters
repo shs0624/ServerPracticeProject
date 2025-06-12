@@ -25,6 +25,9 @@
     <Filter Include="CFreeList">
       <UniqueIdentifier>{f05617b8-a898-4483-9e25-5b3c74c416b2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Stack">
+      <UniqueIdentifier>{d15d4dd3-5625-4a47-9d69-95a20fb7e9fc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CCrashDump.h">
@@ -67,6 +70,9 @@
     </ClCompile>
     <ClCompile Include="CSerializationBuffer.cpp">
       <Filter>CPacket</Filter>
+    </ClCompile>
+    <ClCompile Include="TestStack.h">
+      <Filter>Stack</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -18,7 +18,7 @@ int main()
 		}
 		if (ch == 'P' || ch == 'p')
 		{
-			ProfileDataOutText("ProfileData_IdxStack.txt");
+			ProfileDataOutText("ProfileData_IdxStack_myStack.txt");
 		}
 
 	}
