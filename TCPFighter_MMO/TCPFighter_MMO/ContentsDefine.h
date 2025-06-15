@@ -2,7 +2,7 @@
 
 struct st_CHARACTER
 {
-	st_SESSION* pSession;
+	//st_SESSION* pSession;
 	DWORD dwSessionID;
 
 	DWORD dwAction;
@@ -19,11 +19,6 @@ struct st_CHARACTER
 	bool bDeleted;
 };
 
-//-----------------------------------------------------------------
-// 30초 이상이 되도록 아무런 메시지 수신도 없는경우 접속 끊음.
-//-----------------------------------------------------------------
-#define dfNETWORK_PACKET_RECV_TIMEOUT	30000
-
 
 //-----------------------------------------------------------------
 // 화면 이동 범위.
@@ -36,10 +31,10 @@ struct st_CHARACTER
 //-----------------------------------------------------------------
 // 섹터 크기.
 //-----------------------------------------------------------------
-#define dfSECTOR_SIZE_Y 100
-#define dfSECTOR_SIZE_X 100
-#define dfSECTOR_MAX_Y 64
-#define dfSECTOR_MAX_X 64
+#define dfSECTOR_SIZE_Y 400
+#define dfSECTOR_SIZE_X 400
+#define dfSECTOR_MAX_Y 16
+#define dfSECTOR_MAX_X 16
 
 //---------------------------------------------------------------
 // 공격범위.

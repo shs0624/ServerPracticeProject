@@ -23,6 +23,8 @@ HANDLE _iocpWorkerThreadHandleArr[50];
 CRITICAL_SECTION _csIndexStackCS;
 CRITICAL_SECTION _csProfilerCS;
 
+ULONGLONG _GetSessionPerSec;
+
 unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
 unsigned int _iocpWorkerThreadID[50];
@@ -399,6 +401,7 @@ void CLanServer::GetSession(ULONGLONG ulSessionID, st_Session** pSession)
 		//if ((*pSession)->bSessionUsing == false)
 			//DebugBreak();
 	}
+	InterlockedIncrement((ULONGLONG*)&_GetSessionPerSec);
 	return;
 }
 
@@ -413,9 +416,12 @@ unsigned int WINAPI CLanServer::TPSThread(LPVOID arg)
 
 void CLanServer::ResetTPS()
 {
+	printf("GetSessionPerSec : %lld\n", _GetSessionPerSec);
+
 	_iAcceptTPS = 0;
 	_iRecvMessageTPS = 0;
 	_iSendMessageTPS = 0;
+	_GetSessionPerSec = 0;
 
 	WaitForSingleObject(_hTPSUpdateEvent, 1000);
 }

@@ -76,10 +76,9 @@ public:
 	char* GetArrPtr(void);
 
 
-private:
+public:
 	char* arr;
 	int head;
 	int tail;
 	int max;
-	int count;
 };

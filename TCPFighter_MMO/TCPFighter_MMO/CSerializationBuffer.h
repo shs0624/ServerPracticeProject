@@ -124,7 +124,7 @@ public:
 		if (_tail + sizeof(DWORD) > _iBufferSize)
 			return *this;
 
-		*(int*)(_iBuffer + _tail) = dwValue;
+		*(DWORD*)(_iBuffer + _tail) = dwValue;
 		_tail += sizeof(DWORD);
 		_iDataSize += sizeof(DWORD);
 		return *this;

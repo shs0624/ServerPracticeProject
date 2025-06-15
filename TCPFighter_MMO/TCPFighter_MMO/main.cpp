@@ -2,7 +2,9 @@
 #include "PacketDefine.h"
 #include "TCPNetwork.h"
 #include "FrameProc.h"
+#include "CCrashDump.h"
 
+procademy::CCrashDump cCrashDump;
 bool m_bShutdown = false;
 
 int wmain(int argc, WCHAR* argv[])

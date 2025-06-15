@@ -116,5 +116,8 @@
     <ClInclude Include="LogProc.h">
       <Filter>Debug</Filter>
     </ClInclude>
+    <ClInclude Include="CCrashDump.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

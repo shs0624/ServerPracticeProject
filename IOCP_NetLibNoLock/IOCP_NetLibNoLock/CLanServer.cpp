@@ -21,6 +21,7 @@ HANDLE _iocpHandle;
 HANDLE _iocpWorkerThreadHandleArr[50];
 
 CRITICAL_SECTION _csProfilerCS;
+ULONGLONG _GetSessionPerSec;
 
 unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
@@ -378,6 +379,8 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 void CLanServer::GetSession(ULONG ulSessionID, st_Session** pSession)
 {
 	Profiler("FindIdx");
+
+	InterlockedIncrement((ULONGLONG*)&_GetSessionPerSec);
 	for (int i = 0; i < _imaxConnection; i++)
 	{
 		if (_sessionArr[i].bSessionUsing && _sessionArr[i].ulSessionID == ulSessionID)
@@ -402,9 +405,12 @@ unsigned int WINAPI CLanServer::TPSThread(LPVOID arg)
 
 void CLanServer::ResetTPS()
 {
+	printf("GetSessionPerSec : %lld\n", _GetSessionPerSec);
+
 	_iAcceptTPS = 0;
 	_iRecvMessageTPS = 0;
 	_iSendMessageTPS = 0;
+	_GetSessionPerSec = 0;
 
 	WaitForSingleObject(_hTPSUpdateEvent, 1000);
 }

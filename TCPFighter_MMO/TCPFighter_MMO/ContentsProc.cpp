@@ -15,12 +15,16 @@ using namespace std;
 #include "ContentsProc.h"
 #include "MessageCreate.h"
 #include "Debug.h"
+#include "LogProc.h"
+
+extern int g_iLogLevel;
+extern WCHAR g_szLogBuff[1024];
 
 extern unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
 
 bool AttackProc(st_CHARACTER* player, BYTE xRange, BYTE yRange, char damage);
 
-bool netPacketProc_MoveStart(st_SESSION* session, CPacket* packet)
+bool netPacketProc_MoveStart(DWORD dwsessionID, CPacket* packet)
 {
 	char csAction;
 	short csX;
@@ -30,11 +34,11 @@ bool netPacketProc_MoveStart(st_SESSION* session, CPacket* packet)
 	*packet >> csX;
 	*packet >> csY;
 
-	st_CHARACTER* _player = (*(m_CharacterMap.find(session->dwSessionID))).second;
+	st_CHARACTER* _player = (*(m_CharacterMap.find(dwsessionID))).second;
 
 	// 이건 나중에 로그로 넘기던가 해야함
-	char ipbuffer[50];
-	inet_ntop(AF_INET, &(session->IPPtr.sin_addr), ipbuffer, 50);
+	//char ipbuffer[50];
+	//inet_ntop(AF_INET, &(session->IPPtr.sin_addr), ipbuffer, 50);
 	//오차 범위 확인 -> 애초에 필요한가?
 	//if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
 	//{
@@ -64,12 +68,13 @@ bool netPacketProc_MoveStart(st_SESSION* session, CPacket* packet)
 	st_PACKET_HEADER header;
 	CPacket csPacket(PROTOCOL_MAXSIZE);
 	mpMoveStart(&header, &csPacket, _player->dwSessionID, _player->dwAction, csX, csY);
+	
 	SendPacket_Around(_player, &header, &csPacket);
 
 	return true;
 }
 
-bool netPacketProc_MoveStop(st_SESSION* session, CPacket* packet)
+bool netPacketProc_MoveStop(DWORD dwsessionID, CPacket* packet)
 {
 	char csAction;
 	short csX;
@@ -81,7 +86,7 @@ bool netPacketProc_MoveStop(st_SESSION* session, CPacket* packet)
 
 	st_PACKET_HEADER header;
 	CPacket scPacket(PROTOCOL_MAXSIZE);
-	st_CHARACTER* _player = (*(m_CharacterMap.find(session->dwSessionID))).second;
+	st_CHARACTER* _player = (*(m_CharacterMap.find(dwsessionID))).second;
 
 	//오차 범위 확인
 	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
@@ -107,9 +112,9 @@ bool netPacketProc_MoveStop(st_SESSION* session, CPacket* packet)
 	return true;
 }
 
-bool netPacketProc_Attack(st_SESSION* session, BYTE type)
+bool netPacketProc_Attack(DWORD dwsessionID, BYTE type)
 {
-	st_CHARACTER* _player = (*(m_CharacterMap.find(session->dwSessionID))).second;
+	st_CHARACTER* _player = (*(m_CharacterMap.find(dwsessionID))).second;
 
 	switch (type)
 	{
@@ -152,13 +157,21 @@ bool AttackProc(st_CHARACTER* player, BYTE xRange, BYTE yRange, char damage)
 	return true;
 }
 
-bool netPacketProc_Echo(st_SESSION* session)
+bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 {
 	st_PACKET_HEADER header;
 	CPacket scPacket = CPacket(PROTOCOL_MAXSIZE);
 
-	mpEcho(&header, &scPacket, timeGetTime());
-	Send_UniCast(session, &header, (char*)&scPacket);
+	DWORD _echoTime;
+	(*cPacket) >> _echoTime;
+	 
+	mpEcho(&header, &scPacket, _echoTime);
+	bool bRet = Send_UniCast(dwsessionID, &header, scPacket.GetBufferPtr());
+	if (!bRet)
+	{
+		st_CHARACTER* pPlayer = m_CharacterMap.find(dwsessionID)->second;
+		pPlayer->bDeleted = true;
+	}
 
 	return true;
 }
@@ -197,7 +210,7 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 	}
 }
 
-bool netPacketProc_Accept(st_SESSION* session)
+bool netPacketProc_Accept(DWORD dwsessionID)
 {
 	srand(time(NULL));
 	st_CHARACTER* playerPtr = (st_CHARACTER*)malloc(sizeof(st_CHARACTER));
@@ -207,8 +220,9 @@ bool netPacketProc_Accept(st_SESSION* session)
 		return false;
 	}
 
-	playerPtr->pSession = session;
-	playerPtr->dwSessionID = session->dwSessionID;
+	//playerPtr->pSession = session;
+	playerPtr->bDeleted = false;
+	playerPtr->dwSessionID = dwsessionID;
 	playerPtr->byDirection = dfPACKET_MOVE_DIR_RR;
 	playerPtr->dwAction = dfPACKET_MOVE_DIR_NONE;
 	playerPtr->shX = dfRANGE_MOVE_LEFT + (rand() % (dfRANGE_MOVE_RIGHT - dfRANGE_MOVE_LEFT + 1));
@@ -220,7 +234,11 @@ bool netPacketProc_Accept(st_SESSION* session)
 	scPacket.Clear();
 
 	mpCreateMyCharacter(&header, &scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
-	Send_UniCast(session, &header, (char*)&scPacket);
+	bool bSendRet = Send_UniCast(dwsessionID, &header, scPacket.GetBufferPtr());
+	if (!bSendRet)
+	{
+		return false;
+	}
 	scPacket.Clear();
 
 	SetUserToSector(playerPtr);
@@ -232,6 +250,8 @@ bool netPacketProc_Accept(st_SESSION* session)
 	list<st_SESSION*> _AroundSessionList;
 
 	m_CharacterMap.insert({ playerPtr->dwSessionID, playerPtr });
+	_LOG(0, L"Accepted Player # playerID : %d # playerX : %d # playerY : %d\n", playerPtr->dwSessionID, playerPtr->shX, playerPtr->shY);
+
 
 	return true;
 }

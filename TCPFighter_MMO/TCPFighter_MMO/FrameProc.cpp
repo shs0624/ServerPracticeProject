@@ -34,8 +34,9 @@ void Update()
 	//_LOG(0, L"Update!\n");
 
 	DWORD dwDeltaTime = dwCurrentTick - oldTick;
-	short shDeltaX = (short)(((float)(dwDeltaTime / FRAME_TIME)) * dfSPEED_PLAYER_X);
-	short shDeltaY = (short)(((float)(dwDeltaTime / FRAME_TIME)) * dfSPEED_PLAYER_Y);
+	short shDeltaX = (short)(((((float)dwDeltaTime) / ((float)FRAME_TIME))) * dfSPEED_PLAYER_X);
+	short shDeltaY = (short)(((((float)dwDeltaTime) / ((float)FRAME_TIME))) * dfSPEED_PLAYER_Y);
+	//_LOG(2, L"dwDelatTime : %d # shDeltaX : %d # shDeltaY : %d # temp : %f\n", dwDeltaTime, shDeltaX, shDeltaY, ((float)dwDeltaTime) / ((float)FRAME_TIME));
 
 	st_CHARACTER* pPlayer = nullptr;
 	unordered_map<DWORD, st_CHARACTER*>::iterator it;
@@ -49,20 +50,22 @@ void Update()
 
 		if (pPlayer->chHP <= 0)
 		{
-			DisconnectSession(pPlayer->pSession->Socket);
+			DebugBreak();
+			DisconnectSession(pPlayer->dwSessionID);
 			pPlayer->bDeleted = true;
 			continue;
 		}
 		
-		if (dwCurrentTick - pPlayer->pSession->dwLastRecvTime > dfNETWORK_PACKET_RECV_TIMEOUT)
-		{
-			// е╦юс╬ф©Т
-			DisconnectSession(pPlayer->pSession->Socket);
-			pPlayer->bDeleted = true;
-			continue;
-		}
+		//if (dwCurrentTick - pPlayer->pSession->dwLastRecvTime > dfNETWORK_PACKET_RECV_TIMEOUT)
+		//{
+		//	// е╦юс╬ф©Т
+		//	DebugBreak();
+		//	DisconnectSession(pPlayer->pSession);
+		//	pPlayer->bDeleted = true;
+		//	continue;
+		//}
 
-		_LOG(0, L"Player Info # sessionID : %d # X : %d # Y : %d\n", pPlayer->dwSessionID, pPlayer->shX, pPlayer->shY);
+		//_LOG(2, L"Player Info # sessionID : %d # X : %d # Y : %d\n", pPlayer->dwSessionID, pPlayer->shX, pPlayer->shY);
 
 		switch (pPlayer->dwAction)
 		{
@@ -145,13 +148,17 @@ void DisconnectPlayer()
 			SendPacket_Around((*it).second, &header, &csPacket);
 			csPacket.Clear();
 			
-			it = m_CharacterMap.erase(it);
 			_LOG(0, L"Disconnect Player L7 # sessionID : %d\n", (*it).second->dwSessionID);
+			it = m_CharacterMap.erase(it);
+			DisconnectSession((*it).second->dwSessionID);
+
 			continue;
 		}
 
 		it++;
 	}
+
+	DisconnectDeletedSession();
 }
 
 bool Skip()

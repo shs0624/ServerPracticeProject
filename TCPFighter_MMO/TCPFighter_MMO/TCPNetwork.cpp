@@ -8,15 +8,19 @@
 #include <unordered_map>
 using namespace std;
 
+DWORD dwCurrentTick;
 SOCKET	m_ListenSocket;
 unsigned long m_IDCnt = 0;
 
-//list<st_SESSION*> _sessionList;
-unordered_map<SOCKET, st_SESSION*> _sessionMap;
+unordered_map<DWORD, st_SESSION*> _sessionMap;
 
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
+
+void netProc_Accept();
+void netProc_Recv(st_SESSION* session);
+void netProc_Send(st_SESSION* session);
 void SelectProc(fd_set* readSet, fd_set* writeSet, list<st_SESSION*> selectList);
 
 void netStartup()
@@ -61,6 +65,9 @@ void netSelectIO()
 	time.tv_sec = 0;
 	time.tv_usec = 0;
 
+	DWORD oldTick = dwCurrentTick;
+	dwCurrentTick = timeGetTime();
+
 	int loopCount = 0;
 	fd_set readSet, writeSet;
 	FD_ZERO(&readSet);
@@ -68,7 +75,7 @@ void netSelectIO()
 	FD_SET(m_ListenSocket, &readSet);
 
 	list<st_SESSION*> selectList;
-	unordered_map<SOCKET, st_SESSION*>::iterator it;
+	unordered_map<DWORD, st_SESSION*>::iterator it;
 
 	int iResult = select(0, &readSet, NULL, NULL, &time);
 	if (iResult == SOCKET_ERROR)
@@ -88,7 +95,16 @@ void netSelectIO()
 	// recv, send 
 	for (it = _sessionMap.begin(); it != _sessionMap.end(); it++)
 	{
-		FD_SET((*it).first, &readSet);
+		// 타임아웃 체크는 L4에서
+		if (dwCurrentTick - (it)->second->dwLastRecvTime > dfNETWORK_PACKET_RECV_TIMEOUT)
+		{
+			// 타임아웃
+			DebugBreak();
+			DisconnectSession(it->second);
+			continue;
+		}
+
+		FD_SET((*it).second->Socket, &readSet);
 		if ((*it).second->SendQ->GetUseSize() > 0)
 			FD_SET((*it).first, &writeSet);
 
@@ -174,11 +190,14 @@ void netProc_Accept()
 		session->IPPtr = clientAddr;
 		session->dwLastRecvTime = timeGetTime();
 
-		_sessionMap.insert({ clientSocket, session });
-
 		// 플레이어 정보 생성
-		netPacketProc_Accept(session);
+		if (!netPacketProc_Accept(session->dwSessionID))
+		{
+			_LOG(0, L"Player Creation Fail! # sessionID : %d # Port : %d\n", session->dwSessionID, session->IPPtr.sin_port);
+			return;
+		}
 
+		_sessionMap.insert({ session->dwSessionID, session });
 
 		_LOG(0, L"Accepted Player # Port : %d\n", session->IPPtr.sin_port);
 	}
@@ -243,10 +262,10 @@ void netProc_Recv(st_SESSION* session)
 		}
 
 		csPacket->MoveReadPos(sizeof(st_PACKET_HEADER));
-		ProcessMessage(session, header.byType, csPacket);
+		ProcessMessage(session->dwSessionID, header.byType, csPacket);
 		csPacket->Clear();
 
-		_LOG(0, L"Received Message # Type : %d # sessionID : %d\n", header.byType, session->dwSessionID);
+		//_LOG(0, L"Received Message # Type : %d # sessionID : %d\n", header.byType, session->dwSessionID);
 	}
 
 	session->dwLastRecvTime = timeGetTime();
@@ -286,20 +305,20 @@ void netProc_Send(st_SESSION* session)
 		}
 
 		sendBuffer->MoveFront(sendSize);
-		_LOG(0, L"Send Message  Size : %d # sessionID : %d\n", sendRet, session->dwSessionID);
+		//_LOG(0, L"Send Message  Size : %d # sessionID : %d\n", sendRet, session->dwSessionID);
 	}
 
 	session->dwLastRecvTime = timeGetTime(); 
 }
 
-void DisconnectSession(SOCKET socket)
+void DisconnectSession(st_SESSION* pSession)
 {
-	(_sessionMap.find(socket))->second->bDeleted = true;
+	(_sessionMap.find(pSession->dwSessionID))->second->bDeleted = true;
 }
 
 void DisconnectDeletedSession()
 {
-	unordered_map<SOCKET, st_SESSION*>::iterator it;
+	unordered_map<DWORD, st_SESSION*>::iterator it;
 	for (it = _sessionMap.begin(); it != _sessionMap.end();)
 	{
 		if ((*it).second->bDeleted)
@@ -307,7 +326,7 @@ void DisconnectDeletedSession()
 			delete((*it).second->RecvQ);
 			delete((*it).second->SendQ);
 			// 3. closeSocket, new-delete 과정 진행
-			closesocket((*it).first);
+			closesocket((*it).second->Socket);
 
 			_LOG(0, L"Disconnect Session L4 # sessionID : %d\n", (*it).second->dwSessionID);
 			it = _sessionMap.erase(it);
@@ -318,13 +337,22 @@ void DisconnectDeletedSession()
 	}
 }
 
-void Send_UniCast(st_SESSION* pSession, st_PACKET_HEADER* header, char* packet)
+bool Send_UniCast(DWORD dwsessionID, st_PACKET_HEADER* header, char* packet)
 {
+	std::unordered_map<DWORD, st_SESSION*>::iterator it;
+	it = _sessionMap.find(dwsessionID);
+	if (it == _sessionMap.end())
+		return false;
+
+	st_SESSION* pSession;
+	pSession = (_sessionMap.find(dwsessionID))->second;
+
 	if (pSession->SendQ->GetFreeSize() < sizeof(st_PACKET_HEADER) + header->bySize)
 	{
 		// 연결끊기?
-		DisconnectSession(pSession->Socket);
-		return;
+		DebugBreak();
+		DisconnectSession(pSession);
+		return false;
 	}
 
 	int ret = pSession->SendQ->Enqueue((char*)header, sizeof(st_PACKET_HEADER));
@@ -332,8 +360,8 @@ void Send_UniCast(st_SESSION* pSession, st_PACKET_HEADER* header, char* packet)
 	{
 		// 연결 끊기
 		DebugBreak();
-		DisconnectSession(pSession->Socket);
-		return;
+		DisconnectSession(pSession);
+		return false;
 	}
 
 	ret = pSession->SendQ->Enqueue(packet, header->bySize);
@@ -341,9 +369,10 @@ void Send_UniCast(st_SESSION* pSession, st_PACKET_HEADER* header, char* packet)
 	{
 		// 연결 끊기
 		DebugBreak();
-		DisconnectSession(pSession->Socket);
-		return;
+		DisconnectSession(pSession);
+		return false;
 	}
 
-	_LOG(0, L"Enqueue Message  # Size : %d # type : %d # sessionID : %d\n", ret, header->byType, pSession->dwSessionID);
+	//_LOG(0, L"Enqueue Message  # Size : %d # type : %d # sessionID : %d\n", ret, header->byType, pSession->dwSessionID);
+	return true;
 }

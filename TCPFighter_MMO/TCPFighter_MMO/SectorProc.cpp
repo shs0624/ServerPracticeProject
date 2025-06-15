@@ -28,7 +28,7 @@ void SetUserToSector(st_CHARACTER* player)
 	CPacket* scPacket = new CPacket(PROTOCOL_MAXSIZE);
 
 	list<st_CHARACTER*>::iterator it;
-	list<st_CHARACTER*> liSectorPList;
+	list<st_CHARACTER*> * liSectorPList;
 
 	// 그 섹터의 유저들 정보를 새 유저에게 전송
 	st_SECTOR_AROUND aroundSector;
@@ -39,11 +39,16 @@ void SetUserToSector(st_CHARACTER* player)
 		int iX = aroundSector.Around[i].iX;
 		int iY = aroundSector.Around[i].iY;
 
-		liSectorPList = m_Sector[aroundSector.Around[i].iY][aroundSector.Around[i].iX];
-		for (it = liSectorPList.begin(); it != liSectorPList.end(); it++)
+		liSectorPList = &m_Sector[aroundSector.Around[i].iY][aroundSector.Around[i].iX];
+		for (it = liSectorPList->begin(); it != liSectorPList->end(); it++)
 		{
 			mpCreateOtherCharacter(&header, scPacket, (*it)->dwSessionID, (*it)->byDirection, (*it)->shX, (*it)->shY, (*it)->chHP);
-			Send_UniCast(player->pSession, &header, (char*)scPacket);
+			bool bRet = Send_UniCast(player->dwSessionID, &header, scPacket->GetBufferPtr());
+			if (!bRet)
+			{
+				return;
+			}
+
 			scPacket->Clear();
 
 			// 그 유저가 이동중이라면 MOVESTART도 전송
@@ -51,7 +56,12 @@ void SetUserToSector(st_CHARACTER* player)
 			{
 				//scMoveStart
 				mpMoveStart(&header, scPacket, (*it)->dwSessionID, (*it)->dwAction, (*it)->shX, (*it)->shY);
-				Send_UniCast(player->pSession, &header, scPacket->GetBufferPtr());
+				bool bRet = Send_UniCast(player->dwSessionID, &header, scPacket->GetBufferPtr());
+				if (!bRet)
+				{
+					return;
+				}
+
 				scPacket->Clear();
 			}
 		}
@@ -93,14 +103,20 @@ void ChangeSector(st_CHARACTER* player)
 	list<st_CHARACTER*>::iterator it;
 	list<st_CHARACTER*> liSectorPList;
 
-	// 1. RemoveSector에게 Delete 메세지
+	// 1. RemoveSector의 캐릭터 Delete 메세지 -> 탐색중인 player에게 send
 	for (int i = 0; i < removeSector.iCount; i++)
 	{
 		liSectorPList = m_Sector[removeSector.Around[i].iY][removeSector.Around[i].iX];
 		for (it = liSectorPList.begin(); it != liSectorPList.end(); it++)
 		{
+			if ((*it)->bDeleted)
+				continue;
+
 			mpDeleteCharacter(&header, scPacket, (*it)->dwSessionID);
-			Send_UniCast(player->pSession, &header, (char*)scPacket);
+			bool bRet = Send_UniCast(player->dwSessionID, &header, scPacket->GetBufferPtr());
+			if (!bRet)
+				player->bDeleted = true;
+
 			scPacket->Clear();
 		}
 	}
@@ -108,12 +124,28 @@ void ChangeSector(st_CHARACTER* player)
 	// 2. AddSector에게 생성 메세지
 	for (int i = 0; i < addSector.iCount; i++)
 	{
+		// 그 섹터의 캐릭터들 생성 - player에게 전송
 		liSectorPList = m_Sector[addSector.Around[i].iY][addSector.Around[i].iX];
 		for (it = liSectorPList.begin(); it != liSectorPList.end(); it++)
 		{
-			mpCreateOtherCharacter(&header, scPacket, (*it)->dwSessionID, (*it)->byDirection, (*it)->shX, (*it)->shY, (*it)->chHP);
-			Send_UniCast(player->pSession, &header, (char*)scPacket);
+			if ((*it)->bDeleted)
+				continue;
+
 			scPacket->Clear();
+			mpCreateOtherCharacter(&header, scPacket, (*it)->dwSessionID, (*it)->byDirection, (*it)->shX, (*it)->shY, (*it)->chHP);
+			bool bRet = Send_UniCast(player->dwSessionID, &header, scPacket->GetBufferPtr());
+			if (!bRet)
+			{
+				player->bDeleted = true;
+				continue;
+			}
+
+			scPacket->Clear();
+			mpCreateOtherCharacter(&header, scPacket, player->dwSessionID, (*it)->byDirection, (*it)->shX, (*it)->shY, (*it)->chHP);
+			bRet = Send_UniCast((*it)->dwSessionID, &header, scPacket->GetBufferPtr());
+
+			if (!bRet)
+				player->bDeleted = true;
 		}
 	}
 
@@ -136,12 +168,12 @@ void GetSectorAround(int iSectorX, int iSectorY, st_SECTOR_AROUND* pSectorAround
 
 	for (int iY = -1; iY <= 1; iY++)
 	{
-		if (iSectorY + iY < 0 || iSectorY >= dfSECTOR_MAX_Y)
+		if (iSectorY + iY < 0 || iSectorY + iY >= dfSECTOR_MAX_Y)
 			continue;
 
 		for (int iX = -1; iX <= 1; iX++)
 		{
-			if (iSectorX + iX < 0 || iSectorX >= dfSECTOR_MAX_X)
+			if (iSectorX + iX < 0 || iSectorX + iX >= dfSECTOR_MAX_X)
 				continue;
 
 			pSectorAround->Around[pSectorAround->iCount].iX = iSectorX + iX;
@@ -219,7 +251,7 @@ void GetUpdateSectorAround(st_CHARACTER* player, st_SECTOR_AROUND* pRemoveSector
 	}
 }
 
-void SendPacket_SectorOne(int iSectorX, int iSectorY, st_PACKET_HEADER* header, CPacket* cPacket, st_SESSION* pExceptSession)
+void SendPacket_SectorOne(int iSectorX, int iSectorY, st_PACKET_HEADER* header, CPacket* cPacket, DWORD dwExceptSessionID)
 {
 	list<st_CHARACTER*>::iterator it;
 	list<st_CHARACTER*> pSectorPlayerList;
@@ -227,10 +259,12 @@ void SendPacket_SectorOne(int iSectorX, int iSectorY, st_PACKET_HEADER* header, 
 	pSectorPlayerList = m_Sector[iSectorY][iSectorX];
 	for (it = pSectorPlayerList.begin(); it != pSectorPlayerList.end(); it++)
 	{
-		if ((*it)->pSession == pExceptSession)
+		if ((*it)->dwSessionID == dwExceptSessionID)
 			continue;
 
-		Send_UniCast((*it)->pSession, header, (char*)cPacket);
+		bool bSendRet = Send_UniCast((*it)->dwSessionID, header, cPacket->GetBufferPtr());
+		if (!bSendRet)
+			(*it)->bDeleted = true;
 	}
 }
 
@@ -246,6 +280,7 @@ void SendPacket_Around(st_CHARACTER* pCharacter, st_PACKET_HEADER* header, CPack
 	for (int i = 0; i < stAround.iCount; i++)
 	{
 		bool playerSectorFlag = false;
+		bool bSendFlag = false;
 		list<st_CHARACTER*>::iterator it;
 		list<st_CHARACTER*> pSectorPlayerList;
 
@@ -262,14 +297,22 @@ void SendPacket_Around(st_CHARACTER* pCharacter, st_PACKET_HEADER* header, CPack
 				if (!bSendMe && (*it)->dwSessionID == pCharacter->dwSessionID)
 					continue;
 
-				Send_UniCast((*it)->pSession, header, (char*)cPacket);
+				bSendFlag = Send_UniCast((*it)->dwSessionID, header, cPacket->GetBufferPtr());
+				if (!bSendFlag)
+				{
+					(*it)->bDeleted = true;
+				}
 			}
 		}
 		else
 		{
 			for (it = pSectorPlayerList.begin(); it != pSectorPlayerList.end(); it++)
 			{
-				Send_UniCast((*it)->pSession, header, (char*)cPacket);
+				bSendFlag = Send_UniCast((*it)->dwSessionID, header, cPacket->GetBufferPtr());
+				if (!bSendFlag)
+				{
+					(*it)->bDeleted = true;
+				}
 			}
 		}
 	}
