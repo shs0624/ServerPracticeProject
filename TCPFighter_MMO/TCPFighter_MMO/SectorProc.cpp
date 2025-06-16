@@ -70,6 +70,25 @@ void SetUserToSector(st_CHARACTER* player)
 	m_Sector[sectorY][sectorX].push_back(player);
 }
 
+void DeletePlayerFromSector(DWORD dwSessionID, short shX, short shY)
+{
+	short sectorX = shX / dfSECTOR_SIZE_X;
+	short sectorY = shY / dfSECTOR_SIZE_Y;
+
+	list<st_CHARACTER*>::iterator it;
+	list<st_CHARACTER*>* liSectorPList;
+
+	liSectorPList = &m_Sector[sectorY][sectorX];
+	for (it = liSectorPList->begin(); it != liSectorPList->end(); it++)
+	{
+		if ((*it)->dwSessionID == dwSessionID)
+		{
+			liSectorPList->erase(it);
+			return;
+		}
+	}
+}
+
 bool UpdateSector(st_CHARACTER* player)
 {
 	short sectorX = (player->shX) / dfSECTOR_SIZE_X;

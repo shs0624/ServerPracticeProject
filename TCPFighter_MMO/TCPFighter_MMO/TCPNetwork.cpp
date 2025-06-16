@@ -5,12 +5,17 @@
 #include "Debug.h"
 #include "LogProc.h"
 #include <list>
-#include <unordered_map>
 using namespace std;
 
-DWORD dwCurrentTick;
+#include "SectorDefine.h"
+#include "ContentsDefine.h"
+#include "SectorProc.h"
+#include "ContentsProc.h"
+#include <unordered_map>
+
+DWORD dwNetworkCurrentTick;
 SOCKET	m_ListenSocket;
-unsigned long m_IDCnt = 0;
+DWORD m_IDCnt = 0;
 
 unordered_map<DWORD, st_SESSION*> _sessionMap;
 
@@ -65,8 +70,8 @@ void netSelectIO()
 	time.tv_sec = 0;
 	time.tv_usec = 0;
 
-	DWORD oldTick = dwCurrentTick;
-	dwCurrentTick = timeGetTime();
+	DWORD oldTick = dwNetworkCurrentTick;
+	dwNetworkCurrentTick = timeGetTime();
 
 	int loopCount = 0;
 	fd_set readSet, writeSet;
@@ -96,17 +101,17 @@ void netSelectIO()
 	for (it = _sessionMap.begin(); it != _sessionMap.end(); it++)
 	{
 		// 타임아웃 체크는 L4에서
-		if (dwCurrentTick - (it)->second->dwLastRecvTime > dfNETWORK_PACKET_RECV_TIMEOUT)
+		if (dwNetworkCurrentTick - (it)->second->dwLastRecvTime > dfNETWORK_PACKET_RECV_TIMEOUT)
 		{
 			// 타임아웃
 			DebugBreak();
-			DisconnectSession(it->second);
+			DisconnectSession(it->second->dwSessionID);
 			continue;
 		}
 
 		FD_SET((*it).second->Socket, &readSet);
 		if ((*it).second->SendQ->GetUseSize() > 0)
-			FD_SET((*it).first, &writeSet);
+			FD_SET((*it).second->Socket, &writeSet);
 
 		selectList.push_back((*it).second);
 
@@ -190,14 +195,14 @@ void netProc_Accept()
 		session->IPPtr = clientAddr;
 		session->dwLastRecvTime = timeGetTime();
 
+		_sessionMap.insert({ session->dwSessionID, session });
+
 		// 플레이어 정보 생성
 		if (!netPacketProc_Accept(session->dwSessionID))
 		{
 			_LOG(0, L"Player Creation Fail! # sessionID : %d # Port : %d\n", session->dwSessionID, session->IPPtr.sin_port);
 			return;
 		}
-
-		_sessionMap.insert({ session->dwSessionID, session });
 
 		_LOG(0, L"Accepted Player # Port : %d\n", session->IPPtr.sin_port);
 	}
@@ -219,6 +224,14 @@ void netProc_Recv(st_SESSION* session)
 			return;
 
 		err_display("recv()");
+		SetDeleteCharacter(session->dwSessionID);
+		session->bDeleted = true;
+		return;
+	}
+
+	if (recvRet == 0)
+	{
+		SetDeleteCharacter(session->dwSessionID);
 		session->bDeleted = true;
 		return;
 	}
@@ -227,6 +240,7 @@ void netProc_Recv(st_SESSION* session)
 	{
 		// 공간이 없는 경우인데, 혹시 몰라 예외처리
 		err_display("enqueue Fail!");
+		SetDeleteCharacter(session->dwSessionID);
 		session->bDeleted = true;
 		return;
 	}
@@ -265,7 +279,7 @@ void netProc_Recv(st_SESSION* session)
 		ProcessMessage(session->dwSessionID, header.byType, csPacket);
 		csPacket->Clear();
 
-		//_LOG(0, L"Received Message # Type : %d # sessionID : %d\n", header.byType, session->dwSessionID);
+		_LOG(0, L"Received Message # Type : %d # sessionID : %d\n", header.byType, session->dwSessionID);
 	}
 
 	session->dwLastRecvTime = timeGetTime();
@@ -294,26 +308,28 @@ void netProc_Send(st_SESSION* session)
 		if (sendRet == SOCKET_ERROR)
 		{
 			err_display("send()");
+			SetDeleteCharacter(session->dwSessionID);
 			session->bDeleted = true;
 			return;
 		}
 		else if (sendRet != sendSize)
 		{
 			printf("SendRet Size _ netProc_Send sendRet : %d | sendSize : %d\n", sendRet, sendSize);
+			SetDeleteCharacter(session->dwSessionID);
 			session->bDeleted = true;
 			return;
 		}
 
 		sendBuffer->MoveFront(sendSize);
-		//_LOG(0, L"Send Message  Size : %d # sessionID : %d\n", sendRet, session->dwSessionID);
+		_LOG(0, L"Send Message  Size : %d # sessionID : %d\n", sendRet, session->dwSessionID);
 	}
 
 	session->dwLastRecvTime = timeGetTime(); 
 }
 
-void DisconnectSession(st_SESSION* pSession)
+void DisconnectSession(DWORD dwSessionID)
 {
-	(_sessionMap.find(pSession->dwSessionID))->second->bDeleted = true;
+	(_sessionMap.find(dwSessionID))->second->bDeleted = true;
 }
 
 void DisconnectDeletedSession()
@@ -351,7 +367,7 @@ bool Send_UniCast(DWORD dwsessionID, st_PACKET_HEADER* header, char* packet)
 	{
 		// 연결끊기?
 		DebugBreak();
-		DisconnectSession(pSession);
+		DisconnectSession(dwsessionID);
 		return false;
 	}
 
@@ -360,7 +376,7 @@ bool Send_UniCast(DWORD dwsessionID, st_PACKET_HEADER* header, char* packet)
 	{
 		// 연결 끊기
 		DebugBreak();
-		DisconnectSession(pSession);
+		DisconnectSession(dwsessionID);
 		return false;
 	}
 
@@ -369,7 +385,7 @@ bool Send_UniCast(DWORD dwsessionID, st_PACKET_HEADER* header, char* packet)
 	{
 		// 연결 끊기
 		DebugBreak();
-		DisconnectSession(pSession);
+		DisconnectSession(dwsessionID);
 		return false;
 	}
 

@@ -22,7 +22,19 @@ extern WCHAR g_szLogBuff[1024];
 
 extern unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
 
-bool AttackProc(st_CHARACTER* player, BYTE xRange, BYTE yRange, char damage);
+bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char damage);
+
+bool SetDeleteCharacter(DWORD dwSessionID)
+{
+	unordered_map<DWORD, st_CHARACTER*>::iterator it;
+	it = (m_CharacterMap.find(dwSessionID));
+	if (it == m_CharacterMap.end())
+		return false;
+
+	DeletePlayerFromSector(dwSessionID, it->second->shX, it->second->shY);
+	it->second->bDeleted = true;
+	return true;
+}
 
 bool netPacketProc_MoveStart(DWORD dwsessionID, CPacket* packet)
 {
@@ -119,25 +131,36 @@ bool netPacketProc_Attack(DWORD dwsessionID, BYTE type)
 	switch (type)
 	{
 	case dfPACKET_CS_ATTACK1:
-		AttackProc(_player, dfATTACK1_RANGE_X, dfATTACK1_RANGE_Y, dfATTACK1_DAMAGE);
+		AttackProc(_player, type, dfATTACK1_RANGE_X, dfATTACK1_RANGE_Y, dfATTACK1_DAMAGE);
 		break;
 	case dfPACKET_CS_ATTACK2:
-		AttackProc(_player, dfATTACK2_RANGE_X, dfATTACK2_RANGE_Y, dfATTACK2_DAMAGE);
+		AttackProc(_player, type, dfATTACK2_RANGE_X, dfATTACK2_RANGE_Y, dfATTACK2_DAMAGE);
 		break;
 	case dfPACKET_CS_ATTACK3:
-		AttackProc(_player, dfATTACK3_RANGE_X, dfATTACK3_RANGE_Y, dfATTACK3_DAMAGE);
+		AttackProc(_player, type, dfATTACK3_RANGE_X, dfATTACK3_RANGE_Y, dfATTACK3_DAMAGE);
 		break;
 	}
 
 	return true;
 }
 
-bool AttackProc(st_CHARACTER* player, BYTE xRange, BYTE yRange, char damage)
+bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char damage)
 {
 	// 싱크가 필요한지 모르겠음
 	st_PACKET_HEADER header;
 	CPacket scPacket = CPacket(PROTOCOL_MAXSIZE);
-	mpAttack1(&header, &scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
+	switch (type)
+	{
+	case dfPACKET_CS_ATTACK1:
+		mpAttack1(&header, &scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
+		break;
+	case dfPACKET_CS_ATTACK2:
+		mpAttack2(&header, &scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
+		break;
+	case dfPACKET_CS_ATTACK3:
+		mpAttack3(&header, &scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
+		break;
+	}
 	SendPacket_Around(player, &header, &scPacket);
 
 	list<st_CHARACTER*> collideList;
@@ -169,8 +192,7 @@ bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 	bool bRet = Send_UniCast(dwsessionID, &header, scPacket.GetBufferPtr());
 	if (!bRet)
 	{
-		st_CHARACTER* pPlayer = m_CharacterMap.find(dwsessionID)->second;
-		pPlayer->bDeleted = true;
+		SetDeleteCharacter(dwsessionID);
 	}
 
 	return true;
@@ -251,7 +273,6 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 
 	m_CharacterMap.insert({ playerPtr->dwSessionID, playerPtr });
 	_LOG(0, L"Accepted Player # playerID : %d # playerX : %d # playerY : %d\n", playerPtr->dwSessionID, playerPtr->shX, playerPtr->shY);
-
 
 	return true;
 }

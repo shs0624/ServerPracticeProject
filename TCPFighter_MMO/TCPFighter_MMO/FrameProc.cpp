@@ -150,7 +150,6 @@ void DisconnectPlayer()
 			
 			_LOG(0, L"Disconnect Player L7 # sessionID : %d\n", (*it).second->dwSessionID);
 			it = m_CharacterMap.erase(it);
-			DisconnectSession((*it).second->dwSessionID);
 
 			continue;
 		}
