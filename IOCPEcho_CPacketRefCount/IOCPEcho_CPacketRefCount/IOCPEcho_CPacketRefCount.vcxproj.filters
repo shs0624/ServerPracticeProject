@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="CLanServer.cpp" />
+    <ClCompile Include="EchoServer.cpp" />
+    <ClCompile Include="CRingBuffer.cpp">
+      <Filter>CRingBuffer</Filter>
+    </ClCompile>
+    <ClCompile Include="CSerializationBuffer.cpp">
+      <Filter>CPacket</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcademyProfiler.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CFreeList.h" />
+    <ClInclude Include="CLanServer.h" />
+    <ClInclude Include="EchoServer.h" />
+    <ClInclude Include="CRingBuffer.h">
+      <Filter>CRingBuffer</Filter>
+    </ClInclude>
+    <ClInclude Include="CCrashDump.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="TestStack.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="CSerializationBuffer.h">
+      <Filter>CPacket</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcademyProfiler.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="RefCountPointer.h">
+      <Filter>CPacket</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CRingBuffer">
+      <UniqueIdentifier>{6a8ba1a1-9f0d-4b2a-a979-f53ca017e886}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Debug">
+      <UniqueIdentifier>{7a7c6195-13d4-4bb5-9a85-74fd7aa7dbd4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="CPacket">
+      <UniqueIdentifier>{313efa78-3e54-4f5e-ae4d-b1d8d13b0f5f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
