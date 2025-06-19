@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -137,6 +137,7 @@
     <ClInclude Include="Debug.h" />
     <ClInclude Include="EchoServer.h" />
     <ClInclude Include="ProcademyProfiler.h" />
+    <ClInclude Include="TestStack.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CLanServer.cpp" />

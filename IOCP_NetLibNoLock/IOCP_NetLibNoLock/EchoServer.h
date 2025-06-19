@@ -1,5 +1,6 @@
 #pragma once
 #include "CLanServer.h"
+#define SERVERPORT 6000
 
 class EchoServer : CLanServer
 {

@@ -9,7 +9,7 @@
 #include "ProcademyProfiler.h"
 #include <crtdbg.h>
 #include <iostream>
-#include <queue>
+#include <deque>
 #include <minidumpapiset.h>
 #include "CCrashDump.h"
 
@@ -112,10 +112,9 @@ void CLanServer::InitializeSessions(WORD maxConnection)
 		InitializeCriticalSection(&_sessionArr[i].crtLock);
 
 		// 인덱스만 설정하고 thraedID는 accept에서. accept도 수정하기
-		ULONGLONG index = i << 48;
+		//ULONGLONG index = i << 48;
 		//ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
-		_sessionArr[i].ulSessionID = (i << 48);
-
+		//_sessionArr[i].ulSessionID = (i << 48);
 		_indexStack.push(i);
 	}
 }
@@ -174,8 +173,8 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 
 		ULONGLONG index;
 		EnterCriticalSection(&_csProfilerCS);
-		EnterCriticalSection(&_csIndexStackCS);
 		{
+			EnterCriticalSection(&_csIndexStackCS);
 			{
 				Profiler("GetIndex");
 				index = _indexStack.top();
@@ -185,20 +184,14 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 
 			if (!_sessionArr[index].bSessionUsing)
 			{
+				_sessionArr[index].bSessionUsing = true;
 				ZeroMemory(&_sessionArr[index].recvOverlapped, sizeof(_sessionArr[index].recvOverlapped));
 				ZeroMemory(&_sessionArr[index].sendOverlapped, sizeof(_sessionArr[index].sendOverlapped));
 				_sessionArr[index].dwIOCount = 0;
 				_sessionArr[index].bSendFlag = false;
 				_sessionArr[index].sock = client_sock;
 				_sessionArr[index].recvBuf->ClearBuffer();
-				while (!_sessionArr[index].sendBuf.empty())
-				{
-					_sessionArr[index].sendBuf.pop();
-				}
-				while (!_sessionArr[index].resultBuf.empty())
-				{
-					_sessionArr[index].resultBuf.pop();
-				}
+				_sessionArr[index].sendBuf.clear();
 
 				ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
 				ULONGLONG idx = (index << 48);
@@ -206,7 +199,6 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 
 				// 소켓을 IOCP에 등록
 				CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)&_sessionArr[index], 0);
-				_sessionArr[index].bSessionUsing = true;
 			}
 			else
 			{
@@ -216,10 +208,18 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		LeaveCriticalSection(&_csProfilerCS);
 
 		thisPtr->OnAccept();
-		_iSessionCount++;
+		InterlockedIncrement((LONG*)&_iSessionCount);
 		InterlockedIncrement((unsigned int*)&_iAcceptTPS);
 
-		SetWSARecv(&_sessionArr[index]);
+		if (!SetWSARecv(&_sessionArr[index]))
+		{
+			if (InterlockedDecrement((DWORD*)&(_sessionArr[index].dwIOCount)) == 0)
+			{
+				// 연결 끊기
+				ReleaseSession(&_sessionArr[index]);
+				return false;
+			}
+		}
 	}
 	return true;
 }
@@ -280,7 +280,6 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 						// 연결 끊기
 						thisPtr->ReleaseSession(ptr);
 					}
-					continue;
 				}
 			}
 		}
@@ -288,7 +287,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		{
 			//PRO_BEGIN(L"SendOverlapped");
 			EnterCriticalSection(&ptr->crtLock);
-			if (ptr->resultBuf.size() != ptr->dwSendCount)
+			if (ptr->sendBuf.size() < ptr->dwSendCount)
 			{
 				err_display("SendCount != resultBuf Count");
 				thisPtr->Disconnect(ptr->ulSessionID);
@@ -299,10 +298,11 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			int loopCnt = ptr->dwSendCount;
 			for (int i = 0; i < loopCnt; i++)
 			{
-				delete(ptr->resultBuf.front());
-				ptr->resultBuf.pop();
+				CPacket* cpacket = (CPacket*)(ptr->sendBuf.front());
+				delete(cpacket);
+
+				ptr->sendBuf.pop_front();
 			}
-			printf("dwSendCount : %d # loopCnt : %d\n", ptr->dwSendCount, loopCnt);
 
 			ptr->dwSendCount -= loopCnt;
 			if (ptr->dwSendCount < 0)
@@ -310,7 +310,15 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 
 			if (!ptr->sendBuf.empty())
 			{
-				thisPtr->SetWSASend(ptr);
+				if (!thisPtr->SetWSASend(ptr))
+				{
+					InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+					{
+						// 연결 끊기
+						thisPtr->ReleaseSession(ptr);
+					}
+				}
 			}
 			else
 			{
@@ -332,7 +340,6 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 
 void CLanServer::QuitServer()
 {
-	printf("CLanServer::Quit();\n");
 	_bServerEnabled = false;
 
 	for (int i = 0; i < _imaxConnection; i++)
@@ -387,10 +394,20 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, CPacket* cPacket)
 	sendCPacket->MoveWritePos(shSize);
 
 	EnterCriticalSection(&pSession->crtLock);
-	pSession->sendBuf.push(sendCPacket);
+	pSession->sendBuf.push_back(sendCPacket);
 	if (InterlockedExchange((LONG*)&(pSession->bSendFlag), TRUE) != TRUE)
 	{
-		SetWSASend(pSession);
+		if (!SetWSASend(pSession))
+		{
+			LeaveCriticalSection(&pSession->crtLock);
+			InterlockedExchange((LONG*)&(pSession->bSendFlag), FALSE);
+			if (InterlockedDecrement((DWORD*)&(pSession->dwIOCount)) == 0)
+			{
+				// 연결 끊기
+				ReleaseSession(pSession);
+			}
+			return false;
+		}
 	}
 	LeaveCriticalSection(&pSession->crtLock);
 
@@ -421,11 +438,12 @@ unsigned int WINAPI CLanServer::TPSThread(LPVOID arg)
 
 void CLanServer::ResetTPS()
 {
-	//printf("GetSessionPerSec : %lld\n", _GetSessionPerSec);
+	printf("_iSessionCount : %d # _iReleaseTPS : %d # _iAcceptTPS : %d\n", _iSessionCount, _iReleaseTPS, _iAcceptTPS);
 
 	_iAcceptTPS = 0;
 	_iRecvMessageTPS = 0;
 	_iSendMessageTPS = 0;
+	_iReleaseTPS = 0;
 	_GetSessionPerSec = 0;
 
 	WaitForSingleObject(_hTPSUpdateEvent, 1000);
@@ -463,10 +481,8 @@ bool CLanServer::SetWSARecv(st_Session* ptr)
 	{
 		if (WSAGetLastError() != WSA_IO_PENDING)
 		{
-			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+			if (WSAGetLastError() != 0)
 			{
-				// 연결 끊기
-				ReleaseSession(ptr);
 				return false;
 			}
 		}
@@ -536,16 +552,14 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	InterlockedIncrement((ULONGLONG*)&(ptr->dwIOCount));
 	WSABUF sendWsa[SEND_MAX];
 
-	while(!ptr->sendBuf.empty())
+	std::deque<void*>::iterator it;
+	int size = ptr->sendBuf.size();
+	for (int i = 0; i < size; i++)
 	{
-		CPacket* cPacket = (CPacket*)ptr->sendBuf.front();
-		sendWsa[idx].buf = cPacket->GetBufferPtr();
-		ptr->sendBuf.pop();
+		CPacket* cPacket = (CPacket*)ptr->sendBuf[i];
+		sendWsa[i].buf = cPacket->GetBufferPtr();
 
-		// 다시 넣어서 큐를 채우기
-		ptr->resultBuf.push(cPacket);
-
-		sendWsa[idx].len = sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[idx].buf)->shLen;
+		sendWsa[i].len = sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
 		idx++;
 	}
 
@@ -557,7 +571,10 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	{
 		if (WSAGetLastError() != WSA_IO_PENDING)
 		{
-			return false;
+			if (WSAGetLastError() != 0)
+			{
+				return false;
+			}
 		}
 	}
 
@@ -568,23 +585,20 @@ void CLanServer::ReleaseSession(st_Session* ptr)
 {
 	//Profiler pro(L"ReleaseSession");
 	EnterCriticalSection(&ptr->crtLock);
-	LeaveCriticalSection(&ptr->crtLock);
-	closesocket(ptr->sock);
-
 	OnRelease(ptr->ulSessionID);
 	ptr->recvBuf->ClearBuffer();
-	while (!ptr->sendBuf.empty())
-	{
-		ptr->sendBuf.pop();
-	}
-	while (!ptr->resultBuf.empty())
-	{
-		ptr->resultBuf.pop();
-	}
+	ptr->sendBuf.clear();
+
+	closesocket(ptr->sock);
 	ptr->bSessionUsing = false;
+	LeaveCriticalSection(&ptr->crtLock);
+
+	InterlockedDecrement((LONG*)&_iSessionCount);
 
 	EnterCriticalSection(&_csIndexStackCS);
 	ULONGLONG idx = (ptr->ulSessionID) >> 48;
 	_indexStack.push(idx);
 	LeaveCriticalSection(&_csIndexStackCS);
+
+	InterlockedIncrement((LONG*)&_iReleaseTPS);
 }

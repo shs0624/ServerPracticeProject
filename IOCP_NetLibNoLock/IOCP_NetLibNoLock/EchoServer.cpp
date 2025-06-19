@@ -4,7 +4,7 @@
 
 int main()
 {
-	EchoServer* _echoServer = new EchoServer(INADDR_ANY, 6000, true, 500);
+	EchoServer* _echoServer = new EchoServer(INADDR_ANY, SERVERPORT, true, 500);
 
 	char ch;
 	while (1)

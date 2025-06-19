@@ -1,4 +1,4 @@
-#define DEFAULTSIZE 2000
+#define DEFAULTSIZE 10000
 template <typename T>
 class TestStack
 {
@@ -22,7 +22,7 @@ public:
 
 	void push(T& data)
 	{
-		_pStack[++idx] = data;
+		_pStack[idx++] = data;
 	}
 
 	void pop()
@@ -30,9 +30,14 @@ public:
 		idx--;
 	}
 
+	int count()
+	{
+		return idx;
+	}
+
 	T& top()
 	{
-		return _pStack[idx];
+		return _pStack[idx - 1];
 	}
 private:
 	T* _pStack;

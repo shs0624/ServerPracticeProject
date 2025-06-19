@@ -189,7 +189,8 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		}
 
 		thisPtr->OnAccept();
-		_iSessionCount++;
+		//_iSessionCount++;
+		InterlockedIncrement((LONG*)&_iSessionCount);
 		InterlockedIncrement((unsigned int*)&_iAcceptTPS);
 
 		SetWSARecv(&_sessionArr[index]);
@@ -405,7 +406,7 @@ unsigned int WINAPI CLanServer::TPSThread(LPVOID arg)
 
 void CLanServer::ResetTPS()
 {
-	printf("GetSessionPerSec : %lld\n", _GetSessionPerSec);
+	printf("_iSessionCount : %d\n", _iSessionCount);
 
 	_iAcceptTPS = 0;
 	_iRecvMessageTPS = 0;
@@ -447,11 +448,14 @@ bool CLanServer::SetWSARecv(st_Session* ptr)
 	{
 		if (WSAGetLastError() != WSA_IO_PENDING)
 		{
-			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+			if (WSAGetLastError() != 0)
 			{
-				// ¿¬°á ²÷±â
-				ReleaseSession(ptr);
-				return false;
+				if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+				{
+					// ¿¬°á ²÷±â
+					ReleaseSession(ptr);
+					return false;
+				}
 			}
 		}
 	}
@@ -561,4 +565,5 @@ void CLanServer::ReleaseSession(st_Session* ptr)
 	ptr->recvBuf->ClearBuffer();
 	ptr->sendBuf->ClearBuffer();
 	ptr->bSessionUsing = false;
+	InterlockedDecrement((LONG*)&_iSessionCount);
 }

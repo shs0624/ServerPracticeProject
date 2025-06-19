@@ -1,4 +1,5 @@
 #include "CSerializationBuffer.h"
+#include <iostream>
 
 CPacket::CPacket()
 {
@@ -20,7 +21,7 @@ CPacket::CPacket(int iBufferSize)
 	_head = 0;
 	_tail = 0;
 	_iDataSize = 0;
-	_iBuffer = (char*)malloc(_iBufferSize); 
+	_iBuffer = (char*)malloc(_iBufferSize);
 	if (_iBuffer == nullptr)
 	{
 		DebugBreak();

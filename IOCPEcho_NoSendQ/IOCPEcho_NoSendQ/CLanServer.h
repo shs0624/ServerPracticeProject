@@ -3,7 +3,7 @@
 #include "CRingBuffer.h"
 //#include <stack>
 #include "TestStack.h"
-#include <queue>
+#include <deque>
 #define PROTOCOL_MAX_SIZE 16
 #define SEND_MAX 150
 
@@ -24,8 +24,7 @@ struct st_Session
 	SOCKET sock;
 	//CRingBuffer* sendBuf;
 	CRingBuffer* recvBuf;
-	std::queue<void*> sendBuf;
-	std::queue<void*> resultBuf;
+	std::deque<void*> sendBuf;
 
 	DWORD dwIOCount;
 	DWORD dwSendCount;
@@ -73,6 +72,7 @@ protected:
 	int _iAcceptTPS;
 	int _iRecvMessageTPS;
 	int _iSendMessageTPS;
+	int _iReleaseTPS;
 
 	HANDLE _hTPSUpdateEvent;
 
