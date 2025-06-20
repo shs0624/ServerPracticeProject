@@ -33,7 +33,7 @@
     <ClInclude Include="CRingBuffer.h">
       <Filter>Lib</Filter>
     </ClInclude>
-    <ClInclude Include="CSerializationBuffer.h">
+    <ClInclude Include="CPacket_Mempool.h">
       <Filter>Lib</Filter>
     </ClInclude>
     <ClInclude Include="TestStack.h">
@@ -65,7 +65,7 @@
     <ClCompile Include="CRingBuffer.cpp">
       <Filter>Lib</Filter>
     </ClCompile>
-    <ClCompile Include="CSerializationBuffer.cpp">
+    <ClCompile Include="CPacket_Mempool.cpp">
       <Filter>Lib</Filter>
     </ClCompile>
     <ClCompile Include="ProcademyProfiler.cpp">

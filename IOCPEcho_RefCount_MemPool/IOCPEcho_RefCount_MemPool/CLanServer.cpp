@@ -527,7 +527,9 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 	while (1)
 	{
 		{
-			RefCountPointer<CPacket> csPacket = RefCountPointer<CPacket>::MakeSharedPtr(true, PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
+			RefCountPointer<CPacket> csPacket = RefCountPointer<CPacket>::MakeSharedPtr();
+			(*csPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
+
 			int useSize = ptr->recvBuf->GetUseSize();
 			if (useSize < sizeof(st_NetHeader))
 			{

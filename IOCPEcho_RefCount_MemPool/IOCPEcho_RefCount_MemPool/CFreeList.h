@@ -42,8 +42,12 @@ namespace procademy
 		//				(bool) malloc 시 생성자 / Free 시 파괴자 호출 여부
 		// Return:
 		//////////////////////////////////////////////////////////////////////////
-		CMemoryPool(int iBlockNum, bool bPlacementNew = false, bool bCreateNew = false)
+		CMemoryPool() {}
+
+		CMemoryPool(int iBlockNum = 0, bool bPlacementNew = false, bool bCreateNew = false)
 		{
+			InitializeCriticalSection(&_poolCRT);
+
 			m_iCreateCount = (iBlockNum == 0) ? DEFAULTSIZE : iBlockNum;
 			m_iCapacity = iBlockNum;
 			m_iUseCount = 0;
@@ -92,6 +96,7 @@ namespace procademy
 		//////////////////////////////////////////////////////////////////////////
 		DATA* Alloc(void)
 		{
+			EnterCriticalSection(&_poolCRT);
 			if (m_iUseCount == m_iCapacity)
 				Resize();
 
@@ -110,6 +115,7 @@ namespace procademy
 
 			++m_iUseCount;
 
+			LeaveCriticalSection(&_poolCRT);
 			return data;
 		}
 
@@ -121,6 +127,7 @@ namespace procademy
 		//////////////////////////////////////////////////////////////////////////
 		bool Free(DATA* pData)
 		{
+			EnterCriticalSection(&_poolCRT);
 			st_BLOCK_NODE* ptr = (st_BLOCK_NODE*)((char*)pData - 8);
 
 #ifdef __GUARDTEST__
@@ -139,6 +146,7 @@ namespace procademy
 			_pFreeNode = ptr;
 			m_iUseCount--;
 
+			LeaveCriticalSection(&_poolCRT);
 			return true;
 		}
 
@@ -189,6 +197,8 @@ namespace procademy
 		bool m_bPlacementNew;
 		bool m_bCreateNew;
 		void* m_guardCode;
+
+		CRITICAL_SECTION _poolCRT;
 	};
 }
 #endif

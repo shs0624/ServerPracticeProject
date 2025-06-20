@@ -3,6 +3,7 @@
 #ifndef _CPACKET_
 #define _CPACKET_
 #include <Windows.h>
+#include "CFreeList.h"
 
 enum en_PACKET
 {
@@ -12,11 +13,12 @@ enum en_PACKET
 class CPacket
 {
 public:
-	CPacket();
-	CPacket(int iBufferSize);
-	CPacket(int iBufferSize, int iHeaderSize);
-
-	virtual ~CPacket();
+	//////////////////////////////////////////////////////////////////////////
+	// 생성자를 대신할 첫 Init
+	// iBufferSize : 버퍼 최대 사이즈
+	// iHeaderSize : head부터 비울 header 사이즈
+	//////////////////////////////////////////////////////////////////////////
+	void Initialize(int iBufferSize, int iHeaderSize);
 
 	//////////////////////////////////////////////////////////////////////////
 	// 패킷 청소.
@@ -313,7 +315,18 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	int	PutData(char* chpSrc, int iSrcSize);
 
+	static procademy::CMemoryPool<CPacket> _CPacketPool;
+	friend class procademy::CMemoryPool<CPacket>;
+private:
+	CPacket()
+	{
 
+	}
+
+	virtual ~CPacket()
+	{
+		free(_iBuffer);
+	}
 protected:
 	int _iBufferSize;
 	// 현재 버퍼에 사용중인 사이즈

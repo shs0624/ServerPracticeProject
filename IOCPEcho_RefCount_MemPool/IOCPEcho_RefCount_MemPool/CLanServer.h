@@ -1,5 +1,5 @@
 #pragma once
-#include "CSerializationBuffer.h"
+#include "CPacket_Mempool.h"
 #include "CRingBuffer.h"
 #include "RefCountPointer.h"
 //#include <stack>
