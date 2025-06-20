@@ -1,35 +1,17 @@
-#include "CSerializationBuffer.h"
+#include "CPacket.h"
 #include <iostream>
 
 CPacket::CPacket()
 {
-	_iBufferSize = eBUFFER_DFAULT;
-	_head = 0;
-	_tail = 0;
-	_iDataSize = 0;
-	_iBuffer = (char*)malloc(_iBufferSize);
-	if (_iBuffer == nullptr)
-	{
-		DebugBreak();
-		return;
-	}
+	
 }
 
-CPacket::CPacket(int iBufferSize)
+CPacket::~CPacket()
 {
-	_iBufferSize = iBufferSize;
-	_head = 0;
-	_tail = 0;
-	_iDataSize = 0;
-	_iBuffer = (char*)malloc(_iBufferSize);
-	if (_iBuffer == nullptr)
-	{
-		DebugBreak();
-		return;
-	}
+	free(_iBuffer);
 }
 
-CPacket::CPacket(int iBufferSize, int iHeaderSize)
+void CPacket::Initialize(int iBufferSize = eBUFFER_DFAULT, int iHeaderSize = 0)
 {
 	_iBufferSize = iBufferSize;
 	_head = iHeaderSize;
@@ -41,11 +23,6 @@ CPacket::CPacket(int iBufferSize, int iHeaderSize)
 		DebugBreak();
 		return;
 	}
-}
-
-CPacket::~CPacket()
-{
-	free(_iBuffer);
 }
 
 int CPacket::GetData(char* chpDest, int iSize)

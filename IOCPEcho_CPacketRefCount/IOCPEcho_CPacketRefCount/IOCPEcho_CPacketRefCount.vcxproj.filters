@@ -6,7 +6,7 @@
     <ClCompile Include="CRingBuffer.cpp">
       <Filter>CRingBuffer</Filter>
     </ClCompile>
-    <ClCompile Include="CSerializationBuffer.cpp">
+    <ClCompile Include="CPacket.cpp">
       <Filter>CPacket</Filter>
     </ClCompile>
     <ClCompile Include="ProcademyProfiler.cpp">
@@ -29,7 +29,7 @@
     <ClInclude Include="TestStack.h">
       <Filter>Debug</Filter>
     </ClInclude>
-    <ClInclude Include="CSerializationBuffer.h">
+    <ClInclude Include="CPacket.h">
       <Filter>CPacket</Filter>
     </ClInclude>
     <ClInclude Include="ProcademyProfiler.h">

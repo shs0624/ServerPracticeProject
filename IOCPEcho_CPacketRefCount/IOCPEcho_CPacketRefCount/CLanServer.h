@@ -1,5 +1,5 @@
 #pragma once
-#include "CSerializationBuffer.h"
+#include "CPacket.h"
 #include "CRingBuffer.h"
 #include "RefCountPointer.h"
 //#include <stack>
@@ -8,7 +8,7 @@
 
 #define PROTOCOL_MAX_SIZE 16
 #define SEND_MAX 150
-#define CHECKPROFILE
+//#define CHECKPROFILE
 
 #pragma pack(1)
 struct st_NetHeader
@@ -25,7 +25,6 @@ struct st_Session
 	// 상위 2바이트 = 인덱스, 하위 6바이트 = 세션ID
 	ULONGLONG ulSessionID;
 	SOCKET sock;
-	//CRingBuffer* sendBuf;
 	CRingBuffer* recvBuf;
 	std::deque<RefCountPointer<CPacket>> sendBuf;
 

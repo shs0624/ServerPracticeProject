@@ -81,7 +81,7 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 		return 1;
 
 	_workerCount = workerCount;
-	for (int i = 0; i < workerCount; i++)
+	for (int i = 0; i < _workerCount; i++)
 	{
 		_iocpWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, (LPVOID)this, 0, &_iocpWorkerThreadID[i]);
 		if (_iocpWorkerThreadHandleArr[i] == NULL)
@@ -527,7 +527,9 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 	while (1)
 	{
 		{
-			RefCountPointer<CPacket> csPacket = RefCountPointer<CPacket>::MakeSharedPtr(true, PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
+			RefCountPointer<CPacket> csPacket = RefCountPointer<CPacket>::MakeSharedPtr();
+			(*csPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
+
 			int useSize = ptr->recvBuf->GetUseSize();
 			if (useSize < sizeof(st_NetHeader))
 			{

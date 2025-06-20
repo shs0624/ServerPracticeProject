@@ -42,7 +42,7 @@ namespace procademy
 		//				(bool) malloc 시 생성자 / Free 시 파괴자 호출 여부
 		// Return:
 		//////////////////////////////////////////////////////////////////////////
-		CMemoryPool(int iBlockNum, bool bPlacementNew = false, bool bCreateNew = false)
+		CMemoryPool(int iBlockNum = 0, bool bPlacementNew = false, bool bCreateNew = false)
 		{
 			m_iCreateCount = (iBlockNum == 0) ? DEFAULTSIZE : iBlockNum;
 			m_iCapacity = iBlockNum;

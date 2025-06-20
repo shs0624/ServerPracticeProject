@@ -14,10 +14,21 @@ public:
 	{
 		if (InterlockedDecrement(_iRefCount) == 0)
 		{
+			delete(_iRefCount);
 			delete(ptr);
 		}
 	}
 
+	static RefCountPointer<T> MakeSharedPtr()
+	{
+		RefCountPointer<T> result;
+		result._iRefCount = new unsigned int(1);
+		result.ptr = new T;
+
+		return result;
+	}
+
+	/*
 	static RefCountPointer<T> MakeSharedPtr(bool isAuto)
 	{
 		RefCountPointer<T> result;
@@ -47,6 +58,7 @@ public:
 
 		return result;
 	}
+	*/
 
 	T* operator*()
 	{
@@ -58,12 +70,8 @@ public:
 	{
 		ptr = copy.ptr;
 		_iRefCount = copy._iRefCount;
-		_isAuto = copy._isAuto;
 
-		if (_isAuto)
-		{
-			InterlockedIncrement((LONG*)_iRefCount);
-		}
+		InterlockedIncrement((LONG*)_iRefCount);
 
 		return *this;
 	}
@@ -72,13 +80,12 @@ public:
 	{
 		ptr = copy.ptr;
 		_iRefCount = copy._iRefCount;
-		_isAuto = copy._isAuto;
 
-		if (_isAuto)
-		{
-			InterlockedIncrement((LONG*)_iRefCount);
-		}
+		InterlockedIncrement((LONG*)_iRefCount);
 	}
+private:
+	T* ptr;
+	unsigned int* _iRefCount;
 
 	void IncRefCount()
 	{
@@ -89,11 +96,10 @@ public:
 	{
 		if (InterlockedDecrement((LONG*)_iRefCount) == 0)
 		{
+			delete(_iRefCount);
 			delete(ptr);
 		}
 	}
-private:
-	T* ptr;
-	unsigned int* _iRefCount;
-	bool _isAuto;
+
+	friend class CLanServer;
 };

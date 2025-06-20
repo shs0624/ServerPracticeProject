@@ -13,10 +13,15 @@ class CPacket
 {
 public:
 	CPacket();
-	CPacket(int iBufferSize);
-	CPacket(int iBufferSize, int iHeaderSize);
 
 	virtual ~CPacket();
+
+	//////////////////////////////////////////////////////////////////////////
+	// 생성자를 대신할 첫 Init
+	// iBufferSize : 버퍼 최대 사이즈
+	// iHeaderSize : head부터 비울 header 사이즈
+	//////////////////////////////////////////////////////////////////////////
+	void Initialize(int iBufferSize, int iHeaderSize);
 
 	//////////////////////////////////////////////////////////////////////////
 	// 패킷 청소.
@@ -312,8 +317,6 @@ public:
 	// Return: (int)복사한 사이즈.
 	//////////////////////////////////////////////////////////////////////////
 	int	PutData(char* chpSrc, int iSrcSize);
-
-
 protected:
 	int _iBufferSize;
 	// 현재 버퍼에 사용중인 사이즈
