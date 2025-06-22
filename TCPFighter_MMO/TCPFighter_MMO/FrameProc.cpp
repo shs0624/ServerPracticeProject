@@ -10,15 +10,19 @@ using namespace std;
 #include "SectorDefine.h"
 #include "MessageProc.h"
 #include "ContentsDefine.h"
+#include "CStack.h"
 #include "ContentsProc.h"
 #include "SectorProc.h"
 #include "MessageCreate.h"
+#include "CFreeList.h"
 #include "LogProc.h"
+#include "ProcademyProfiler.h"
 
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
 unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
+procademy::CMemoryPool<st_CHARACTER> _CharacterPool(15000, false, false);
 
 DWORD dwCurrentTick;
 
@@ -55,17 +59,8 @@ void Update()
 			pPlayer->bDeleted = true;
 			continue;
 		}
-		
-		//if (dwCurrentTick - pPlayer->pSession->dwLastRecvTime > dfNETWORK_PACKET_RECV_TIMEOUT)
-		//{
-		//	// 타임아웃
-		//	DebugBreak();
-		//	DisconnectSession(pPlayer->pSession);
-		//	pPlayer->bDeleted = true;
-		//	continue;
-		//}
 
-		//_LOG(2, L"Player Info # sessionID : %d # X : %d # Y : %d\n", pPlayer->dwSessionID, pPlayer->shX, pPlayer->shY);
+		_LOG(0, L"Player Info # sessionID : %d # X : %d # Y : %d\n", pPlayer->dwSessionID, pPlayer->shX, pPlayer->shY);
 
 		switch (pPlayer->dwAction)
 		{
@@ -123,13 +118,18 @@ void Update()
 			break;
 		}
 
-		if (!UpdateSector(pPlayer))
 		{
-			ChangeSector(pPlayer);
+			if (!UpdateSector(pPlayer))
+			{
+				ChangeSector(pPlayer);
+			}
 		}
 	}
 
-	DisconnectPlayer();
+	{
+		Profiler("DisconnectPlayer");
+		DisconnectPlayer();
+	}
 }
 
 // 표시된 플레이어 map에서 삭제

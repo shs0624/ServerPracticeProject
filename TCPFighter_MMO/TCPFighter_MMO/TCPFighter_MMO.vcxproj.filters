@@ -63,6 +63,9 @@
     <ClCompile Include="LogProc.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
+    <ClCompile Include="ProcademyProfiler.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="NetworkProc.h">
@@ -118,6 +121,15 @@
     </ClInclude>
     <ClInclude Include="CCrashDump.h">
       <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="CStack.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcademyProfiler.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="CFreeList.h">
+      <Filter>Lib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

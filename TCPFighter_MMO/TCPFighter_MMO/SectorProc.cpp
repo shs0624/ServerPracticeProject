@@ -8,9 +8,14 @@ using namespace std;
 #include "SectorProc.h"
 #include "MessageCreate.h"
 #include "TCPNetwork.h"
+#include "LogProc.h"
 
 // 한 섹터는 100 x 100 크기로,  64 x 64개의 섹터로 이루어짐
 list<st_CHARACTER*> m_Sector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
+
+extern int g_iLogLevel;
+extern WCHAR g_szLogBuff[1024];
+
 
 // 유저를 섹터에 세팅하고, 그 섹터의 타 유저 정보도 전송
 void SetUserToSector(st_CHARACTER* player)
@@ -24,11 +29,21 @@ void SetUserToSector(st_CHARACTER* player)
 	player->OldSector.iX = sectorX;
 	player->OldSector.iY = sectorY;
 
+	SendUserInfoToNewPlayer(player->dwSessionID, player->shX, player->shY);
+
+	m_Sector[sectorY][sectorX].push_back(player);
+}
+
+void SendUserInfoToNewPlayer(DWORD dwNewSessionID, short shX, short shY)
+{
+	short sectorX = shX / dfSECTOR_SIZE_X;
+	short sectorY = shY / dfSECTOR_SIZE_Y;
+
 	st_PACKET_HEADER header;
 	CPacket* scPacket = new CPacket(PROTOCOL_MAXSIZE);
 
 	list<st_CHARACTER*>::iterator it;
-	list<st_CHARACTER*> * liSectorPList;
+	list<st_CHARACTER*>* liSectorPList;
 
 	// 그 섹터의 유저들 정보를 새 유저에게 전송
 	st_SECTOR_AROUND aroundSector;
@@ -39,11 +54,11 @@ void SetUserToSector(st_CHARACTER* player)
 		int iX = aroundSector.Around[i].iX;
 		int iY = aroundSector.Around[i].iY;
 
-		liSectorPList = &m_Sector[aroundSector.Around[i].iY][aroundSector.Around[i].iX];
+		liSectorPList = &m_Sector[iY][iX];
 		for (it = liSectorPList->begin(); it != liSectorPList->end(); it++)
 		{
 			mpCreateOtherCharacter(&header, scPacket, (*it)->dwSessionID, (*it)->byDirection, (*it)->shX, (*it)->shY, (*it)->chHP);
-			bool bRet = Send_UniCast(player->dwSessionID, &header, scPacket->GetBufferPtr());
+			bool bRet = Send_UniCast(dwNewSessionID, &header, scPacket->GetBufferPtr());
 			if (!bRet)
 			{
 				return;
@@ -56,7 +71,7 @@ void SetUserToSector(st_CHARACTER* player)
 			{
 				//scMoveStart
 				mpMoveStart(&header, scPacket, (*it)->dwSessionID, (*it)->dwAction, (*it)->shX, (*it)->shY);
-				bool bRet = Send_UniCast(player->dwSessionID, &header, scPacket->GetBufferPtr());
+				bool bRet = Send_UniCast(dwNewSessionID, &header, scPacket->GetBufferPtr());
 				if (!bRet)
 				{
 					return;
@@ -66,8 +81,6 @@ void SetUserToSector(st_CHARACTER* player)
 			}
 		}
 	}
-
-	m_Sector[sectorY][sectorX].push_back(player);
 }
 
 void DeletePlayerFromSector(DWORD dwSessionID, short shX, short shY)
@@ -137,6 +150,8 @@ void ChangeSector(st_CHARACTER* player)
 				player->bDeleted = true;
 
 			scPacket->Clear();
+
+			_LOG(0, L"Delete Character # ID : %d\n", (*it)->dwSessionID);
 		}
 	}
 

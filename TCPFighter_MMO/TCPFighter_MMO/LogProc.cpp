@@ -2,7 +2,7 @@
 #include <Windows.h>
 #include "LogProc.h"
 
-int g_iLogLevel = 0;
+int g_iLogLevel = 1;
 WCHAR g_szLogBuff[1024];
 
 void Log(WCHAR* szString)

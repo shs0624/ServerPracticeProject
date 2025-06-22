@@ -5,7 +5,6 @@
 #include "Debug.h"
 #include "LogProc.h"
 #include <list>
-#include "CStack.h"
 using namespace std;
 
 #include "SectorDefine.h"
@@ -13,7 +12,6 @@ using namespace std;
 #include "SectorProc.h"
 #include "ContentsProc.h"
 #include "ProcademyProfiler.h"
-#include "CFreeList.h"
 #include <unordered_map>
 
 DWORD dwNetworkCurrentTick;
@@ -21,15 +19,15 @@ SOCKET	m_ListenSocket;
 DWORD m_IDCnt = 0;
 
 unordered_map<DWORD, st_SESSION*> _sessionMap;
-procademy::CMemoryPool<st_SESSION> _sessionPool(15000,false, false);
 
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
+
 void netProc_Accept();
 void netProc_Recv(st_SESSION* session);
 void netProc_Send(st_SESSION* session);
-void SelectProc(fd_set* readSet, fd_set* writeSet, CStack<st_SESSION*>* selectStack);
+void SelectProc(fd_set* readSet, fd_set* writeSet, list<st_SESSION*> selectList);
 
 void netStartup()
 {
@@ -84,7 +82,7 @@ void netSelectIO()
 	FD_ZERO(&writeSet);
 	FD_SET(m_ListenSocket, &readSet);
 
-	CStack<st_SESSION*> selectStack(FD_SETSIZE + 1);
+	list<st_SESSION*> selectList;
 	unordered_map<DWORD, st_SESSION*>::iterator it;
 
 	int iResult = select(0, &readSet, NULL, NULL, &time);
@@ -100,19 +98,22 @@ void netSelectIO()
 	if (_sessionMap.empty())
 		return;
 
+	FD_ZERO(&readSet);
+	FD_ZERO(&writeSet);
+
 	{
-		//Profiler("Select_netSelectIO");
+		Profiler("Select_netSelectIO");
 		it = _sessionMap.begin();
 		int setSize = 0;
 		while (it != _sessionMap.end())
 		{
 			if (setSize >= 64)
 			{
-				SelectProc(&readSet, &writeSet, &selectStack);
+				SelectProc(&readSet, &writeSet, selectList);
 
 				FD_ZERO(&readSet);
 				FD_ZERO(&writeSet);
-				selectStack.clear();
+				selectList.clear();
 				setSize = 0;
 			}
 
@@ -128,6 +129,7 @@ void netSelectIO()
 				// 타임아웃
 				_LOG(0, L"TimeOut Session # ID : %d\n", it->second->dwSessionID);
 				DisconnectSession(it->second->dwSessionID);
+				it++;
 				continue;
 			}
 
@@ -135,17 +137,17 @@ void netSelectIO()
 			if ((*it).second->SendQ->GetUseSize() > 0)
 				FD_SET((*it).second->Socket, &writeSet);
 
-			selectStack.push(it->second);
+			selectList.push_back((*it).second);
 			setSize++;
 			it++;
 		}
 
 		if (setSize > 0)
-			SelectProc(&readSet, &writeSet, &selectStack);
+			SelectProc(&readSet, &writeSet, selectList);
 	}
 }
 
-void SelectProc(fd_set* readSet, fd_set* writeSet, CStack<st_SESSION*>* selectStack)
+void SelectProc(fd_set* readSet, fd_set* writeSet, list<st_SESSION*> selectList)
 {
 	timeval time;
 	time.tv_sec = 0;
@@ -155,19 +157,17 @@ void SelectProc(fd_set* readSet, fd_set* writeSet, CStack<st_SESSION*>* selectSt
 	if (iResult == SOCKET_ERROR)
 		err_quit("select()");
 
-	while (!selectStack->empty())
+	list<st_SESSION*>::iterator it;
+	for (it = selectList.begin(); it != selectList.end(); it++)
 	{
-		st_SESSION* ptr = selectStack->top();
-		selectStack->pop();
-
-		if (FD_ISSET(ptr->Socket, readSet))
+		if (FD_ISSET((*it)->Socket, readSet))
 		{
-			netProc_Recv(ptr);
+			netProc_Recv(*it);
 		}
 
-		if (FD_ISSET(ptr->Socket, writeSet))
+		if (FD_ISSET((*it)->Socket, writeSet))
 		{
-			netProc_Send(ptr);
+			netProc_Send(*it);
 		}
 	}
 }
@@ -192,8 +192,7 @@ void netProc_Accept()
 	}
 	else
 	{
-		PRO_BEGIN("Accept");
-		st_SESSION* session = _sessionPool.Alloc();
+		st_SESSION* session = (st_SESSION*)malloc(sizeof(st_SESSION));
 		if (session == NULL)
 		{
 			err_quit("accept_malloc");
@@ -201,8 +200,8 @@ void netProc_Accept()
 		}
 
 		session->dwSessionID = m_IDCnt++;
-		session->RecvQ = new CRingBuffer(PROTOCOL_MAXSIZE * 100);
-		session->SendQ = new CRingBuffer(PROTOCOL_MAXSIZE * 200);
+		session->RecvQ = new CRingBuffer(PROTOCOL_MAXSIZE * 1000);
+		session->SendQ = new CRingBuffer(PROTOCOL_MAXSIZE * 1000);
 		session->Socket = clientSocket;
 		session->bDeleted = false;
 		session->IPPtr = clientAddr;
@@ -213,12 +212,10 @@ void netProc_Accept()
 		// 플레이어 정보 생성
 		if (!netPacketProc_Accept(session->dwSessionID))
 		{
-			PRO_END("Accept");
 			_LOG(0, L"Player Creation Fail! # sessionID : %d # Port : %d\n", session->dwSessionID, session->IPPtr.sin_port);
 			return;
 		}
 
-		PRO_END("Accept");
 		_LOG(0, L"Accepted Player # Port : %d\n", session->IPPtr.sin_port);
 	}
 }
@@ -345,8 +342,6 @@ void netProc_Send(st_SESSION* session)
 
 void DisconnectSession(DWORD dwSessionID)
 {
-	// closesocket?
-	
 	(_sessionMap.find(dwSessionID))->second->bDeleted = true;
 }
 

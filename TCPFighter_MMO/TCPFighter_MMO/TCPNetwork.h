@@ -2,8 +2,8 @@
 #pragma comment(lib, "ws2_32")
 #pragma comment(lib, "winmm.lib")
 
-#define SERVER_PORT 5000
 #define SERVERIP "127.0.0.1"
+#define dfMAX_CONNECT 30000
 
 void netStartup();
 void netSelectIO();
@@ -12,6 +12,8 @@ bool bSessionAlive(DWORD dwsessionID);
 
 // 외부 선언 - MessageProc
 void ProcessMessage(DWORD dwsessionID, BYTE type, CPacket* cPacket);
+
+//void GetSession()
 
 void DisconnectSession(DWORD dwsessionID);
 void DisconnectDeletedSession();

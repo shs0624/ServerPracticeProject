@@ -12,15 +12,19 @@ using namespace std;
 #include "SectorDefine.h"
 #include "ContentsDefine.h"
 #include "SectorProc.h"
+#include "CStack.h"
 #include "ContentsProc.h"
 #include "MessageCreate.h"
 #include "Debug.h"
 #include "LogProc.h"
+#include "CFreeList.h"
 
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
 extern unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
+extern procademy::CMemoryPool<st_CHARACTER> _CharacterPool;
+
 
 bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char damage);
 
@@ -163,14 +167,14 @@ bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char 
 	}
 	SendPacket_Around(player, &header, &scPacket);
 
-	list<st_CHARACTER*> collideList;
-	list<st_CHARACTER*>::iterator it;
-	CollisionCheck(player, player->byDirection, dfATTACK1_RANGE_X, dfATTACK1_RANGE_Y, collideList);
+	CStack<st_CHARACTER*> collideStack;
+	CollisionCheck(player, player->byDirection, dfATTACK1_RANGE_X, dfATTACK1_RANGE_Y, &collideStack);
 
-	for (it = collideList.begin(); it != collideList.end(); it++)
+	while (!collideStack.empty())
 	{
 		scPacket.Clear();
-		mpDamage(&header, &scPacket, player->dwSessionID, (*it)->dwSessionID, dfATTACK1_DAMAGE);
+		mpDamage(&header, &scPacket, player->dwSessionID, (collideStack.top())->dwSessionID, dfATTACK1_DAMAGE);
+		collideStack.pop();
 
 		// 공격자와 피격자의 섹터가 다르면 모든 주변 섹터에 보내야한다.
 		// @@shs 일단 공격자 주변에만 보내게 하자.
@@ -183,7 +187,7 @@ bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char 
 bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 {
 	st_PACKET_HEADER header;
-	CPacket scPacket = CPacket(PROTOCOL_MAXSIZE);
+	CPacket scPacket(PROTOCOL_MAXSIZE);
 
 	DWORD _echoTime;
 	(*cPacket) >> _echoTime;
@@ -193,13 +197,14 @@ bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 	if (!bRet)
 	{
 		SetDeleteCharacter(dwsessionID);
+		return false;
 	}
 
 	return true;
 }
 
 // pCenterPlayer를 중심으로 범위 내의 적을 pCheckedList에 넣는다.
-void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE yRange, list<st_CHARACTER*> pCheckedList)
+void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE yRange, CStack<st_CHARACTER*>* pCheckedStack)
 {
 	unordered_map<DWORD, st_CHARACTER*>::iterator it;
 
@@ -218,14 +223,14 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 			if (_player->shX >= pCenterPlayer->shX - xRange && _player->shX <= pCenterPlayer->shX &&
 				_player->shY >= pCenterPlayer->shY - yRange && _player->shY <= pCenterPlayer->shY + yRange)
 			{
-				pCheckedList.push_back(_player);
+				pCheckedStack->push(_player);
 			}
 			break;
 		case dfPACKET_MOVE_DIR_RR:
 			if (_player->shX <= pCenterPlayer->shX + xRange && _player->shX >= pCenterPlayer->shX &&
 				_player->shY >= pCenterPlayer->shY - yRange && _player->shY <= pCenterPlayer->shY + yRange)
 			{
-				pCheckedList.push_back(_player);
+				pCheckedStack->push(_player);
 			}
 			break;
 		}
@@ -234,8 +239,7 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 
 bool netPacketProc_Accept(DWORD dwsessionID)
 {
-	srand(time(NULL));
-	st_CHARACTER* playerPtr = (st_CHARACTER*)malloc(sizeof(st_CHARACTER));
+	st_CHARACTER* playerPtr = _CharacterPool.Alloc();//(st_CHARACTER*)malloc(sizeof(st_CHARACTER));
 	if (playerPtr == nullptr)
 	{
 		err_quit("accept_malloc");
@@ -255,8 +259,9 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 	CPacket scPacket(PROTOCOL_MAXSIZE);
 	scPacket.Clear();
 
+	
 	mpCreateMyCharacter(&header, &scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
-	bool bSendRet = Send_UniCast(dwsessionID, &header, scPacket.GetBufferPtr());
+	bool bSendRet = Send_UniCast(playerPtr->dwSessionID, &header, scPacket.GetBufferPtr());
 	if (!bSendRet)
 	{
 		return false;
@@ -268,8 +273,6 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 	mpCreateOtherCharacter(&header, &scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
 	SendPacket_Around(playerPtr, &header, &scPacket);
 	scPacket.Clear();
-
-	list<st_SESSION*> _AroundSessionList;
 
 	m_CharacterMap.insert({ playerPtr->dwSessionID, playerPtr });
 	_LOG(0, L"Accepted Player # playerID : %d # playerX : %d # playerY : %d\n", playerPtr->dwSessionID, playerPtr->shX, playerPtr->shY);

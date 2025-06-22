@@ -132,7 +132,9 @@
     <ClCompile Include="ProcademyProfiler.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CStack.h" />
     <ClInclude Include="ProcademyProfiler.h" />
+    <ClInclude Include="RefCountPointer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

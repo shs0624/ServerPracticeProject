@@ -2,6 +2,8 @@
 
 void SetUserToSector(st_CHARACTER* player);
 
+void SendUserInfoToNewPlayer(DWORD dwNewSessionID, short shX, short shY);
+
 void DeletePlayerFromSector(DWORD dwSessionID, short shX, short shY);
 
 bool UpdateSector(st_CHARACTER* player);

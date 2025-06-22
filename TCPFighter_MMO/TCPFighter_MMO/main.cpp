@@ -1,15 +1,30 @@
+#pragma comment(lib,"ws2_32")
+#include <process.h>
+#include <winsock2.h>
+#include <Windows.h>
 #include "TCPDefine.h"
 #include "PacketDefine.h"
 #include "TCPNetwork.h"
 #include "FrameProc.h"
 #include "CCrashDump.h"
+#include "ProcademyProfiler.h"
+#include <conio.h>
+
+HANDLE _controlThreadHandle;
+unsigned int _controlThreadID;
 
 procademy::CCrashDump cCrashDump;
 bool m_bShutdown = false;
 
+unsigned int WINAPI GetControl(LPVOID arg);
+
 int wmain(int argc, WCHAR* argv[])
 {
 	timeBeginPeriod(1);
+
+	_controlThreadHandle = (HANDLE)_beginthreadex(NULL, 0, GetControl, NULL, 0, &_controlThreadID);
+	if (_controlThreadHandle == NULL)
+		return 1;
 
 	//네트워크 세팅
 	netStartup();
@@ -24,4 +39,18 @@ int wmain(int argc, WCHAR* argv[])
 	}
 
 	timeEndPeriod(1);
+}
+
+unsigned int WINAPI GetControl(LPVOID arg)
+{
+	// 컨트롤?
+	char ch;
+	while (1)
+	{
+		ch = _getch();
+		if ((GetAsyncKeyState('P') & 0x8001) || (GetAsyncKeyState('p') & 0x8001))
+		{
+			ProfileDataOutText("ProfileData_TCPMMO_FreeList.txt");
+		}
+	}
 }

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -18,47 +18,11 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="ContentsProc.cpp" />
-    <ClCompile Include="CRingBuffer.cpp" />
-    <ClCompile Include="CSerializationBuffer.cpp" />
-    <ClCompile Include="FrameProc.cpp" />
-    <ClCompile Include="LogProc.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="MessageCreate.cpp" />
-    <ClCompile Include="MessageProc.cpp" />
-    <ClCompile Include="ProcademyProfiler.cpp" />
-    <ClCompile Include="SectorProc.cpp" />
-    <ClCompile Include="TCPNetwork.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="CCrashDump.h" />
-    <ClInclude Include="CFreeList.h" />
-    <ClInclude Include="Contents.h" />
-    <ClInclude Include="ContentsDefine.h" />
-    <ClInclude Include="ContentsProc.h" />
-    <ClInclude Include="CRingBuffer.h" />
-    <ClInclude Include="CSerializationBuffer.h" />
-    <ClInclude Include="Debug.h" />
-    <ClInclude Include="FrameProc.h" />
-    <ClInclude Include="LogProc.h" />
-    <ClInclude Include="MessageCreate.h" />
-    <ClInclude Include="MessageProc.h" />
-    <ClInclude Include="PacketDefine.h" />
-    <ClInclude Include="ProcademyProfiler.h" />
-    <ClInclude Include="SectorDefine.h" />
-    <ClInclude Include="SectorProc.h" />
-    <ClInclude Include="TCPDefine.h" />
-    <ClInclude Include="TCPNetwork.h" />
-    <ClInclude Include="NetworkProc.h" />
-    <ClInclude Include="PacketProc.h" />
-    <ClInclude Include="CStack.h" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{aceea96c-08e7-4027-9d40-6dfb0379160c}</ProjectGuid>
-    <RootNamespace>TCPFighterMMO</RootNamespace>
+    <ProjectGuid>{18895f27-3974-4fc0-af88-cfeb1cb0ea8f}</ProjectGuid>
+    <RootNamespace>IOCPEchoLoginPacket</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -140,7 +104,6 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -156,6 +119,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <Optimization>Disabled</Optimization>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -164,6 +128,25 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="CLanServer.cpp" />
+    <ClCompile Include="CPacket_Mempool.cpp" />
+    <ClCompile Include="CRingBuffer.cpp" />
+    <ClCompile Include="EchoServer.cpp" />
+    <ClCompile Include="ProcademyProfiler.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CCrashDump.h" />
+    <ClInclude Include="CFreeList.h" />
+    <ClInclude Include="CLanServer.h" />
+    <ClInclude Include="CPacket_Mempool.h" />
+    <ClInclude Include="CRingBuffer.h" />
+    <ClInclude Include="Debug.h" />
+    <ClInclude Include="EchoServer.h" />
+    <ClInclude Include="ProcademyProfiler.h" />
+    <ClInclude Include="RefCountPointer.h" />
+    <ClInclude Include="TestStack.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
