@@ -627,11 +627,10 @@ void CLanServer::ReleaseSession(st_Session* ptr)
 
 	InterlockedDecrement((LONG*)&_iSessionCount);
 
-	printf("ReleaseSession : %lld\n", ptr->ulSessionID);
-
 	EnterCriticalSection(&_csIndexStackCS);
 	ULONGLONG idx = (ptr->ulSessionID) >> 48;
 	_indexStack.push(idx);
+	printf("indexStackPush : %d\n", idx);
 	LeaveCriticalSection(&_csIndexStackCS);
 
 	InterlockedIncrement((LONG*)&_iReleaseTPS);

@@ -18,6 +18,7 @@ using namespace std;
 #include "Debug.h"
 #include "LogProc.h"
 #include "CFreeList.h"
+#include "ProcademyProfiler.h"
 
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
@@ -108,8 +109,8 @@ bool netPacketProc_MoveStop(DWORD dwsessionID, CPacket* packet)
 	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
 	{
 		// 싱크 전송, 서버 주소로 수정
-		printf("[SYNC - Packet MoveSTOP] Server x,y : %d, %d | Client x,y : %d, %d\n",
-			_player->shX, _player->shY, csX, csY);
+		printf("[SYNC - Packet MoveSTOP] ID : %d # Server x,y : %d, %d | Client x,y : %d, %d\n",
+			dwsessionID, _player->shX, _player->shY, csX, csY);
 
 		mpSync(&header, &scPacket, _player->dwSessionID, _player->shX, _player->shY);
 		SendPacket_Around(_player, &header, &scPacket, true);
@@ -258,7 +259,6 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 	st_PACKET_HEADER header;
 	CPacket scPacket(PROTOCOL_MAXSIZE);
 	scPacket.Clear();
-
 	
 	mpCreateMyCharacter(&header, &scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
 	bool bSendRet = Send_UniCast(playerPtr->dwSessionID, &header, scPacket.GetBufferPtr());

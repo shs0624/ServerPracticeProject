@@ -8,6 +8,7 @@
 #include "FrameProc.h"
 #include "CCrashDump.h"
 #include "ProcademyProfiler.h"
+#include "LogProc.h"
 #include <conio.h>
 
 HANDLE _controlThreadHandle;
@@ -36,6 +37,8 @@ int wmain(int argc, WCHAR* argv[])
 
 		// 프레임 업데이트
 		Update();
+
+		FPS();
 	}
 
 	timeEndPeriod(1);
@@ -50,7 +53,11 @@ unsigned int WINAPI GetControl(LPVOID arg)
 		ch = _getch();
 		if ((GetAsyncKeyState('P') & 0x8001) || (GetAsyncKeyState('p') & 0x8001))
 		{
-			ProfileDataOutText("ProfileData_TCPMMO_FreeList.txt");
+			ProfileDataOutText("ProfileData_TCPMMO_RingFreeList.txt");
+		}
+		if ((GetAsyncKeyState('R') & 0x8001) || (GetAsyncKeyState('r') & 0x8001))
+		{
+			ProfileReset();
 		}
 	}
 }

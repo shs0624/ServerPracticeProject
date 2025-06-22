@@ -1,3 +1,6 @@
+#pragma comment(lib, "ws2_32")
+#include <WinSock2.h>
+#include <ws2tcpip.h>
 #include "TCPDefine.h"
 #include "PacketDefine.h"
 #include "TCPNetwork.h"
@@ -21,10 +24,12 @@ SOCKET	m_ListenSocket;
 DWORD m_IDCnt = 0;
 
 unordered_map<DWORD, st_SESSION*> _sessionMap;
-procademy::CMemoryPool<st_SESSION> _sessionPool(15000,false, false);
+procademy::CMemoryPool<st_SESSION> _sessionPool(dfMAX_CONNECT, false, true);
 
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
+
+extern int _selectIOFrame;
 
 void netProc_Accept();
 void netProc_Recv(st_SESSION* session);
@@ -62,7 +67,7 @@ void netStartup()
 	if (bindRet == SOCKET_ERROR)
 		err_quit("bind()");
 
-	int listenRet = listen(m_ListenSocket, SOMAXCONN);
+	int listenRet = listen(m_ListenSocket, SOMAXCONN_HINT(SOMAXCONN));
 	if (listenRet == SOCKET_ERROR)
 		err_quit("listen()");
 
@@ -75,8 +80,7 @@ void netSelectIO()
 	time.tv_sec = 0;
 	time.tv_usec = 0;
 
-	DWORD oldTick = dwNetworkCurrentTick;
-	dwNetworkCurrentTick = timeGetTime();
+	_selectIOFrame++;
 
 	int loopCount = 0;
 	fd_set readSet, writeSet;
@@ -97,11 +101,14 @@ void netSelectIO()
 		netProc_Accept();
 	}
 	
+	DWORD oldTick = dwNetworkCurrentTick;
+	dwNetworkCurrentTick = timeGetTime();
+
 	if (_sessionMap.empty())
 		return;
 
 	{
-		//Profiler("Select_netSelectIO");
+		Profiler("Select_netSelectIO");
 		it = _sessionMap.begin();
 		int setSize = 0;
 		while (it != _sessionMap.end())
@@ -126,7 +133,8 @@ void netSelectIO()
 			if (dwNetworkCurrentTick - (it)->second->dwLastRecvTime > dfNETWORK_PACKET_RECV_TIMEOUT)
 			{
 				// е╦юс╬ф©Т
-				_LOG(0, L"TimeOut Session # ID : %d\n", it->second->dwSessionID);
+				_LOG(2, L"TimeOut Session # ID : %d\n", it->second->dwSessionID);
+				SetDeleteCharacter(it->second->dwSessionID);
 				DisconnectSession(it->second->dwSessionID);
 				continue;
 			}
@@ -147,6 +155,7 @@ void netSelectIO()
 
 void SelectProc(fd_set* readSet, fd_set* writeSet, CStack<st_SESSION*>* selectStack)
 {
+	Profiler("SelectProc");
 	timeval time;
 	time.tv_sec = 0;
 	time.tv_usec = 0;
@@ -193,6 +202,7 @@ void netProc_Accept()
 	else
 	{
 		PRO_BEGIN("Accept");
+		
 		st_SESSION* session = _sessionPool.Alloc();
 		if (session == NULL)
 		{
@@ -201,11 +211,11 @@ void netProc_Accept()
 		}
 
 		session->dwSessionID = m_IDCnt++;
-		session->RecvQ = new CRingBuffer(PROTOCOL_MAXSIZE * 100);
-		session->SendQ = new CRingBuffer(PROTOCOL_MAXSIZE * 200);
+		session->RecvQ->ClearBuffer();
+		session->SendQ->ClearBuffer();
 		session->Socket = clientSocket;
 		session->bDeleted = false;
-		session->IPPtr = clientAddr;
+		//session->IPPtr = clientAddr;
 		session->dwLastRecvTime = timeGetTime();
 
 		_sessionMap.insert({ session->dwSessionID, session });
@@ -323,6 +333,12 @@ void netProc_Send(st_SESSION* session)
 		int sendRet = send(session->Socket, headPtr, sendSize, 0);
 		if (sendRet == SOCKET_ERROR)
 		{
+			if (sendRet == WSAEWOULDBLOCK)
+			{
+				err_display("send()_WOULDBLOCK");
+				continue;
+			}
+
 			err_display("send()");
 			SetDeleteCharacter(session->dwSessionID);
 			session->bDeleted = true;
@@ -346,7 +362,6 @@ void netProc_Send(st_SESSION* session)
 void DisconnectSession(DWORD dwSessionID)
 {
 	// closesocket?
-	
 	(_sessionMap.find(dwSessionID))->second->bDeleted = true;
 }
 

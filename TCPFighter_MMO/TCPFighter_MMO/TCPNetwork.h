@@ -3,7 +3,7 @@
 #pragma comment(lib, "winmm.lib")
 
 #define SERVERIP "127.0.0.1"
-#define dfMAX_CONNECT 30000
+#define dfMAX_CONNECT 20000
 
 void netStartup();
 void netSelectIO();

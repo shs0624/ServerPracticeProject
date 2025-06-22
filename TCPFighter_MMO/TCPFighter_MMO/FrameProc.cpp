@@ -18,11 +18,13 @@ using namespace std;
 #include "LogProc.h"
 #include "ProcademyProfiler.h"
 
+extern int _logicFrame;
+
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
 unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
-procademy::CMemoryPool<st_CHARACTER> _CharacterPool(15000, false, false);
+procademy::CMemoryPool<st_CHARACTER> _CharacterPool(dfMAX_CONNECT, false, false);
 
 DWORD dwCurrentTick;
 
@@ -33,6 +35,7 @@ void Update()
 	if (Skip())
 		return;
 
+	_logicFrame++;
 	DWORD oldTick = dwCurrentTick;
 	dwCurrentTick = timeGetTime();
 	//_LOG(0, L"Update!\n");
@@ -174,7 +177,8 @@ bool Skip()
 		if (t < FRAME_TIME)
 		{
 			DWORD sleepTime = FRAME_TIME - t;
-			Sleep(sleepTime);
+			//Sleep(sleepTime);
+			return true;
 		}
 	}
 

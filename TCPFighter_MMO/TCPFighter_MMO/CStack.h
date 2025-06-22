@@ -1,11 +1,11 @@
-#define DEFAULTSIZE 10000
+#define DEFAULT_STACK_SIZE 10000
 template <typename T>
 class CStack
 {
 public:
 	CStack()
 	{
-		_pStack = (T*)malloc(sizeof(T) * DEFAULTSIZE);
+		_pStack = (T*)malloc(sizeof(T) * DEFAULT_STACK_SIZE);
 		idx = 0;
 	}
 

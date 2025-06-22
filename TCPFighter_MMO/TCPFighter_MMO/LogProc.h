@@ -13,3 +13,4 @@ do {												\
 }while(0)											\
 
 void Log(WCHAR * szString);
+void FPS();
