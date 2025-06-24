@@ -35,6 +35,7 @@ void Update()
 	if (Skip())
 		return;
 
+	Profiler("Update");
 	_logicFrame++;
 	DWORD oldTick = dwCurrentTick;
 	dwCurrentTick = timeGetTime();
@@ -168,26 +169,29 @@ bool Skip()
 	static DWORD _Tick = timeGetTime();
 	static bool skipped = false;
 
-	if (false == skipped)
-	{
-		DWORD t = timeGetTime() - _Tick;
+	//if (false == skipped)
+	//{
+	//	DWORD t = timeGetTime() - _Tick;
 
-		// 작아야 슬립하는거지. 소요 시간이 긴데, 슬립을 하면 안됐다.
-		// 부호가 반대였는데, 그래서 이걸 활성화하면 프레임이 반토막 났던 것
-		if (t < FRAME_TIME)
-		{
-			DWORD sleepTime = FRAME_TIME - t;
-			//Sleep(sleepTime);
-			return true;
-		}
-	}
+	//	// 작아야 슬립하는거지. 소요 시간이 긴데, 슬립을 하면 안됐다.
+	//	// 부호가 반대였는데, 그래서 이걸 활성화하면 프레임이 반토막 났던 것
+	//	if (t < FRAME_TIME)
+	//	{
+	//		DWORD sleepTime = FRAME_TIME - t;
+	//		//Sleep(sleepTime);
+	//		skipped = true;
+	//		//return true;
+	//	}
+	//}
 
 	if (timeGetTime() - _Tick > (FRAME_TIME * 2))
 	{
+		skipped = true;
 		return true;
 	}
 
 	_Tick += FRAME_TIME;
+	skipped = false;
 
 	return false;
 }

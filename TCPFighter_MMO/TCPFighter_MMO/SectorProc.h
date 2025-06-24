@@ -10,7 +10,7 @@ bool UpdateSector(st_CHARACTER* player);
 
 void ChangeSector(st_CHARACTER* player);
 
-void GetSectorSessions(short shX, short shY, list<st_SESSION*> pPlayerList);
+void GetSectorSessions(short shX, short shY, CStack<st_CHARACTER*>& pPlayerStack);
 
 void GetSectorAround(int iSectorX, int iSectorY, st_SECTOR_AROUND* pSectorAround);
 

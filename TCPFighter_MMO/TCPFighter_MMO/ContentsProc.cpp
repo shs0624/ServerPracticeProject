@@ -1,6 +1,7 @@
 #include <WS2tcpip.h>
 #include <Windows.h>
 #include <list>
+#include <vector>
 #include <queue>
 #include <unordered_map>
 using namespace std;
@@ -11,8 +12,8 @@ using namespace std;
 #include "MessageProc.h"
 #include "SectorDefine.h"
 #include "ContentsDefine.h"
-#include "SectorProc.h"
 #include "CStack.h"
+#include "SectorProc.h"
 #include "ContentsProc.h"
 #include "MessageCreate.h"
 #include "Debug.h"
@@ -151,6 +152,7 @@ bool netPacketProc_Attack(DWORD dwsessionID, BYTE type)
 
 bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char damage)
 {
+	Profiler("AttackProc");
 	// 싱크가 필요한지 모르겠음
 	st_PACKET_HEADER header;
 	CPacket scPacket = CPacket(PROTOCOL_MAXSIZE);
@@ -207,31 +209,49 @@ bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 // pCenterPlayer를 중심으로 범위 내의 적을 pCheckedList에 넣는다.
 void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE yRange, CStack<st_CHARACTER*>* pCheckedStack)
 {
-	unordered_map<DWORD, st_CHARACTER*>::iterator it;
+	int playerX = pCenterPlayer->shX;
+	int playerY = pCenterPlayer->shY;
 
-	for (it = m_CharacterMap.begin(); it != m_CharacterMap.end(); it++)
+	short sectorX = playerX / dfSECTOR_SIZE_X;
+	short sectorY = playerY / dfSECTOR_SIZE_Y;
+
+	st_SECTOR_AROUND aroundSector;
+	GetSectorAround(sectorX, sectorY, &aroundSector);
+
+	CStack<st_CHARACTER*> sessionStack;
+	for (int i = 0; i < aroundSector.iCount; i++)
 	{
-		st_CHARACTER* _player = (*it).second;
-		if (_player->bDeleted)
+		int iX = aroundSector.Around[i].iX;
+		int iY = aroundSector.Around[i].iY;
+
+		GetSectorSessions(iX, iY, sessionStack);
+	}
+
+	while (!sessionStack.empty())
+	{
+		st_CHARACTER* pCharacter = sessionStack.top();
+		sessionStack.pop();
+
+		if (pCharacter->bDeleted)
 			continue;
 
-		if (_player->dwSessionID == pCenterPlayer->dwSessionID)
+		if (pCharacter->dwSessionID == pCenterPlayer->dwSessionID)
 			continue;
 
 		switch (chDir)
 		{
 		case dfPACKET_MOVE_DIR_LL:
-			if (_player->shX >= pCenterPlayer->shX - xRange && _player->shX <= pCenterPlayer->shX &&
-				_player->shY >= pCenterPlayer->shY - yRange && _player->shY <= pCenterPlayer->shY + yRange)
+			if (pCharacter->shX >= pCenterPlayer->shX - xRange && pCharacter->shX <= pCenterPlayer->shX &&
+				pCharacter->shY >= pCenterPlayer->shY - yRange && pCharacter->shY <= pCenterPlayer->shY + yRange)
 			{
-				pCheckedStack->push(_player);
+				pCheckedStack->push(pCharacter);
 			}
 			break;
 		case dfPACKET_MOVE_DIR_RR:
-			if (_player->shX <= pCenterPlayer->shX + xRange && _player->shX >= pCenterPlayer->shX &&
-				_player->shY >= pCenterPlayer->shY - yRange && _player->shY <= pCenterPlayer->shY + yRange)
+			if (pCharacter->shX <= pCenterPlayer->shX + xRange && pCharacter->shX >= pCenterPlayer->shX &&
+				pCharacter->shY >= pCenterPlayer->shY - yRange && pCharacter->shY <= pCenterPlayer->shY + yRange)
 			{
-				pCheckedStack->push(_player);
+				pCheckedStack->push(pCharacter);
 			}
 			break;
 		}
@@ -252,8 +272,8 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 	playerPtr->dwSessionID = dwsessionID;
 	playerPtr->byDirection = dfPACKET_MOVE_DIR_RR;
 	playerPtr->dwAction = dfPACKET_MOVE_DIR_NONE;
-	playerPtr->shX = dfRANGE_MOVE_LEFT + (rand() % (dfRANGE_MOVE_RIGHT - dfRANGE_MOVE_LEFT + 1));
-	playerPtr->shY = dfRANGE_MOVE_TOP + (rand() % (dfRANGE_MOVE_BOTTOM - dfRANGE_MOVE_TOP + 1));
+	playerPtr->shX = dfRANGE_MOVE_LEFT + (rand() % (dfRANGE_MOVE_RIGHT - dfRANGE_MOVE_LEFT));
+	playerPtr->shY = dfRANGE_MOVE_TOP + (rand() % (dfRANGE_MOVE_BOTTOM - dfRANGE_MOVE_TOP));
 	playerPtr->chHP = dfHP_MAX;
 
 	st_PACKET_HEADER header;

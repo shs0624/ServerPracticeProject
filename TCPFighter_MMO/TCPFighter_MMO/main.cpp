@@ -53,7 +53,7 @@ unsigned int WINAPI GetControl(LPVOID arg)
 		ch = _getch();
 		if ((GetAsyncKeyState('P') & 0x8001) || (GetAsyncKeyState('p') & 0x8001))
 		{
-			ProfileDataOutText("ProfileData_TCPMMO_RingFreeList.txt");
+			ProfileDataOutText("ProfileData_TCPMMO_SectorVector.txt");
 		}
 		if ((GetAsyncKeyState('R') & 0x8001) || (GetAsyncKeyState('r') & 0x8001))
 		{

@@ -34,7 +34,7 @@ extern int _selectIOFrame;
 void netProc_Accept();
 void netProc_Recv(st_SESSION* session);
 void netProc_Send(st_SESSION* session);
-void SelectProc(fd_set* readSet, fd_set* writeSet, CStack<st_SESSION*>* selectStack);
+void SelectProc(fd_set* readSet, fd_set* writeSet, CStack<st_SESSION*>& selectStack);
 
 void netStartup()
 {
@@ -115,7 +115,7 @@ void netSelectIO()
 		{
 			if (setSize >= 64)
 			{
-				SelectProc(&readSet, &writeSet, &selectStack);
+				SelectProc(&readSet, &writeSet, selectStack);
 
 				FD_ZERO(&readSet);
 				FD_ZERO(&writeSet);
@@ -136,6 +136,7 @@ void netSelectIO()
 				_LOG(2, L"TimeOut Session # ID : %d\n", it->second->dwSessionID);
 				SetDeleteCharacter(it->second->dwSessionID);
 				DisconnectSession(it->second->dwSessionID);
+				it++;
 				continue;
 			}
 
@@ -149,34 +150,42 @@ void netSelectIO()
 		}
 
 		if (setSize > 0)
-			SelectProc(&readSet, &writeSet, &selectStack);
+			SelectProc(&readSet, &writeSet, selectStack);
 	}
 }
 
-void SelectProc(fd_set* readSet, fd_set* writeSet, CStack<st_SESSION*>* selectStack)
+void SelectProc(fd_set* readSet, fd_set* writeSet, CStack<st_SESSION*>& selectStack)
 {
 	Profiler("SelectProc");
 	timeval time;
 	time.tv_sec = 0;
 	time.tv_usec = 0;
 
+	PRO_BEGIN("select CallTime");
 	int iResult = select(0, readSet, writeSet, NULL, &time);
 	if (iResult == SOCKET_ERROR)
 		err_quit("select()");
+	PRO_END("select CallTime");
 
-	while (!selectStack->empty())
+
+	if (iResult > 0)
 	{
-		st_SESSION* ptr = selectStack->top();
-		selectStack->pop();
-
-		if (FD_ISSET(ptr->Socket, readSet))
+		while (!selectStack.empty())
 		{
-			netProc_Recv(ptr);
-		}
+			st_SESSION* ptr = selectStack.top();
+			selectStack.pop();
 
-		if (FD_ISSET(ptr->Socket, writeSet))
-		{
-			netProc_Send(ptr);
+			if (FD_ISSET(ptr->Socket, readSet))
+			{
+				//Profiler("netProcRecv");
+				netProc_Recv(ptr);
+			}
+
+			if (FD_ISSET(ptr->Socket, writeSet))
+			{
+				//Profiler("netProcSend");
+				netProc_Send(ptr);
+			}
 		}
 	}
 }
@@ -275,7 +284,7 @@ void netProc_Recv(st_SESSION* session)
 
 	// 헤더 읽고 처리
 	st_PACKET_HEADER header;
-	CPacket* csPacket = new CPacket(PROTOCOL_MAXSIZE);
+	CPacket csPacket(PROTOCOL_MAXSIZE);
 	while (1)
 	{
 		if (recvBuffer->GetUseSize() < sizeof(st_PACKET_HEADER))
@@ -292,8 +301,8 @@ void netProc_Recv(st_SESSION* session)
 		if (recvBuffer->GetUseSize() < peekRet + header.bySize)
 			break;
 
-		int dequeueRet = recvBuffer->Dequeue(csPacket->GetBufferPtr(), peekRet + header.bySize);
-		csPacket->MoveWritePos(peekRet + header.bySize);
+		int dequeueRet = recvBuffer->Dequeue(csPacket.GetBufferPtr(), peekRet + header.bySize);
+		csPacket.MoveWritePos(peekRet + header.bySize);
 		if (dequeueRet != peekRet + header.bySize)
 		{
 			err_display("netProc_Recv dequeueRet != msgSize");
@@ -301,9 +310,9 @@ void netProc_Recv(st_SESSION* session)
 			return;
 		}
 
-		csPacket->MoveReadPos(sizeof(st_PACKET_HEADER));
-		ProcessMessage(session->dwSessionID, header.byType, csPacket);
-		csPacket->Clear();
+		csPacket.MoveReadPos(sizeof(st_PACKET_HEADER));
+		ProcessMessage(session->dwSessionID, header.byType, &csPacket);
+		csPacket.Clear();
 
 		//_LOG(0, L"Received Message # Type : %d # sessionID : %d\n", header.byType, session->dwSessionID);
 	}
