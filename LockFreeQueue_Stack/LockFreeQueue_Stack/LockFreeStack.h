@@ -49,9 +49,9 @@ public:
 			*deletePtr = oldTop;
 			delete oldTop;
 
-			EnterCriticalSection(&_cs);
+			/*EnterCriticalSection(&_cs);
 			_deletePtrSet.insert(*deletePtr);
-			LeaveCriticalSection(&_cs);
+			LeaveCriticalSection(&_cs);*/
 
 			return true;
 		}

@@ -1,5 +1,6 @@
 #include <list>
 #include <vector>
+#include <unordered_set>
 using namespace std;
 
 #include "TCPDefine.h"
@@ -195,15 +196,132 @@ void ChangeSector(st_CHARACTER* player)
 	player->OldSector = player->CurSector;
 }
 
-void GetSectorSessions(short shX, short shY, CStack<st_CHARACTER*>& pPlayerStack)
+void GetSectorSessions(short sectorX, short sectorY, CStack<st_CHARACTER*>& pPlayerStack)
 {
-	short sectorX = shX / dfSECTOR_SIZE_X;
-	short sectorY = shY / dfSECTOR_SIZE_Y;
-
 	vector<st_CHARACTER*>& refSectorVector = m_Sector[sectorY][sectorX];
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
 		pPlayerStack.push(refSectorVector[i]);
+	}
+}
+
+void GetAttackTargetSector(int playerX, int playerY, BYTE dir, BYTE xRange, BYTE yRange, st_SECTOR_AROUND* pSectorAttack)
+{
+	// static 지역컨테이너 unordered_map 선언
+	static std::unordered_set<unsigned int> attackSectorSet;
+	attackSectorSet.clear();
+
+	short minX;
+	short maxX;
+	if (dir == dfPACKET_MOVE_DIR_LL)
+	{
+		minX = (playerX - xRange) >= dfRANGE_MOVE_LEFT ? (playerX - xRange) : dfRANGE_MOVE_LEFT;
+		maxX = playerX;
+	}
+	else
+	{
+		minX = playerX;
+		maxX = (playerX + xRange) < dfRANGE_MOVE_RIGHT ? (playerX + xRange) : dfRANGE_MOVE_RIGHT - 1;
+	}
+
+	short maxY = (playerY + yRange) < dfRANGE_MOVE_BOTTOM ? (playerY + yRange) : dfRANGE_MOVE_BOTTOM - 1;
+	short minY = (playerY - yRange) >= 0 ? (playerY - yRange) : 0;
+
+	short attackSectorXMin = minX / dfSECTOR_SIZE_X;
+	short attackSectorXMax = maxX / dfSECTOR_SIZE_X;
+
+	short attackSectorYMax = maxY / dfSECTOR_SIZE_Y;
+	short attackSectorYMin = minY / dfSECTOR_SIZE_Y;
+
+	attackSectorSet.insert((unsigned int)((attackSectorXMin << 8) | attackSectorYMin));
+	attackSectorSet.insert((unsigned int)((attackSectorXMin << 8) | attackSectorYMax));
+	attackSectorSet.insert((unsigned int)((attackSectorXMax << 8) | attackSectorYMin));
+	attackSectorSet.insert((unsigned int)((attackSectorXMax << 8) | attackSectorYMax));
+
+	// 겹치는 섹터는 사라짐
+	int cnt = 0;
+	std::unordered_set<unsigned int>::iterator it;
+	for (it = attackSectorSet.begin(); it != attackSectorSet.end(); it++)
+	{
+		short X = (short)(*it) >> 8;
+		short Y = (*it) & 0x000000ff;
+		//printf("AttackSector X : %d # Y : %d\n", X, Y);
+
+		pSectorAttack->Around[pSectorAttack->iCount].iX = X;
+		pSectorAttack->Around[pSectorAttack->iCount].iY = Y;
+		pSectorAttack->iCount++;
+		cnt++;
+	}
+
+	//printf("AttackSectorCheck : %d\n", cnt);
+}
+
+
+void GetDamageShowSector(int shX, int shY, st_SECTOR_AROUND* pSectorShowAttack)
+{
+	short sectorX = shX / dfSECTOR_SIZE_X;
+	short sectorY = shY / dfSECTOR_SIZE_Y;
+
+	short pivotX = shX % dfSECTOR_SIZE_X;
+	short pivotY = shY % dfSECTOR_SIZE_Y;
+
+	short centerX = dfSECTOR_SIZE_X / 2;
+	short centerY = dfSECTOR_SIZE_Y / 2;
+
+	short startX, endX;
+	short startY, endY;
+	if (pivotX >= centerX && pivotY >= centerY) 
+	{
+		// 우측상단
+		startX = 0;
+		endX = 1;
+
+		startY = 0;
+		endY = 1;
+	}
+	else if (pivotX < centerX && pivotY >= centerY)
+	{
+		// 좌측상단
+		startX = -1;
+		endX = 0;
+
+		startY = 0;
+		endY = 1;
+	}
+	else if (pivotX >= centerX && pivotY < centerY)
+	{
+		// 우측하단
+		startX = 0;
+		endX = 1;
+
+		startY = -1;
+		endY = 0;
+	}
+	else if (pivotX < centerX && pivotY < centerY)
+	{
+		// 좌측하단
+		startX = -1;
+		endX = 0;
+
+		startY = -1;
+		endY = 0;
+	}
+
+	pSectorShowAttack->iCount = 0;
+	for (int iY = startY; iY <= endY; iY++)
+	{
+		if (sectorY + iY < 0 || sectorY + iY >= dfSECTOR_MAX_Y)
+			continue;
+
+		for (int iX = startX; iX <= endX; iX++)
+		{
+			if (sectorX + iX < 0 || sectorX + iX >= dfSECTOR_MAX_X)
+				continue;
+
+			pSectorShowAttack->Around[pSectorShowAttack->iCount].iX = sectorX + iX;
+			pSectorShowAttack->Around[pSectorShowAttack->iCount].iY = sectorY + iY;
+			pSectorShowAttack->iCount++;
+		}
 	}
 }
 
@@ -306,9 +424,7 @@ void SendPacket_SectorOne(int iSectorX, int iSectorY, st_PACKET_HEADER* header, 
 		if (refSectorVector[i]->dwSessionID == dwExceptSessionID)
 			continue;
 
-		bool bSendRet = Send_UniCast(refSectorVector[i]->dwSessionID, header, cPacket->GetBufferPtr());
-		if (!bSendRet)
-			refSectorVector[i]->bDeleted = true;
+		Send_UniCast(refSectorVector[i]->dwSessionID, header, cPacket->GetBufferPtr());
 	}
 }
 

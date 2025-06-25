@@ -170,19 +170,7 @@ bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char 
 	}
 	SendPacket_Around(player, &header, &scPacket);
 
-	CStack<st_CHARACTER*> collideStack;
-	CollisionCheck(player, player->byDirection, dfATTACK1_RANGE_X, dfATTACK1_RANGE_Y, &collideStack);
-
-	while (!collideStack.empty())
-	{
-		scPacket.Clear();
-		mpDamage(&header, &scPacket, player->dwSessionID, (collideStack.top())->dwSessionID, dfATTACK1_DAMAGE);
-		collideStack.pop();
-
-		// 공격자와 피격자의 섹터가 다르면 모든 주변 섹터에 보내야한다.
-		// @@shs 일단 공격자 주변에만 보내게 하자.
-		SendPacket_Around(player, &header, &scPacket);
-	}
+	CollisionCheck(player, player->byDirection, dfATTACK1_RANGE_X, dfATTACK1_RANGE_Y);
 
 	return true;
 }
@@ -207,30 +195,34 @@ bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 }
 
 // pCenterPlayer를 중심으로 범위 내의 적을 pCheckedList에 넣는다.
-void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE yRange, CStack<st_CHARACTER*>* pCheckedStack)
+void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE yRange)
 {
+	static CStack<st_CHARACTER*> pTargetStack;
+	static CStack<st_CHARACTER*> pCollideCheckedStack(1000);
+	pTargetStack.clear();
+	pCollideCheckedStack.clear();
+
+	st_PACKET_HEADER header;
+	CPacket scPacket(PROTOCOL_MAXSIZE);
+
 	int playerX = pCenterPlayer->shX;
 	int playerY = pCenterPlayer->shY;
 
-	short sectorX = playerX / dfSECTOR_SIZE_X;
-	short sectorY = playerY / dfSECTOR_SIZE_Y;
+	st_SECTOR_AROUND attackTargetSector;
+	GetAttackTargetSector(playerX, playerY, chDir, xRange, yRange, &attackTargetSector);
 
-	st_SECTOR_AROUND aroundSector;
-	GetSectorAround(sectorX, sectorY, &aroundSector);
-
-	CStack<st_CHARACTER*> sessionStack;
-	for (int i = 0; i < aroundSector.iCount; i++)
+	for (int i = 0; i < attackTargetSector.iCount; i++)
 	{
-		int iX = aroundSector.Around[i].iX;
-		int iY = aroundSector.Around[i].iY;
+		int iX = attackTargetSector.Around[i].iX;
+		int iY = attackTargetSector.Around[i].iY;
 
-		GetSectorSessions(iX, iY, sessionStack);
+		GetSectorSessions(iX, iY, pTargetStack);
 	}
-
-	while (!sessionStack.empty())
+	
+	while (!pTargetStack.empty())
 	{
-		st_CHARACTER* pCharacter = sessionStack.top();
-		sessionStack.pop();
+		st_CHARACTER* pCharacter = pTargetStack.top();
+		pTargetStack.pop();
 
 		if (pCharacter->bDeleted)
 			continue;
@@ -244,16 +236,35 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 			if (pCharacter->shX >= pCenterPlayer->shX - xRange && pCharacter->shX <= pCenterPlayer->shX &&
 				pCharacter->shY >= pCenterPlayer->shY - yRange && pCharacter->shY <= pCenterPlayer->shY + yRange)
 			{
-				pCheckedStack->push(pCharacter);
+				pCollideCheckedStack.push(pCharacter);
 			}
 			break;
 		case dfPACKET_MOVE_DIR_RR:
 			if (pCharacter->shX <= pCenterPlayer->shX + xRange && pCharacter->shX >= pCenterPlayer->shX &&
 				pCharacter->shY >= pCenterPlayer->shY - yRange && pCharacter->shY <= pCenterPlayer->shY + yRange)
 			{
-				pCheckedStack->push(pCharacter);
+				pCollideCheckedStack.push(pCharacter);
 			}
 			break;
+		}
+	}
+	
+	st_SECTOR_AROUND damageShowSector;
+	GetDamageShowSector(playerX, playerY, &damageShowSector);
+
+	while (!pCollideCheckedStack.empty())
+	{
+		scPacket.Clear();
+		mpDamage(&header, &scPacket, pCenterPlayer->dwSessionID, (pCollideCheckedStack.top())->dwSessionID, dfATTACK1_DAMAGE);
+		pCollideCheckedStack.pop();
+
+		// 공격자와 피격자의 섹터가 다르면 모든 주변 섹터에 보내야한다.
+		for (int i = 0; i < damageShowSector.iCount; i++)
+		{
+			int iX = damageShowSector.Around[i].iX;
+			int iY = damageShowSector.Around[i].iY;
+
+			SendPacket_SectorOne(iX, iY, &header, &scPacket, pCenterPlayer->dwSessionID);
 		}
 	}
 }

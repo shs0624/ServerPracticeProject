@@ -10,7 +10,11 @@ bool UpdateSector(st_CHARACTER* player);
 
 void ChangeSector(st_CHARACTER* player);
 
-void GetSectorSessions(short shX, short shY, CStack<st_CHARACTER*>& pPlayerStack);
+void GetSectorSessions(short sectorX, short sectorY, CStack<st_CHARACTER*>& pPlayerStack);
+
+void GetDamageShowSector(int shX, int shY, st_SECTOR_AROUND* pSectorShowAttack);
+
+void GetAttackTargetSector(int playerX, int playerY, BYTE dir, BYTE xRange, BYTE yRange, st_SECTOR_AROUND* pSectorAttack);
 
 void GetSectorAround(int iSectorX, int iSectorY, st_SECTOR_AROUND* pSectorAround);
 
