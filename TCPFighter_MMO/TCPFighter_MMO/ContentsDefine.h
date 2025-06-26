@@ -5,7 +5,7 @@ struct st_CHARACTER
 	//st_SESSION* pSession;
 	DWORD dwSessionID;
 
-	DWORD dwAction;
+	BYTE dwAction;
 	BYTE byDirection;
 	BYTE byMoveDirection;
 
@@ -31,10 +31,10 @@ struct st_CHARACTER
 //-----------------------------------------------------------------
 // 섹터 크기.
 //-----------------------------------------------------------------
-#define dfSECTOR_SIZE_Y 400
-#define dfSECTOR_SIZE_X 400
-#define dfSECTOR_MAX_Y 16
-#define dfSECTOR_MAX_X 16
+#define dfSECTOR_SIZE_Y 200
+#define dfSECTOR_SIZE_X 200
+#define dfSECTOR_MAX_Y 32
+#define dfSECTOR_MAX_X 32
 
 //---------------------------------------------------------------
 // 공격범위.
@@ -52,7 +52,7 @@ struct st_CHARACTER
 //---------------------------------------------------------------
 #define dfATTACK1_DAMAGE		1
 #define dfATTACK2_DAMAGE		2
-#define dfATTACK3_DAMAGE		3
+#define dfATTACK3_DAMAGE		5
 
 
 //-----------------------------------------------------------------

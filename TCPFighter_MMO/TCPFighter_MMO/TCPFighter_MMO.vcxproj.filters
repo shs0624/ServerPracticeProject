@@ -66,6 +66,9 @@
     <ClCompile Include="ProcademyProfiler.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
+    <ClCompile Include="MonitorManager.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="NetworkProc.h">
@@ -130,6 +133,9 @@
     </ClInclude>
     <ClInclude Include="CFreeList.h">
       <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="MonitorManager.h">
+      <Filter>Debug</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

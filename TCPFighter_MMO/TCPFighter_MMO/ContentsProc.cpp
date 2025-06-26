@@ -27,23 +27,38 @@ extern WCHAR g_szLogBuff[1024];
 extern unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
 extern procademy::CMemoryPool<st_CHARACTER> _CharacterPool;
 
-
 bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char damage);
 
-bool SetDeleteCharacter(DWORD dwSessionID)
+// 캐릭터 삭제, 메세지도 전송
+void SetDeleteCharacter(DWORD dwSessionID)
 {
+	static CPacket csPacket(PROTOCOL_MAXSIZE);
+	csPacket.Clear();
+
 	unordered_map<DWORD, st_CHARACTER*>::iterator it;
 	it = (m_CharacterMap.find(dwSessionID));
 	if (it == m_CharacterMap.end())
-		return false;
+		return;
 
-	DeletePlayerFromSector(dwSessionID, it->second->shX, it->second->shY);
-	it->second->bDeleted = true;
-	return true;
+	st_CHARACTER* ptr = it->second;
+
+	mpDeleteCharacter(&csPacket, dwSessionID);
+
+	SendPacket_Around((*it).second, &csPacket);
+
+	DeletePlayerFromSector(dwSessionID, ptr->shX, ptr->shY);
+
+	m_CharacterMap.erase(dwSessionID);
+
+	_CharacterPool.Free(ptr);
+	return;
 }
 
 bool netPacketProc_MoveStart(DWORD dwsessionID, CPacket* packet)
 {
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+	scPacket.Clear();
+
 	char csAction;
 	short csX;
 	short csY;
@@ -58,12 +73,19 @@ bool netPacketProc_MoveStart(DWORD dwsessionID, CPacket* packet)
 	//char ipbuffer[50];
 	//inet_ntop(AF_INET, &(session->IPPtr.sin_addr), ipbuffer, 50);
 	//오차 범위 확인 -> 애초에 필요한가?
-	//if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
-	//{
-	//	// 싱크 전송, 서버 주소로 수정
-	//	printf("[SYNC - Packet MoveStart] Server x,y : %d, %d | Client x,y : %d, %d\n",
-	//		_player->shX, _player->shY, csX, csY);
-	//}
+	//오차 범위 확인
+	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
+	{
+		// 싱크 전송, 서버 주소로 수정
+		mpSync(&scPacket, _player->dwSessionID, _player->shX, _player->shY);
+		SendPacket_Around(_player, &scPacket, true);
+		scPacket.Clear();
+	}
+	else
+	{
+		_player->shX = csX;
+		_player->shY = csY;
+	}
 
 	// 방향 변경, 좌표 변경
 	_player->dwAction = csAction;
@@ -80,20 +102,20 @@ bool netPacketProc_MoveStart(DWORD dwsessionID, CPacket* packet)
 		_player->byDirection = dfPACKET_MOVE_DIR_LL;
 		break;
 	}
-	_player->shX = csX;
-	_player->shY = csY;
 
-	st_PACKET_HEADER header;
-	CPacket csPacket(PROTOCOL_MAXSIZE);
-	mpMoveStart(&header, &csPacket, _player->dwSessionID, _player->dwAction, csX, csY);
+	scPacket.Clear();
+	mpMoveStart(&scPacket, _player->dwSessionID, _player->dwAction, csX, csY);
 	
-	SendPacket_Around(_player, &header, &csPacket);
+	SendPacket_Around(_player, &scPacket);
 
 	return true;
 }
 
 bool netPacketProc_MoveStop(DWORD dwsessionID, CPacket* packet)
 {
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+	scPacket.Clear();
+
 	char csAction;
 	short csX;
 	short csY;
@@ -102,19 +124,14 @@ bool netPacketProc_MoveStop(DWORD dwsessionID, CPacket* packet)
 	*packet >> csX;
 	*packet >> csY;
 
-	st_PACKET_HEADER header;
-	CPacket scPacket(PROTOCOL_MAXSIZE);
 	st_CHARACTER* _player = (*(m_CharacterMap.find(dwsessionID))).second;
 
 	//오차 범위 확인
 	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
 	{
 		// 싱크 전송, 서버 주소로 수정
-		printf("[SYNC - Packet MoveSTOP] ID : %d # Server x,y : %d, %d | Client x,y : %d, %d\n",
-			dwsessionID, _player->shX, _player->shY, csX, csY);
-
-		mpSync(&header, &scPacket, _player->dwSessionID, _player->shX, _player->shY);
-		SendPacket_Around(_player, &header, &scPacket, true);
+		mpSync(&scPacket, _player->dwSessionID, _player->shX, _player->shY);
+		SendPacket_Around(_player, &scPacket, true);
 		scPacket.Clear();
 	}
 	else
@@ -122,17 +139,44 @@ bool netPacketProc_MoveStop(DWORD dwsessionID, CPacket* packet)
 		_player->shX = csX;
 		_player->shY = csY;
 	}
+
+	_player->byDirection = csAction;
 	_player->dwAction = dfPACKET_MOVE_DIR_NONE;
 
-	mpMoveStop(&header, &scPacket, _player->dwSessionID, _player->dwAction, csX, csY);
-	SendPacket_Around(_player, &header, &scPacket);
+	mpMoveStop(&scPacket, _player->dwSessionID, _player->dwAction, csX, csY);
+	SendPacket_Around(_player, &scPacket);
 
 	return true;
 }
 
-bool netPacketProc_Attack(DWORD dwsessionID, BYTE type)
+bool netPacketProc_Attack(DWORD dwsessionID, BYTE type, CPacket* packet)
 {
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+	scPacket.Clear();
+
+	char csDir;
+	short csX;
+	short csY;
+
+	*packet >> csDir;
+	*packet >> csX;
+	*packet >> csY;
+
 	st_CHARACTER* _player = (*(m_CharacterMap.find(dwsessionID))).second;
+
+	//오차 범위 확인
+	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
+	{
+		// 싱크 전송, 서버 주소로 수정
+		mpSync(&scPacket, _player->dwSessionID, _player->shX, _player->shY);
+		SendPacket_Around(_player,&scPacket, true);
+		scPacket.Clear();
+	}
+	else
+	{
+		_player->shX = csX;
+		_player->shY = csY;
+	}
 
 	switch (type)
 	{
@@ -152,42 +196,43 @@ bool netPacketProc_Attack(DWORD dwsessionID, BYTE type)
 
 bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char damage)
 {
-	Profiler("AttackProc");
+	//Profiler("AttackProc");
 	// 싱크가 필요한지 모르겠음
-	st_PACKET_HEADER header;
-	CPacket scPacket = CPacket(PROTOCOL_MAXSIZE);
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+	scPacket.Clear();
+
 	switch (type)
 	{
 	case dfPACKET_CS_ATTACK1:
-		mpAttack1(&header, &scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
+		mpAttack1(&scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
 		break;
 	case dfPACKET_CS_ATTACK2:
-		mpAttack2(&header, &scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
+		mpAttack2(&scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
 		break;
 	case dfPACKET_CS_ATTACK3:
-		mpAttack3(&header, &scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
+		mpAttack3(&scPacket, player->dwSessionID, player->byDirection, player->shX, player->shY);
 		break;
 	}
-	SendPacket_Around(player, &header, &scPacket);
+	SendPacket_Around(player, &scPacket);
 
-	CollisionCheck(player, player->byDirection, dfATTACK1_RANGE_X, dfATTACK1_RANGE_Y);
+	CollisionCheck(player, player->byDirection, xRange, yRange, damage);
 
 	return true;
 }
 
 bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 {
-	st_PACKET_HEADER header;
-	CPacket scPacket(PROTOCOL_MAXSIZE);
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+	scPacket.Clear();
 
 	DWORD _echoTime;
 	(*cPacket) >> _echoTime;
 	 
-	mpEcho(&header, &scPacket, _echoTime);
-	bool bRet = Send_UniCast(dwsessionID, &header, scPacket.GetBufferPtr());
+	mpEcho(&scPacket, _echoTime);
+	bool bRet = Send_UniCast(dwsessionID, &scPacket);
 	if (!bRet)
 	{
-		SetDeleteCharacter(dwsessionID);
+		DisconnectSession(dwsessionID);
 		return false;
 	}
 
@@ -195,15 +240,15 @@ bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 }
 
 // pCenterPlayer를 중심으로 범위 내의 적을 pCheckedList에 넣는다.
-void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE yRange)
+void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE yRange, char chDamage)
 {
 	static CStack<st_CHARACTER*> pTargetStack;
 	static CStack<st_CHARACTER*> pCollideCheckedStack(1000);
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+
 	pTargetStack.clear();
 	pCollideCheckedStack.clear();
 
-	st_PACKET_HEADER header;
-	CPacket scPacket(PROTOCOL_MAXSIZE);
 
 	int playerX = pCenterPlayer->shX;
 	int playerY = pCenterPlayer->shY;
@@ -236,6 +281,13 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 			if (pCharacter->shX >= pCenterPlayer->shX - xRange && pCharacter->shX <= pCenterPlayer->shX &&
 				pCharacter->shY >= pCenterPlayer->shY - yRange && pCharacter->shY <= pCenterPlayer->shY + yRange)
 			{
+				pCharacter->chHP -= chDamage;
+				if (pCharacter->chHP <= 0)
+				{
+					//SetDeleteCharacter_Direct(pCharacter);
+					continue;
+				}
+
 				pCollideCheckedStack.push(pCharacter);
 			}
 			break;
@@ -243,6 +295,13 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 			if (pCharacter->shX <= pCenterPlayer->shX + xRange && pCharacter->shX >= pCenterPlayer->shX &&
 				pCharacter->shY >= pCenterPlayer->shY - yRange && pCharacter->shY <= pCenterPlayer->shY + yRange)
 			{
+				pCharacter->chHP -= chDamage;
+				if (pCharacter->chHP <= 0)
+				{
+					//SetDeleteCharacter_Direct(pCharacter);
+					continue;
+				}
+
 				pCollideCheckedStack.push(pCharacter);
 			}
 			break;
@@ -254,9 +313,11 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 
 	while (!pCollideCheckedStack.empty())
 	{
-		scPacket.Clear();
-		mpDamage(&header, &scPacket, pCenterPlayer->dwSessionID, (pCollideCheckedStack.top())->dwSessionID, dfATTACK1_DAMAGE);
+		st_CHARACTER* ptr = pCollideCheckedStack.top();
 		pCollideCheckedStack.pop();
+
+		scPacket.Clear();
+		mpDamage(&scPacket, pCenterPlayer->dwSessionID, ptr->dwSessionID, ptr->chHP);
 
 		// 공격자와 피격자의 섹터가 다르면 모든 주변 섹터에 보내야한다.
 		for (int i = 0; i < damageShowSector.iCount; i++)
@@ -264,14 +325,15 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 			int iX = damageShowSector.Around[i].iX;
 			int iY = damageShowSector.Around[i].iY;
 
-			SendPacket_SectorOne(iX, iY, &header, &scPacket, pCenterPlayer->dwSessionID);
+			SendPacket_SectorOne(iX, iY, &scPacket, NULL);
 		}
 	}
 }
 
 bool netPacketProc_Accept(DWORD dwsessionID)
 {
-	st_CHARACTER* playerPtr = _CharacterPool.Alloc();//(st_CHARACTER*)malloc(sizeof(st_CHARACTER));
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+	st_CHARACTER* playerPtr = _CharacterPool.Alloc();
 	if (playerPtr == nullptr)
 	{
 		err_quit("accept_malloc");
@@ -287,12 +349,9 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 	playerPtr->shY = dfRANGE_MOVE_TOP + (rand() % (dfRANGE_MOVE_BOTTOM - dfRANGE_MOVE_TOP));
 	playerPtr->chHP = dfHP_MAX;
 
-	st_PACKET_HEADER header;
-	CPacket scPacket(PROTOCOL_MAXSIZE);
 	scPacket.Clear();
-	
-	mpCreateMyCharacter(&header, &scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
-	bool bSendRet = Send_UniCast(playerPtr->dwSessionID, &header, scPacket.GetBufferPtr());
+	mpCreateMyCharacter(&scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
+	bool bSendRet = Send_UniCast(playerPtr->dwSessionID, &scPacket);
 	if (!bSendRet)
 	{
 		return false;
@@ -301,8 +360,8 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 
 	SetUserToSector(playerPtr);
 
-	mpCreateOtherCharacter(&header, &scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
-	SendPacket_Around(playerPtr, &header, &scPacket);
+	mpCreateOtherCharacter(&scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
+	SendPacket_Around(playerPtr, &scPacket);
 	scPacket.Clear();
 
 	m_CharacterMap.insert({ playerPtr->dwSessionID, playerPtr });

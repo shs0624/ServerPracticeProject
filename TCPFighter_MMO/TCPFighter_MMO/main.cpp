@@ -9,6 +9,7 @@
 #include "CCrashDump.h"
 #include "ProcademyProfiler.h"
 #include "LogProc.h"
+#include "MonitorManager.h"
 #include <conio.h>
 
 HANDLE _controlThreadHandle;
@@ -18,6 +19,7 @@ procademy::CCrashDump cCrashDump;
 bool m_bShutdown = false;
 
 unsigned int WINAPI GetControl(LPVOID arg);
+bool Skip();
 
 int wmain(int argc, WCHAR* argv[])
 {
@@ -36,9 +38,12 @@ int wmain(int argc, WCHAR* argv[])
 		netSelectIO();
 
 		// 프레임 업데이트
-		Update();
+		while (Skip())
+		{
+			Update();
+		}
 
-		FPS();
+		Monitor();
 	}
 
 	timeEndPeriod(1);
@@ -53,11 +58,27 @@ unsigned int WINAPI GetControl(LPVOID arg)
 		ch = _getch();
 		if ((GetAsyncKeyState('P') & 0x8001) || (GetAsyncKeyState('p') & 0x8001))
 		{
-			ProfileDataOutText("ProfileData_TCPMMO_AttackFixed_set.txt");
+			ProfileDataOutText("ProfileData_TCPMMO_0626.txt");
 		}
 		if ((GetAsyncKeyState('R') & 0x8001) || (GetAsyncKeyState('r') & 0x8001))
 		{
 			ProfileReset();
 		}
+	}
+}
+
+bool Skip()
+{
+	static int _Tick = timeGetTime();
+
+	int diff = timeGetTime() - _Tick;
+	if (diff < 40)
+	{
+		return false;
+	}
+	else
+	{
+		_Tick += FRAME_TIME;
+		return true;
 	}
 }

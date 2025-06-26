@@ -28,22 +28,22 @@ procademy::CMemoryPool<st_CHARACTER> _CharacterPool(dfMAX_CONNECT, false, false)
 
 DWORD dwCurrentTick;
 
-void DisconnectPlayer();
-
 void Update()
 {
-	if (Skip())
-		return;
+	//if (Skip())
+		//return;
 
-	Profiler("Update");
+	//Profiler("Update");
 	_logicFrame++;
-	DWORD oldTick = dwCurrentTick;
+	double oldTick = dwCurrentTick;
 	dwCurrentTick = timeGetTime();
 	//_LOG(0, L"Update!\n");
 
 	DWORD dwDeltaTime = dwCurrentTick - oldTick;
-	short shDeltaX = (short)(((((float)dwDeltaTime) / ((float)FRAME_TIME))) * dfSPEED_PLAYER_X);
-	short shDeltaY = (short)(((((float)dwDeltaTime) / ((float)FRAME_TIME))) * dfSPEED_PLAYER_Y);
+
+	double deltaRatio = ((double)dwDeltaTime) / (double)FRAME_TIME;
+	short shDeltaX = (short)(deltaRatio * dfSPEED_PLAYER_X);
+	short shDeltaY = (short)(deltaRatio * dfSPEED_PLAYER_Y);
 	//_LOG(2, L"dwDelatTime : %d # shDeltaX : %d # shDeltaY : %d # temp : %f\n", dwDeltaTime, shDeltaX, shDeltaY, ((float)dwDeltaTime) / ((float)FRAME_TIME));
 
 	st_CHARACTER* pPlayer = nullptr;
@@ -58,59 +58,75 @@ void Update()
 
 		if (pPlayer->chHP <= 0)
 		{
-			DebugBreak();
 			DisconnectSession(pPlayer->dwSessionID);
 			pPlayer->bDeleted = true;
 			continue;
 		}
 
-		_LOG(0, L"Player Info # sessionID : %d # X : %d # Y : %d\n", pPlayer->dwSessionID, pPlayer->shX, pPlayer->shY);
+		//_LOG(0, L"Player Info # sessionID : %d # X : %d # Y : %d\n", pPlayer->dwSessionID, pPlayer->shX, pPlayer->shY);
 
 		switch (pPlayer->dwAction)
+		{
+		case dfPACKET_MOVE_DIR_LL:
+			if (CharacterMoveCheck(pPlayer->shX - dfSPEED_PLAYER_X, pPlayer->shY))
+			{
+				pPlayer->shX -= dfSPEED_PLAYER_X;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_LU:
+			if (CharacterMoveCheck(pPlayer->shX - dfSPEED_PLAYER_X, pPlayer->shY - dfSPEED_PLAYER_Y))
+			{
+				pPlayer->shX -= dfSPEED_PLAYER_X;
+				pPlayer->shY -= dfSPEED_PLAYER_Y;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_UU:
+			if (CharacterMoveCheck(pPlayer->shX, pPlayer->shY - dfSPEED_PLAYER_Y))
+			{
+				pPlayer->shY -= dfSPEED_PLAYER_Y;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_RU:
+			if (CharacterMoveCheck(pPlayer->shX + dfSPEED_PLAYER_X, pPlayer->shY - dfSPEED_PLAYER_Y))
+			{
+				pPlayer->shX += dfSPEED_PLAYER_X;
+				pPlayer->shY -= dfSPEED_PLAYER_Y;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_RR:
+			if (CharacterMoveCheck(pPlayer->shX + dfSPEED_PLAYER_X, pPlayer->shY))
+			{
+				pPlayer->shX += dfSPEED_PLAYER_X;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_RD:
+			if (CharacterMoveCheck(pPlayer->shX + dfSPEED_PLAYER_X, pPlayer->shY + dfSPEED_PLAYER_Y))
+			{
+				pPlayer->shX += dfSPEED_PLAYER_X;
+				pPlayer->shY += dfSPEED_PLAYER_Y;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_DD:
+			if (CharacterMoveCheck(pPlayer->shX, pPlayer->shY + dfSPEED_PLAYER_Y))
+			{
+				pPlayer->shY += dfSPEED_PLAYER_Y;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_LD:
+			if (CharacterMoveCheck(pPlayer->shX - dfSPEED_PLAYER_X, pPlayer->shY + dfSPEED_PLAYER_Y))
+			{
+				pPlayer->shX -= dfSPEED_PLAYER_X;
+				pPlayer->shY += dfSPEED_PLAYER_Y;
+			}
+			break;
+		}
+
+		/*switch (pPlayer->dwAction)
 		{
 		case dfPACKET_MOVE_DIR_LL:
 			if (CharacterMoveCheck(pPlayer->shX - shDeltaX, pPlayer->shY))
 			{
 				pPlayer->shX -= shDeltaX;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_LD:
-			if (CharacterMoveCheck(pPlayer->shX - shDeltaX, pPlayer->shY + shDeltaY))
-			{
-				pPlayer->shX -= shDeltaX;
-				pPlayer->shY += shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_DD:
-			if (CharacterMoveCheck(pPlayer->shX, pPlayer->shY + shDeltaY))
-			{
-				pPlayer->shY += shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_RD:
-			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY + shDeltaY))
-			{
-				pPlayer->shX += shDeltaX;
-				pPlayer->shY += shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_RR:
-			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY))
-			{
-				pPlayer->shX += shDeltaX;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_RU:
-			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY - shDeltaY))
-			{
-				pPlayer->shX += shDeltaX;
-				pPlayer->shY -= shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_UU:
-			if (CharacterMoveCheck(pPlayer->shX, pPlayer->shY - shDeltaY))
-			{
-				pPlayer->shY -= shDeltaY;
 			}
 			break;
 		case dfPACKET_MOVE_DIR_LU:
@@ -120,7 +136,46 @@ void Update()
 				pPlayer->shY -= shDeltaY;
 			}
 			break;
-		}
+		case dfPACKET_MOVE_DIR_UU:
+			if (CharacterMoveCheck(pPlayer->shX, pPlayer->shY - shDeltaY))
+			{
+				pPlayer->shY -= shDeltaY;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_RU:
+			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY - shDeltaY))
+			{
+				pPlayer->shX += shDeltaX;
+				pPlayer->shY -= shDeltaY;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_RR:
+			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY))
+			{
+				pPlayer->shX += shDeltaX;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_RD:
+			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY + shDeltaY))
+			{
+				pPlayer->shX += shDeltaX;
+				pPlayer->shY += shDeltaY;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_DD:
+			if (CharacterMoveCheck(pPlayer->shX, pPlayer->shY + shDeltaY))
+			{
+				pPlayer->shY += shDeltaY;
+			}
+			break;
+		case dfPACKET_MOVE_DIR_LD:
+			if (CharacterMoveCheck(pPlayer->shX - shDeltaX, pPlayer->shY + shDeltaY))
+			{
+				pPlayer->shX -= shDeltaX;
+				pPlayer->shY += shDeltaY;
+			}
+			break;
+		}*/
 
 		{
 			if (!UpdateSector(pPlayer))
@@ -131,67 +186,12 @@ void Update()
 	}
 
 	{
-		Profiler("DisconnectPlayer");
-		DisconnectPlayer();
+		//Profiler("DisconnectPlayer");
+		DisconnectDeletedSession();
 	}
 }
 
-// 표시된 플레이어 map에서 삭제
-void DisconnectPlayer()
+int GetCharacterCount()
 {
-	unordered_map<DWORD, st_CHARACTER*>::iterator it;
-	CPacket csPacket(PROTOCOL_MAXSIZE);
-	for (it = m_CharacterMap.begin(); it != m_CharacterMap.end();)
-	{
-		if ((*it).second->bDeleted)
-		{
-			//그 섹터의 플레이어에게 DeleteCharacter 전송
-			st_PACKET_HEADER header;
-			mpDeleteCharacter(&header, &csPacket, (*it).first);
-
-			SendPacket_Around((*it).second, &header, &csPacket);
-			csPacket.Clear();
-			
-			_LOG(0, L"Disconnect Player L7 # sessionID : %d\n", (*it).second->dwSessionID);
-			it = m_CharacterMap.erase(it);
-
-			continue;
-		}
-
-		it++;
-	}
-
-	DisconnectDeletedSession();
-}
-
-bool Skip()
-{
-	static DWORD _Tick = timeGetTime();
-	static bool skipped = false;
-
-	//if (false == skipped)
-	//{
-	//	DWORD t = timeGetTime() - _Tick;
-
-	//	// 작아야 슬립하는거지. 소요 시간이 긴데, 슬립을 하면 안됐다.
-	//	// 부호가 반대였는데, 그래서 이걸 활성화하면 프레임이 반토막 났던 것
-	//	if (t < FRAME_TIME)
-	//	{
-	//		DWORD sleepTime = FRAME_TIME - t;
-	//		//Sleep(sleepTime);
-	//		skipped = true;
-	//		//return true;
-	//	}
-	//}
-
-	if (timeGetTime() - _Tick > (FRAME_TIME * 2))
-	{
-		skipped = true;
-		return true;
-	}
-
-	_Tick += FRAME_TIME;
-	skipped = false;
-
-	return false;
+	return m_CharacterMap.size();
 }

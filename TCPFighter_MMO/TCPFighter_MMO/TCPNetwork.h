@@ -13,12 +13,12 @@ bool bSessionAlive(DWORD dwsessionID);
 // 외부 선언 - MessageProc
 void ProcessMessage(DWORD dwsessionID, BYTE type, CPacket* cPacket);
 
-//void GetSession()
+int GetSessionCount();
 
 void DisconnectSession(DWORD dwsessionID);
 void DisconnectDeletedSession();
 
 void Send_BroadCast(DWORD dwsessionID, st_PACKET_HEADER* header, char* packet);
-bool Send_UniCast(DWORD dwsessionID, st_PACKET_HEADER* header, char* packet);
+bool Send_UniCast(DWORD dwsessionID, CPacket* cPacket);
 //void SendPacket_SectorOne(int iSectorX, int iSectorY, CPacket* cPacket, st_SESSION* pExceptSession);
 //void SendPacket_Around(st_SESSION* pSession, CPacket* cPacket, bool bSendMe = false);

@@ -27,6 +27,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MessageCreate.cpp" />
     <ClCompile Include="MessageProc.cpp" />
+    <ClCompile Include="MonitorManager.cpp" />
     <ClCompile Include="ProcademyProfiler.cpp" />
     <ClCompile Include="SectorProc.cpp" />
     <ClCompile Include="TCPNetwork.cpp" />
@@ -44,6 +45,7 @@
     <ClInclude Include="LogProc.h" />
     <ClInclude Include="MessageCreate.h" />
     <ClInclude Include="MessageProc.h" />
+    <ClInclude Include="MonitorManager.h" />
     <ClInclude Include="PacketDefine.h" />
     <ClInclude Include="ProcademyProfiler.h" />
     <ClInclude Include="SectorDefine.h" />

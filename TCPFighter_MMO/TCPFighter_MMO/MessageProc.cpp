@@ -17,7 +17,7 @@ void ProcessMessage(DWORD dwsessionID, BYTE type, CPacket* cPacket)
 	case dfPACKET_CS_ATTACK1:
 	case dfPACKET_CS_ATTACK2:
 	case dfPACKET_CS_ATTACK3:
-		netPacketProc_Attack(dwsessionID, type);
+		netPacketProc_Attack(dwsessionID, type, cPacket);
 		break;
 	case dfPACKET_CS_ECHO:
 		netPacketProc_Echo(dwsessionID, cPacket);

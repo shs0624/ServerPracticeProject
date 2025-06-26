@@ -11,11 +11,11 @@ using namespace std;
 #include "SectorProc.h"
 #include "MessageCreate.h"
 #include "TCPNetwork.h"
+#include "ContentsProc.h"
 #include "LogProc.h"
 #include "ProcademyProfiler.h"
 
 // 한 섹터는 100 x 100 크기로,  64 x 64개의 섹터로 이루어짐
-//list<st_CHARACTER*> m_Sector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
 vector<st_CHARACTER*> m_Sector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
 
 extern int g_iLogLevel;
@@ -39,57 +39,9 @@ void SetUserToSector(st_CHARACTER* player)
 	m_Sector[sectorY][sectorX].push_back(player);
 }
 
-void SendUserInfoToNewPlayer(DWORD dwNewSessionID, short shX, short shY)
-{
-	Profiler("SendUserInfoToNewPlayer");
-	short sectorX = shX / dfSECTOR_SIZE_X;
-	short sectorY = shY / dfSECTOR_SIZE_Y;
-
-	st_PACKET_HEADER header;
-	CPacket* scPacket = new CPacket(PROTOCOL_MAXSIZE);
-
-	// 그 섹터의 유저들 정보를 새 유저에게 전송
-	st_SECTOR_AROUND aroundSector;
-	GetSectorAround(sectorX, sectorY, &aroundSector);
-
-	for (int i = 0; i < aroundSector.iCount; i++)
-	{
-		int iX = aroundSector.Around[i].iX;
-		int iY = aroundSector.Around[i].iY;
-
-		vector<st_CHARACTER*>& refSectorVector = m_Sector[iY][iX];
-		for (int i = 0; i < refSectorVector.size(); i++)
-		{
-			st_CHARACTER* ptrChar = refSectorVector[i];
-			mpCreateOtherCharacter(&header, scPacket, ptrChar->dwSessionID, ptrChar->byDirection, ptrChar->shX, ptrChar->shY, ptrChar->chHP);
-			bool bRet = Send_UniCast(dwNewSessionID, &header, scPacket->GetBufferPtr());
-			if (!bRet)
-			{
-				return;
-			}
-
-			scPacket->Clear();
-
-			// 그 유저가 이동중이라면 MOVESTART도 전송
-			if (ptrChar->dwAction != dfPACKET_MOVE_DIR_NONE)
-			{
-				//scMoveStart
-				mpMoveStart(&header, scPacket, ptrChar->dwSessionID, ptrChar->dwAction, ptrChar->shX, ptrChar->shY);
-				bool bRet = Send_UniCast(dwNewSessionID, &header, scPacket->GetBufferPtr());
-				if (!bRet)
-				{
-					return;
-				}
-
-				scPacket->Clear();
-			}
-		}
-	}
-}
-
 void DeletePlayerFromSector(DWORD dwSessionID, short shX, short shY)
 {
-	Profiler("DeletePlayerFromSector");
+	//Profiler("DeletePlayerFromSector");
 	short sectorX = shX / dfSECTOR_SIZE_X;
 	short sectorY = shY / dfSECTOR_SIZE_Y;
 
@@ -109,11 +61,11 @@ bool UpdateSector(st_CHARACTER* player)
 	short sectorX = (player->shX) / dfSECTOR_SIZE_X;
 	short sectorY = (player->shY) / dfSECTOR_SIZE_Y;
 
-	player->CurSector.iX = sectorX;
-	player->CurSector.iY = sectorY;
-
-	if (player->OldSector.iX != player->CurSector.iX || player->OldSector.iY != player->CurSector.iY)
+	if (sectorX != player->CurSector.iX || sectorY != player->CurSector.iY)
 	{
+		player->CurSector.iX = sectorX;
+		player->CurSector.iY = sectorY;
+
 		return false;
 	}
 
@@ -122,7 +74,10 @@ bool UpdateSector(st_CHARACTER* player)
 
 void ChangeSector(st_CHARACTER* player)
 {
-	Profiler("ChangeSector");
+	//Profiler("ChangeSector");
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+	scPacket.Clear();
+
 	st_SECTOR_AROUND removeSector;
 	st_SECTOR_AROUND addSector;
 
@@ -131,31 +86,36 @@ void ChangeSector(st_CHARACTER* player)
 
 	// player의 OldSector, Cursector가 다른채로 있어야 한다.
 	GetUpdateSectorAround(player, &removeSector, &addSector);
+	_LOG(1, L"ChangeSector # playerID : %d # removeSectorCount : %d # addSectorCount : %d\n", player->dwSessionID, removeSector.iCount, addSector.iCount);
 
-	st_PACKET_HEADER header;
-	CPacket scPacket(PROTOCOL_MAXSIZE);
-
-	// 1. RemoveSector의 캐릭터 Delete 메세지 -> 탐색중인 player에게 send
+	scPacket.Clear();
+	mpDeleteCharacter(&scPacket, player->dwSessionID);
+	// RemoveSector 유저들에게 player 삭제 패킷 보내기.
 	for (int i = 0; i < removeSector.iCount; i++)
 	{
-		vector<st_CHARACTER*>& refSectorVector = m_Sector[removeSector.Around[i].iY][removeSector.Around[i].iX];
+		int sectorX = removeSector.Around[i].iX;
+		int sectorY = removeSector.Around[i].iY;
+
+		SendPacket_SectorOne(sectorX, sectorY, &scPacket, NULL);
+	}
+
+	// player에게 RemoveSector 유저 삭제 패킷 보내기.
+	for (int i = 0; i < removeSector.iCount; i++)
+	{
+		int sectorX = removeSector.Around[i].iX;
+		int sectorY = removeSector.Around[i].iY;
+
+		vector<st_CHARACTER*>& refSectorVector = m_Sector[sectorY][sectorX];
 		for (int i = 0; i < refSectorVector.size(); i++)
 		{
-			if (refSectorVector[i]->bDeleted)
-				continue;
-
-			mpDeleteCharacter(&header, &scPacket, refSectorVector[i]->dwSessionID);
-			bool bRet = Send_UniCast(player->dwSessionID, &header, scPacket.GetBufferPtr());
-			if (!bRet)
-				continue;
-
 			scPacket.Clear();
-
-			_LOG(0, L"Delete Character # ID : %d\n", refSectorVector[i]->dwSessionID);
+			mpDeleteCharacter(&scPacket, refSectorVector[i]->dwSessionID);
+			Send_UniCast(player->dwSessionID, &scPacket);
+			//_LOG(0, L"Delete Character # ID : %d\n", refSectorVector[i]->dwSessionID);
 		}
 	}
 
-	// 2. AddSector에게 생성 메세지
+	// player에게 Addsector 유저 정보 전송
 	for (int i = 0; i < addSector.iCount; i++)
 	{
 		// 그 섹터의 캐릭터들 생성 - player에게 전송
@@ -166,22 +126,41 @@ void ChangeSector(st_CHARACTER* player)
 				continue;
 
 			scPacket.Clear();
-			mpCreateOtherCharacter(&header, &scPacket, refSectorVector[i]->dwSessionID, refSectorVector[i]->byDirection, 
+			mpCreateOtherCharacter(&scPacket, refSectorVector[i]->dwSessionID, refSectorVector[i]->byDirection,
 				refSectorVector[i]->shX, refSectorVector[i]->shY, refSectorVector[i]->chHP);
-			bool bRet = Send_UniCast(player->dwSessionID, &header, scPacket.GetBufferPtr());
-			if (!bRet)
-			{
+			bool bRet = Send_UniCast(player->dwSessionID, &scPacket);
+			if (bRet == false)
 				continue;
-			}
+
+			if (refSectorVector[i]->dwAction == dfPACKET_MOVE_DIR_NONE)
+				continue;
 
 			scPacket.Clear();
-			mpCreateOtherCharacter(&header, &scPacket, player->dwSessionID, player->byDirection,
-				player->shX, player->shY, player->chHP);
-			Send_UniCast(refSectorVector[i]->dwSessionID, &header, scPacket.GetBufferPtr());
+			mpMoveStart(&scPacket, refSectorVector[i]->dwSessionID, refSectorVector[i]->dwAction, refSectorVector[i]->shX, refSectorVector[i]->shY);
+			Send_UniCast(player->dwSessionID, &scPacket);
 		}
 	}
 
-	// 3. map, player 세팅
+	// AddSector의 세션들에게 player 생성, 액션 전달
+	for (int i = 0; i < addSector.iCount; i++)
+	{
+		int sectorX = addSector.Around[i].iX;
+		int sectorY = addSector.Around[i].iY;
+
+		scPacket.Clear();
+		mpCreateOtherCharacter(&scPacket, player->dwSessionID, player->byDirection,
+			player->shX, player->shY, player->chHP);
+		SendPacket_SectorOne(sectorX, sectorY, &scPacket, player->dwSessionID);
+
+		if (player->dwAction == dfPACKET_MOVE_DIR_NONE)
+			continue;
+
+		scPacket.Clear();
+		mpMoveStart(&scPacket, player->dwSessionID, player->dwAction, player->shX, player->shY);
+		SendPacket_SectorOne(sectorX, sectorY, &scPacket, player->dwSessionID);
+	}
+
+	// 섹터에서 내 정보 이동
 	vector<st_CHARACTER*>& refSectorVector = m_Sector[player->OldSector.iY][player->OldSector.iX];
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
@@ -193,8 +172,12 @@ void ChangeSector(st_CHARACTER* player)
 	}
 	m_Sector[player->CurSector.iY][player->CurSector.iX].push_back(player);
 
-	player->OldSector = player->CurSector;
+	//player->OldSector = player->CurSector;
+	//_LOG(1, L"ChnageSector # playerID : %d # oldSector : %d, %d # curSector : %d,%d\n", player->dwSessionID, player->OldSector.iX, player->OldSector.iY,
+	//	player->CurSector.iX, player->CurSector.iY);
+	memcpy(&(player->OldSector), &(player->CurSector), sizeof(st_SECTOR_POS));
 }
+
 
 void GetSectorSessions(short sectorX, short sectorY, CStack<st_CHARACTER*>& pPlayerStack)
 {
@@ -240,6 +223,7 @@ void GetAttackTargetSector(int playerX, int playerY, BYTE dir, BYTE xRange, BYTE
 
 	// 겹치는 섹터는 사라짐
 	int cnt = 0;
+	pSectorAttack->iCount = 0;
 	std::unordered_set<unsigned int>::iterator it;
 	for (it = attackSectorSet.begin(); it != attackSectorSet.end(); it++)
 	{
@@ -349,88 +333,399 @@ void GetSectorAround(int iSectorX, int iSectorY, st_SECTOR_AROUND* pSectorAround
 
 void GetUpdateSectorAround(st_CHARACTER* player, st_SECTOR_AROUND* pRemoveSector, st_SECTOR_AROUND* pAddSector)
 {
-	// 1. OldSector, CurSector의 Around 구하기
-	st_SECTOR_AROUND oldAround;
-	st_SECTOR_AROUND curAround;
+	int curSectorX = player->CurSector.iX;
+	int curSectorY = player->CurSector.iY;
 
-	GetSectorAround(player->OldSector.iX, player->OldSector.iY, &oldAround);
-	GetSectorAround(player->CurSector.iX, player->CurSector.iY, &curAround);
+	int oldSectorX = player->OldSector.iX;
+	int oldSectorY = player->OldSector.iY;
 
-	// 2. OldSector엔 있지만 CurSector엔 없는 섹터는 RemoveSector에 추가
-	for (int oldIdx = 0; oldIdx < oldAround.iCount; oldIdx++)
+	// CurSector - OldSector로 이동 방향 얻어내기
+	int moveX = curSectorX - oldSectorX;
+	int moveY = curSectorY - oldSectorY;
+
+	// 위로 이동
+	if (moveX == 0 && moveY == -1)
 	{
-		bool bFlag = false;
-		int iOldSectorX = oldAround.Around[oldIdx].iX;
-		int iOldSectorY = oldAround.Around[oldIdx].iY;
+		// addSector
+		int addXArr[3] = { -1, 0 ,1 };
+		int addYArr[3] = { -1, -1 ,-1 };
 
-		for (int curIdx = 0; curIdx < curAround.iCount; curIdx++)
+		for (int i = 0; i < 3; i++)
 		{
-			int iCurSectorX = curAround.Around[curIdx].iX;
-			int iCurSectorY = curAround.Around[curIdx].iY;
+			int sectorX = curSectorX + addXArr[i];
+			int sectorY = curSectorY + addYArr[i];
 
-			// CurSector에 있다
-			if (iCurSectorX == iOldSectorX && iCurSectorY == iOldSectorY)
-			{
-				bFlag = true;
-				break;
-			}
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pAddSector->Around[pAddSector->iCount].iX = sectorX;
+			pAddSector->Around[pAddSector->iCount].iY = sectorY;
+			pAddSector->iCount++;
 		}
 
-		// OldSector엔 있지만 CurSector에 없으니까 RemoveSector다.
-		if (!bFlag)
+		// removeSector
+		int removeXArr[3] = { -1, 0 ,1 };
+		int removeYArr[3] = { 1, 1 ,1 };
+
+		for (int i = 0; i < 3; i++)
 		{
-			pRemoveSector->Around[pRemoveSector->iCount].iX = iOldSectorX;
-			pRemoveSector->Around[pRemoveSector->iCount].iY = iOldSectorY;
+			int sectorX = oldSectorX + removeXArr[i];
+			int sectorY = oldSectorY + removeYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pRemoveSector->Around[pRemoveSector->iCount].iX = sectorX;
+			pRemoveSector->Around[pRemoveSector->iCount].iY = sectorY;
 			pRemoveSector->iCount++;
 		}
 	}
-
-	// 3. OldSector엔 없지만 CurSector엔 있는 섹터는 AddSector에 추가
-	for (int curIdx = 0; curIdx < curAround.iCount; curIdx++)
+	// 우로 이동
+	else if (moveX == 1 && moveY == 0)
 	{
-		bool bFlag = false;
-		int iCurSectorX = curAround.Around[curIdx].iX;
-		int iCurSectorY = curAround.Around[curIdx].iY;
+		// addSector
+		int addXArr[3] = { 1, 1 ,1 };
+		int addYArr[3] = { -1, 0 ,1 };
 
-		for (int oldIdx = 0; oldIdx < oldAround.iCount; oldIdx++)
+		for (int i = 0; i < 3; i++)
 		{
-			int iOldSectorX = oldAround.Around[oldIdx].iX;
-			int iOldSectorY = oldAround.Around[oldIdx].iY;
+			int sectorX = curSectorX + addXArr[i];
+			int sectorY = curSectorY + addYArr[i];
 
-			// OldSector에 있다
-			if (iCurSectorX == iOldSectorX && iCurSectorY == iOldSectorY)
-			{
-				bFlag = true;
-				break;
-			}
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pAddSector->Around[pAddSector->iCount].iX = sectorX;
+			pAddSector->Around[pAddSector->iCount].iY = sectorY;
+			pAddSector->iCount++;
 		}
 
-		// CurSector엔 있지만 OldSector에 없으니까 AddSector다.
-		if (!bFlag)
+		// removeSector
+		int removeXArr[3] = { -1, -1 ,-1 };
+		int removeYArr[3] = { -1, 0 ,1 };
+
+		for (int i = 0; i < 3; i++)
 		{
-			pAddSector->Around[pAddSector->iCount].iX = iCurSectorX;
-			pAddSector->Around[pAddSector->iCount].iY = iCurSectorY;
+			int sectorX = oldSectorX + removeXArr[i];
+			int sectorY = oldSectorY + removeYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pRemoveSector->Around[pRemoveSector->iCount].iX = sectorX;
+			pRemoveSector->Around[pRemoveSector->iCount].iY = sectorY;
+			pRemoveSector->iCount++;
+		}
+	}
+	// 아래로 이동
+	else if (moveX == 0 && moveY == 1)
+	{
+		// addSector
+		int addXArr[3] = { -1, 0 ,1 };
+		int addYArr[3] = { 1, 1 ,1 };
+
+		for (int i = 0; i < 3; i++)
+		{
+			int sectorX = curSectorX + addXArr[i];
+			int sectorY = curSectorY + addYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pAddSector->Around[pAddSector->iCount].iX = sectorX;
+			pAddSector->Around[pAddSector->iCount].iY = sectorY;
 			pAddSector->iCount++;
+		}
+
+		// removeSector
+		int removeXArr[3] = { -1, 0 ,1 };
+		int removeYArr[3] = { -1, -1 ,-1 };
+
+		for (int i = 0; i < 3; i++)
+		{
+			int sectorX = oldSectorX + removeXArr[i];
+			int sectorY = oldSectorY + removeYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pRemoveSector->Around[pRemoveSector->iCount].iX = sectorX;
+			pRemoveSector->Around[pRemoveSector->iCount].iY = sectorY;
+			pRemoveSector->iCount++;
+		}
+	}
+	// 좌로 이동
+	else if (moveX == -1 && moveY == 0)
+	{
+		// addSector
+		int addXArr[3] = { -1, -1 ,-1 };
+		int addYArr[3] = { -1, 0 ,1 };
+
+		for (int i = 0; i < 3; i++)
+		{
+			int sectorX = curSectorX + addXArr[i];
+			int sectorY = curSectorY + addYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pAddSector->Around[pAddSector->iCount].iX = sectorX;
+			pAddSector->Around[pAddSector->iCount].iY = sectorY;
+			pAddSector->iCount++;
+		}
+
+		// removeSector
+		int removeXArr[3] = { 1, 1 ,1 };
+		int removeYArr[3] = { -1, 0 ,1 };
+
+		for (int i = 0; i < 3; i++)
+		{
+			int sectorX = oldSectorX + removeXArr[i];
+			int sectorY = oldSectorY + removeYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pRemoveSector->Around[pRemoveSector->iCount].iX = sectorX;
+			pRemoveSector->Around[pRemoveSector->iCount].iY = sectorY;
+			pRemoveSector->iCount++;
+		}
+	}
+	// 좌상단 이동
+	else if (moveX == -1 && moveY == -1)
+	{
+		// addSector
+		int addXArr[5] = { -1, -1 ,-1, 0, 1 };
+		int addYArr[5] = { 1, 0 ,-1, -1, -1 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			int sectorX = curSectorX + addXArr[i];
+			int sectorY = curSectorY + addYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pAddSector->Around[pAddSector->iCount].iX = sectorX;
+			pAddSector->Around[pAddSector->iCount].iY = sectorY;
+			pAddSector->iCount++;
+		}
+
+		// removeSector
+		int removeXArr[5] = { -1, 0 ,1, 1, 1 };
+		int removeYArr[5] = { 1, 1 , 1, 0, -1};
+
+		for (int i = 0; i < 5; i++)
+		{
+			int sectorX = oldSectorX + removeXArr[i];
+			int sectorY = oldSectorY + removeYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pRemoveSector->Around[pRemoveSector->iCount].iX = sectorX;
+			pRemoveSector->Around[pRemoveSector->iCount].iY = sectorY;
+			pRemoveSector->iCount++;
+		}
+	}
+	// 우상단 이동
+	else if (moveX == 1 && moveY == -1)
+	{
+		// addSector
+		int addXArr[5] = { -1, 0 ,1, 1, 1 };
+		int addYArr[5] = { -1, -1 ,-1, 0, 1 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			int sectorX = curSectorX + addXArr[i];
+			int sectorY = curSectorY + addYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pAddSector->Around[pAddSector->iCount].iX = sectorX;
+			pAddSector->Around[pAddSector->iCount].iY = sectorY;
+			pAddSector->iCount++;
+		}
+
+		// removeSector
+		int removeXArr[5] = { -1, -1 ,-1, 0, 1 };
+		int removeYArr[5] = { -1, 0 , 1, 1, 1 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			int sectorX = oldSectorX + removeXArr[i];
+			int sectorY = oldSectorY + removeYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pRemoveSector->Around[pRemoveSector->iCount].iX = sectorX;
+			pRemoveSector->Around[pRemoveSector->iCount].iY = sectorY;
+			pRemoveSector->iCount++;
+		}
+	}
+	// 우하단 이동
+	else if (moveX == 1 && moveY == 1)
+	{
+		// addSector
+		int addXArr[5] = { -1, 0 ,1, 1, 1 };
+		int addYArr[5] = { 1, 1 ,1, 0, -1 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			int sectorX = curSectorX + addXArr[i];
+			int sectorY = curSectorY + addYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pAddSector->Around[pAddSector->iCount].iX = sectorX;
+			pAddSector->Around[pAddSector->iCount].iY = sectorY;
+			pAddSector->iCount++;
+		}
+
+		// removeSector
+		int removeXArr[5] = { -1, -1 ,-1, 0, 1 };
+		int removeYArr[5] = { 1, 0 , -1, -1, -1 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			int sectorX = oldSectorX + removeXArr[i];
+			int sectorY = oldSectorY + removeYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pRemoveSector->Around[pRemoveSector->iCount].iX = sectorX;
+			pRemoveSector->Around[pRemoveSector->iCount].iY = sectorY;
+			pRemoveSector->iCount++;
+		}
+	}
+	// 좌하단 이동
+	else if (moveX == -1 && moveY == 1)
+	{
+		// addSector
+		int addXArr[5] = { -1, -1 ,-1, 0, 1 };
+		int addYArr[5] = { 1, 0 ,-1, -1, -1 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			int sectorX = curSectorX + addXArr[i];
+			int sectorY = curSectorY + addYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pAddSector->Around[pAddSector->iCount].iX = sectorX;
+			pAddSector->Around[pAddSector->iCount].iY = sectorY;
+			pAddSector->iCount++;
+		}
+
+		// removeSector
+		int removeXArr[5] = { -1, 0 ,1, 1, 1 };
+		int removeYArr[5] = { -1, -1 , -1, 0, 1 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			int sectorX = oldSectorX + removeXArr[i];
+			int sectorY = oldSectorY + removeYArr[i];
+
+			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
+				continue;
+
+			pRemoveSector->Around[pRemoveSector->iCount].iX = sectorX;
+			pRemoveSector->Around[pRemoveSector->iCount].iY = sectorY;
+			pRemoveSector->iCount++;
 		}
 	}
 }
 
-void SendPacket_SectorOne(int iSectorX, int iSectorY, st_PACKET_HEADER* header, CPacket* cPacket, DWORD dwExceptSessionID)
+
+//void GetUpdateSectorAround(st_CHARACTER* player, st_SECTOR_AROUND* pRemoveSector, st_SECTOR_AROUND* pAddSector)
+//{
+//	// 1. OldSector, CurSector의 Around 구하기
+//	st_SECTOR_AROUND oldAround;
+//	st_SECTOR_AROUND curAround;
+//
+//	GetSectorAround(player->OldSector.iX, player->OldSector.iY, &oldAround);
+//	GetSectorAround(player->CurSector.iX, player->CurSector.iY, &curAround);
+//
+//	// 2. OldSector엔 있지만 CurSector엔 없는 섹터는 RemoveSector에 추가
+//	for (int oldIdx = 0; oldIdx < oldAround.iCount; oldIdx++)
+//	{
+//		bool bFlag = false;
+//		int iOldSectorX = oldAround.Around[oldIdx].iX;
+//		int iOldSectorY = oldAround.Around[oldIdx].iY;
+//
+//		for (int curIdx = 0; curIdx < curAround.iCount; curIdx++)
+//		{
+//			int iCurSectorX = curAround.Around[curIdx].iX;
+//			int iCurSectorY = curAround.Around[curIdx].iY;
+//
+//			// CurSector에 있다
+//			if (iCurSectorX == iOldSectorX && iCurSectorY == iOldSectorY)
+//			{
+//				bFlag = true;
+//				break;
+//			}
+//		}
+//
+//		// OldSector엔 있지만 CurSector에 없으니까 RemoveSector다.
+//		if (!bFlag)
+//		{
+//			pRemoveSector->Around[pRemoveSector->iCount].iX = iOldSectorX;
+//			pRemoveSector->Around[pRemoveSector->iCount].iY = iOldSectorY;
+//			pRemoveSector->iCount++;
+//		}
+//	}
+//
+//	// 3. OldSector엔 없지만 CurSector엔 있는 섹터는 AddSector에 추가
+//	for (int curIdx = 0; curIdx < curAround.iCount; curIdx++)
+//	{
+//		bool bFlag = false;
+//		int iCurSectorX = curAround.Around[curIdx].iX;
+//		int iCurSectorY = curAround.Around[curIdx].iY;
+//
+//		for (int oldIdx = 0; oldIdx < oldAround.iCount; oldIdx++)
+//		{
+//			int iOldSectorX = oldAround.Around[oldIdx].iX;
+//			int iOldSectorY = oldAround.Around[oldIdx].iY;
+//
+//			// OldSector에 있다
+//			if (iCurSectorX == iOldSectorX && iCurSectorY == iOldSectorY)
+//			{
+//				bFlag = true;
+//				break;
+//			}
+//		}
+//
+//		// CurSector엔 있지만 OldSector에 없으니까 AddSector다.
+//		if (!bFlag)
+//		{
+//			pAddSector->Around[pAddSector->iCount].iX = iCurSectorX;
+//			pAddSector->Around[pAddSector->iCount].iY = iCurSectorY;
+//			pAddSector->iCount++;
+//		}
+//	}
+//}
+
+void SendPacket_SectorOne(int iSectorX, int iSectorY, CPacket* cPacket, DWORD dwExceptSessionID)
 {
-	Profiler("SendPacket_SectorOne");
+	//Profiler("SendPacket_SectorOne");
 	vector<st_CHARACTER*>& refSectorVector = m_Sector[iSectorY][iSectorX];
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
 		if (refSectorVector[i]->dwSessionID == dwExceptSessionID)
 			continue;
 
-		Send_UniCast(refSectorVector[i]->dwSessionID, header, cPacket->GetBufferPtr());
+		Send_UniCast(refSectorVector[i]->dwSessionID, cPacket);
 	}
 }
 
-void SendPacket_Around(st_CHARACTER* pCharacter, st_PACKET_HEADER* header, CPacket* cPacket, bool bSendMe)
+void SendPacket_Around(st_CHARACTER* pCharacter, CPacket* cPacket, bool bSendMe)
 {
-	Profiler("SendPacket_Around");
+	//Profiler("SendPacket_Around");
 	int iSectorX = pCharacter->shX / dfSECTOR_SIZE_X;
 	int iSectorY = pCharacter->shY / dfSECTOR_SIZE_Y;
 
@@ -454,24 +749,14 @@ void SendPacket_Around(st_CHARACTER* pCharacter, st_PACKET_HEADER* header, CPack
 				if (!bSendMe && refSectorVector[i]->dwSessionID == pCharacter->dwSessionID)
 					continue;
 
-				Send_UniCast(refSectorVector[i]->dwSessionID, header, cPacket->GetBufferPtr());
-				/*bSendFlag = Send_UniCast(refSectorVector[i]->dwSessionID, header, cPacket->GetBufferPtr());
-				if (!bSendFlag)
-				{
-					refSectorVector[i]->bDeleted = true;
-				}*/
+				Send_UniCast(refSectorVector[i]->dwSessionID, cPacket);
 			}
 		}
 		else
 		{
 			for (int i = 0; i < refSectorVector.size(); i++)
 			{
-				Send_UniCast(refSectorVector[i]->dwSessionID, header, cPacket->GetBufferPtr());
-				/*bSendFlag = Send_UniCast(refSectorVector[i]->dwSessionID, header, cPacket->GetBufferPtr());
-				if (!bSendFlag)
-				{
-					refSectorVector[i]->bDeleted = true;
-				}*/
+				Send_UniCast(refSectorVector[i]->dwSessionID, cPacket);
 			}
 		}
 	}
