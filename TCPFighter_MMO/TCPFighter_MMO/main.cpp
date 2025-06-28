@@ -73,16 +73,16 @@ unsigned int WINAPI GetControl(LPVOID arg)
 
 bool Skip()
 {
-	static int _Tick = timeGetTime();
+	static int iOldTick = timeGetTime();
 
-	int diff = timeGetTime() - _Tick;
-	if (diff < 40)
+	int diff = timeGetTime() - iOldTick;
+	if (diff < FRAME_TIME)
 	{
 		return false;
 	}
 	else
 	{
-		_Tick += FRAME_TIME;
+		iOldTick += FRAME_TIME;
 		return true;
 	}
 }
