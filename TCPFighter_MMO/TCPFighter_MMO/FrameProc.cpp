@@ -27,6 +27,7 @@ unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
 procademy::CMemoryPool<st_CHARACTER> _CharacterPool(dfMAX_CONNECT, false, false);
 
 DWORD dwCurrentTick;
+DWORD dwNetworkCurrentTick;
 
 void Update()
 {
@@ -40,8 +41,12 @@ void Update()
 	//_LOG(0, L"Update!\n");
 
 	DWORD dwDeltaTime = dwCurrentTick - oldTick;
+	dwNetworkCurrentTick = timeGetTime();
 
-	double deltaRatio = ((double)dwDeltaTime) / (double)FRAME_TIME;
+
+	double deltaRatio = ((double)dwDeltaTime) / (double)FRAME_TIME; 
+	if (deltaRatio > 0.9f && deltaRatio < 1.1f) deltaRatio = 1;
+
 	short shDeltaX = (short)(deltaRatio * dfSPEED_PLAYER_X);
 	short shDeltaY = (short)(deltaRatio * dfSPEED_PLAYER_Y);
 	//_LOG(2, L"dwDelatTime : %d # shDeltaX : %d # shDeltaY : %d # temp : %f\n", dwDeltaTime, shDeltaX, shDeltaY, ((float)dwDeltaTime) / ((float)FRAME_TIME));
@@ -58,12 +63,17 @@ void Update()
 
 		if (pPlayer->chHP <= 0)
 		{
-			DisconnectSession(pPlayer->dwSessionID);
-			pPlayer->bDeleted = true;
+			DisconnectSession(pPlayer->pSession);
 			continue;
 		}
 
-		//_LOG(0, L"Player Info # sessionID : %d # X : %d # Y : %d\n", pPlayer->dwSessionID, pPlayer->shX, pPlayer->shY);
+		if (timeGetTime() - (pPlayer->pSession->dwLastRecvTime) > dfNETWORK_PACKET_RECV_TIMEOUT)
+		{
+			// е╦юс╬ф©Т
+			//_LOG(2, L"TimeOut Session # ID : %d\n", pPlayer->dwSessionID);
+			DisconnectSession(pPlayer->pSession);
+			continue;
+		}
 
 		switch (pPlayer->dwAction)
 		{

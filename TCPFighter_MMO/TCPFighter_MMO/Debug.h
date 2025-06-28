@@ -7,6 +7,7 @@ inline void err_quit(const char* msg)
 {
 	int err = WSAGetLastError();
 	printf("[%s] TCP Error Number : %d\n", msg, err);
+	DebugBreak();
 	exit(1);
 }
 

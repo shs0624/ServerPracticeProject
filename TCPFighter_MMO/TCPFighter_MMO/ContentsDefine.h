@@ -2,7 +2,7 @@
 
 struct st_CHARACTER
 {
-	//st_SESSION* pSession;
+	st_SESSION* pSession;
 	DWORD dwSessionID;
 
 	BYTE dwAction;
@@ -52,7 +52,7 @@ struct st_CHARACTER
 //---------------------------------------------------------------
 #define dfATTACK1_DAMAGE		1
 #define dfATTACK2_DAMAGE		2
-#define dfATTACK3_DAMAGE		5
+#define dfATTACK3_DAMAGE		3
 
 
 //-----------------------------------------------------------------

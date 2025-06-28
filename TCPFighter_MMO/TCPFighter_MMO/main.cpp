@@ -42,6 +42,10 @@ int wmain(int argc, WCHAR* argv[])
 		{
 			Update();
 		}
+		
+		// 시간처리 할 때
+		/*if (Skip())
+			Update();*/
 
 		Monitor();
 	}
@@ -58,7 +62,7 @@ unsigned int WINAPI GetControl(LPVOID arg)
 		ch = _getch();
 		if ((GetAsyncKeyState('P') & 0x8001) || (GetAsyncKeyState('p') & 0x8001))
 		{
-			ProfileDataOutText("ProfileData_TCPMMO_0626.txt");
+			ProfileDataOutText("ProfileData_TCPMMO_0628sendFix.txt");
 		}
 		if ((GetAsyncKeyState('R') & 0x8001) || (GetAsyncKeyState('r') & 0x8001))
 		{

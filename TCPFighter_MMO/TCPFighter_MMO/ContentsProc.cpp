@@ -54,7 +54,7 @@ void SetDeleteCharacter(DWORD dwSessionID)
 	return;
 }
 
-bool netPacketProc_MoveStart(DWORD dwsessionID, CPacket* packet)
+bool netPacketProc_MoveStart(st_SESSION* pSession, CPacket* packet)
 {
 	static CPacket scPacket(PROTOCOL_MAXSIZE);
 	scPacket.Clear();
@@ -67,7 +67,7 @@ bool netPacketProc_MoveStart(DWORD dwsessionID, CPacket* packet)
 	*packet >> csX;
 	*packet >> csY;
 
-	st_CHARACTER* _player = (*(m_CharacterMap.find(dwsessionID))).second;
+	st_CHARACTER* _player = (*(m_CharacterMap.find(pSession->dwSessionID))).second;
 
 	// 이건 나중에 로그로 넘기던가 해야함
 	//char ipbuffer[50];
@@ -105,13 +105,12 @@ bool netPacketProc_MoveStart(DWORD dwsessionID, CPacket* packet)
 
 	scPacket.Clear();
 	mpMoveStart(&scPacket, _player->dwSessionID, _player->dwAction, csX, csY);
-	
 	SendPacket_Around(_player, &scPacket);
 
 	return true;
 }
 
-bool netPacketProc_MoveStop(DWORD dwsessionID, CPacket* packet)
+bool netPacketProc_MoveStop(st_SESSION* pSession, CPacket* packet)
 {
 	static CPacket scPacket(PROTOCOL_MAXSIZE);
 	scPacket.Clear();
@@ -124,7 +123,7 @@ bool netPacketProc_MoveStop(DWORD dwsessionID, CPacket* packet)
 	*packet >> csX;
 	*packet >> csY;
 
-	st_CHARACTER* _player = (*(m_CharacterMap.find(dwsessionID))).second;
+	st_CHARACTER* _player = (*(m_CharacterMap.find(pSession->dwSessionID))).second;
 
 	//오차 범위 확인
 	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
@@ -149,7 +148,7 @@ bool netPacketProc_MoveStop(DWORD dwsessionID, CPacket* packet)
 	return true;
 }
 
-bool netPacketProc_Attack(DWORD dwsessionID, BYTE type, CPacket* packet)
+bool netPacketProc_Attack(st_SESSION* pSession, BYTE type, CPacket* packet)
 {
 	static CPacket scPacket(PROTOCOL_MAXSIZE);
 	scPacket.Clear();
@@ -162,7 +161,7 @@ bool netPacketProc_Attack(DWORD dwsessionID, BYTE type, CPacket* packet)
 	*packet >> csX;
 	*packet >> csY;
 
-	st_CHARACTER* _player = (*(m_CharacterMap.find(dwsessionID))).second;
+	st_CHARACTER* _player = (*(m_CharacterMap.find(pSession->dwSessionID))).second;
 
 	//오차 범위 확인
 	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
@@ -220,7 +219,7 @@ bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char 
 	return true;
 }
 
-bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
+bool netPacketProc_Echo(st_SESSION* pSession, CPacket* cPacket)
 {
 	static CPacket scPacket(PROTOCOL_MAXSIZE);
 	scPacket.Clear();
@@ -229,10 +228,10 @@ bool netPacketProc_Echo(DWORD dwsessionID, CPacket* cPacket)
 	(*cPacket) >> _echoTime;
 	 
 	mpEcho(&scPacket, _echoTime);
-	bool bRet = Send_UniCast(dwsessionID, &scPacket);
+	bool bRet = Send_UniCast(pSession, &scPacket);
 	if (!bRet)
 	{
-		DisconnectSession(dwsessionID);
+		DisconnectSession(pSession);
 		return false;
 	}
 
@@ -330,7 +329,7 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 	}
 }
 
-bool netPacketProc_Accept(DWORD dwsessionID)
+bool netPacketProc_Accept(st_SESSION* session)
 {
 	static CPacket scPacket(PROTOCOL_MAXSIZE);
 	st_CHARACTER* playerPtr = _CharacterPool.Alloc();
@@ -340,9 +339,9 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 		return false;
 	}
 
-	//playerPtr->pSession = session;
+	playerPtr->pSession = session;
 	playerPtr->bDeleted = false;
-	playerPtr->dwSessionID = dwsessionID;
+	playerPtr->dwSessionID = session->dwSessionID;
 	playerPtr->byDirection = dfPACKET_MOVE_DIR_RR;
 	playerPtr->dwAction = dfPACKET_MOVE_DIR_NONE;
 	playerPtr->shX = dfRANGE_MOVE_LEFT + (rand() % (dfRANGE_MOVE_RIGHT - dfRANGE_MOVE_LEFT));
@@ -351,7 +350,7 @@ bool netPacketProc_Accept(DWORD dwsessionID)
 
 	scPacket.Clear();
 	mpCreateMyCharacter(&scPacket, playerPtr->dwSessionID, playerPtr->byDirection, playerPtr->shX, playerPtr->shY, playerPtr->chHP);
-	bool bSendRet = Send_UniCast(playerPtr->dwSessionID, &scPacket);
+	bool bSendRet = Send_UniCast(session, &scPacket);
 	if (!bSendRet)
 	{
 		return false;

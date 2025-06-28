@@ -148,7 +148,14 @@ int CRingBuffer::DirectEnqueueSize(void)
 
 int CRingBuffer::DirectDequeueSize(void)
 {
-	return max - head;
+	if (tail < head)
+	{
+		return max - head;
+	}
+	else
+	{
+		return tail - head;
+	}
 }
 
 // 호출 전에 FreeSize를 체크하고 넣을거다.

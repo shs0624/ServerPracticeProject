@@ -110,7 +110,7 @@ void ChangeSector(st_CHARACTER* player)
 		{
 			scPacket.Clear();
 			mpDeleteCharacter(&scPacket, refSectorVector[i]->dwSessionID);
-			Send_UniCast(player->dwSessionID, &scPacket);
+			Send_UniCast(player->pSession, &scPacket);
 			//_LOG(0, L"Delete Character # ID : %d\n", refSectorVector[i]->dwSessionID);
 		}
 	}
@@ -128,7 +128,7 @@ void ChangeSector(st_CHARACTER* player)
 			scPacket.Clear();
 			mpCreateOtherCharacter(&scPacket, refSectorVector[i]->dwSessionID, refSectorVector[i]->byDirection,
 				refSectorVector[i]->shX, refSectorVector[i]->shY, refSectorVector[i]->chHP);
-			bool bRet = Send_UniCast(player->dwSessionID, &scPacket);
+			bool bRet = Send_UniCast(player->pSession, &scPacket);
 			if (bRet == false)
 				continue;
 
@@ -137,7 +137,7 @@ void ChangeSector(st_CHARACTER* player)
 
 			scPacket.Clear();
 			mpMoveStart(&scPacket, refSectorVector[i]->dwSessionID, refSectorVector[i]->dwAction, refSectorVector[i]->shX, refSectorVector[i]->shY);
-			Send_UniCast(player->dwSessionID, &scPacket);
+			Send_UniCast(player->pSession, &scPacket);
 		}
 	}
 
@@ -719,7 +719,7 @@ void SendPacket_SectorOne(int iSectorX, int iSectorY, CPacket* cPacket, DWORD dw
 		if (refSectorVector[i]->dwSessionID == dwExceptSessionID)
 			continue;
 
-		Send_UniCast(refSectorVector[i]->dwSessionID, cPacket);
+		Send_UniCast(refSectorVector[i]->pSession, cPacket);
 	}
 }
 
@@ -749,14 +749,14 @@ void SendPacket_Around(st_CHARACTER* pCharacter, CPacket* cPacket, bool bSendMe)
 				if (!bSendMe && refSectorVector[i]->dwSessionID == pCharacter->dwSessionID)
 					continue;
 
-				Send_UniCast(refSectorVector[i]->dwSessionID, cPacket);
+				Send_UniCast(refSectorVector[i]->pSession, cPacket);
 			}
 		}
 		else
 		{
 			for (int i = 0; i < refSectorVector.size(); i++)
 			{
-				Send_UniCast(refSectorVector[i]->dwSessionID, cPacket);
+				Send_UniCast(refSectorVector[i]->pSession, cPacket);
 			}
 		}
 	}

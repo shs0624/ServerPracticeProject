@@ -11,14 +11,14 @@ void netSelectIO();
 bool bSessionAlive(DWORD dwsessionID);
 
 // 외부 선언 - MessageProc
-void ProcessMessage(DWORD dwsessionID, BYTE type, CPacket* cPacket);
+void ProcessMessage(st_SESSION* pSession, BYTE type, CPacket* cPacket);
 
 int GetSessionCount();
 
-void DisconnectSession(DWORD dwsessionID);
+void DisconnectSession(st_SESSION* pSession);
 void DisconnectDeletedSession();
 
 void Send_BroadCast(DWORD dwsessionID, st_PACKET_HEADER* header, char* packet);
-bool Send_UniCast(DWORD dwsessionID, CPacket* cPacket);
+bool Send_UniCast(st_SESSION* pSession, CPacket* cPacket);
 //void SendPacket_SectorOne(int iSectorX, int iSectorY, CPacket* cPacket, st_SESSION* pExceptSession);
 //void SendPacket_Around(st_SESSION* pSession, CPacket* cPacket, bool bSendMe = false);
