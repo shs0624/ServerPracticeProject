@@ -45,7 +45,6 @@ void Update()
 
 
 	double deltaRatio = ((double)dwDeltaTime) / (double)FRAME_TIME; 
-	if (deltaRatio > 0.9f && deltaRatio < 1.1f) deltaRatio = 1;
 
 	short shDeltaX = (short)(deltaRatio * dfSPEED_PLAYER_X);
 	short shDeltaY = (short)(deltaRatio * dfSPEED_PLAYER_Y);

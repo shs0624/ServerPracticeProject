@@ -34,9 +34,53 @@ void SetUserToSector(st_CHARACTER* player)
 	player->OldSector.iX = sectorX;
 	player->OldSector.iY = sectorY;
 
-	//SendUserInfoToNewPlayer(player->dwSessionID, player->shX, player->shY);
+	// 주변 섹터의 유저 정보 새로운 유저에게 전달
+	SendUserInfoToNewPlayer(player->pSession, player->shX, player->shY);
 
 	m_Sector[sectorY][sectorX].push_back(player);
+}
+
+// 주변 섹터의 유저 정보 새로운 유저에게 전달
+void SendUserInfoToNewPlayer(st_SESSION* pSession, short shX, short shY)
+{
+	static CStack<st_CHARACTER*> pSectorSessionStack;
+	static CPacket scPacket(PROTOCOL_MAXSIZE);
+
+	short sectorX = shX / dfSECTOR_SIZE_X;
+	short sectorY = shY / dfSECTOR_SIZE_Y;
+
+	st_SECTOR_AROUND aroundSector;
+	GetSectorAround(sectorX, sectorY, &aroundSector);
+
+	for (int i = 0; i < aroundSector.iCount; i++)
+	{
+		short _tempSectorX = aroundSector.Around[i].iX;
+		short _tempSectorY = aroundSector.Around[i].iY;
+
+		GetSectorSessions(_tempSectorX, _tempSectorY, pSectorSessionStack);
+
+		// 섹터의 유저들 생성 메세지를 pSession에 전송
+		while (!pSectorSessionStack.empty())
+		{
+			scPacket.Clear();
+
+			st_CHARACTER* pCharacter = pSectorSessionStack.top();
+			pSectorSessionStack.pop();
+
+			mpCreateOtherCharacter(&scPacket, pCharacter->dwSessionID, 
+				pCharacter->byDirection, pCharacter->shX, pCharacter->shY, pCharacter->chHP);
+			Send_UniCast(pSession, &scPacket);
+
+			// 멈춰있지 않다면 이동 패킷도 보내기.
+			if (pCharacter->dwAction != dfPACKET_MOVE_DIR_NONE)
+			{
+				scPacket.Clear();
+
+				mpMoveStart(&scPacket, pCharacter->dwSessionID, pCharacter->dwAction, pCharacter->shX, pCharacter->shY);
+				Send_UniCast(pSession, &scPacket);
+			}
+		}
+	}
 }
 
 void DeletePlayerFromSector(DWORD dwSessionID, short shX, short shY)
