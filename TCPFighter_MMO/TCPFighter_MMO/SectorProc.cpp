@@ -300,7 +300,7 @@ void GetDamageShowSector(int shX, int shY, st_SECTOR_AROUND* pSectorShowAttack)
 	short startY, endY;
 	if (pivotX >= centerX && pivotY >= centerY) 
 	{
-		// 우측상단
+		// 우측 하단
 		startX = 0;
 		endX = 1;
 
@@ -309,7 +309,7 @@ void GetDamageShowSector(int shX, int shY, st_SECTOR_AROUND* pSectorShowAttack)
 	}
 	else if (pivotX < centerX && pivotY >= centerY)
 	{
-		// 좌측상단
+		// 좌측하단
 		startX = -1;
 		endX = 0;
 
@@ -318,7 +318,7 @@ void GetDamageShowSector(int shX, int shY, st_SECTOR_AROUND* pSectorShowAttack)
 	}
 	else if (pivotX >= centerX && pivotY < centerY)
 	{
-		// 우측하단
+		// 우측상단
 		startX = 0;
 		endX = 1;
 
@@ -327,7 +327,7 @@ void GetDamageShowSector(int shX, int shY, st_SECTOR_AROUND* pSectorShowAttack)
 	}
 	else if (pivotX < centerX && pivotY < centerY)
 	{
-		// 좌측하단
+		// 좌측상단
 		startX = -1;
 		endX = 0;
 
@@ -778,30 +778,14 @@ void SendPacket_Around(st_CHARACTER* pCharacter, CPacket* cPacket, bool bSendMe)
 
 	for (int i = 0; i < stAround.iCount; i++)
 	{
-		bool playerSectorFlag = false;
-		bool bSendFlag = false;
-		if (stAround.Around[i].iY == iSectorY && stAround.Around[i].iX == iSectorX)
-			playerSectorFlag = true;
-
 		vector<st_CHARACTER*>& refSectorVector = m_Sector[stAround.Around[i].iY][stAround.Around[i].iX];
 
-		// if문 체크를 적게 하기 위해 나눠봄
-		if (playerSectorFlag)
+		for (int i = 0; i < refSectorVector.size(); i++)
 		{
-			for (int i = 0; i < refSectorVector.size(); i++)
-			{
-				if (!bSendMe && refSectorVector[i]->dwSessionID == pCharacter->dwSessionID)
-					continue;
+			if ((bSendMe == false) && (refSectorVector[i]->dwSessionID == pCharacter->dwSessionID))
+				continue;
 
-				Send_UniCast(refSectorVector[i]->pSession, cPacket);
-			}
-		}
-		else
-		{
-			for (int i = 0; i < refSectorVector.size(); i++)
-			{
-				Send_UniCast(refSectorVector[i]->pSession, cPacket);
-			}
+			Send_UniCast(refSectorVector[i]->pSession, cPacket);
 		}
 	}
 }

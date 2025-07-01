@@ -103,6 +103,12 @@ bool netPacketProc_MoveStart(st_SESSION* pSession, CPacket* packet)
 		break;
 	}
 
+	// 이동으로 섹터가 바뀌었다면, 섹터 변경
+	if (UpdateSector(_player))
+	{
+		ChangeSector(_player);
+	}
+
 	scPacket.Clear();
 	mpMoveStart(&scPacket, _player->dwSessionID, _player->dwAction, csX, csY);
 	SendPacket_Around(_player, &scPacket);
@@ -142,7 +148,13 @@ bool netPacketProc_MoveStop(st_SESSION* pSession, CPacket* packet)
 	_player->byDirection = csAction;
 	_player->dwAction = dfPACKET_MOVE_DIR_NONE;
 
-	mpMoveStop(&scPacket, _player->dwSessionID, _player->dwAction, csX, csY);
+	// 이동으로 섹터가 바뀌었다면, 섹터 변경
+	if (UpdateSector(_player))
+	{
+		ChangeSector(_player);
+	}
+
+	mpMoveStop(&scPacket, _player->dwSessionID, _player->byDirection, _player->shX, _player->shY);
 	SendPacket_Around(_player, &scPacket);
 
 	return true;
@@ -175,6 +187,12 @@ bool netPacketProc_Attack(st_SESSION* pSession, BYTE type, CPacket* packet)
 	{
 		_player->shX = csX;
 		_player->shY = csY;
+	}
+
+	// 이동으로 섹터가 바뀌었다면, 섹터 변경
+	if (UpdateSector(_player))
+	{
+		ChangeSector(_player);
 	}
 
 	switch (type)
