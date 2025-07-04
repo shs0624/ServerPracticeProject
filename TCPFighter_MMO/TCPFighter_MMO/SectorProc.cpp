@@ -83,21 +83,31 @@ void SendUserInfoToNewPlayer(st_SESSION* pSession, short shX, short shY)
 	}
 }
 
-void DeletePlayerFromSector(DWORD dwSessionID, short shX, short shY)
+void DeletePlayerFromSector(st_CHARACTER* pPlayer)
 {
 	//Profiler("DeletePlayerFromSector");
-	short sectorX = shX / dfSECTOR_SIZE_X;
-	short sectorY = shY / dfSECTOR_SIZE_Y;
-
-	vector<st_CHARACTER*>& refSectorVector = m_Sector[sectorY][sectorX];
+	vector<st_CHARACTER*>& refSectorVector = m_Sector[pPlayer->OldSector.iY][pPlayer->OldSector.iX];
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
-		if (refSectorVector[i]->dwSessionID == dwSessionID)
+		if (refSectorVector[i]->dwSessionID == pPlayer->dwSessionID)
 		{
 			refSectorVector.erase(refSectorVector.begin() + i);
 			return;
 		}
 	}
+
+	refSectorVector = m_Sector[pPlayer->CurSector.iY][pPlayer->CurSector.iX];
+	for (int i = 0; i < refSectorVector.size(); i++)
+	{
+		if (refSectorVector[i]->dwSessionID == pPlayer->dwSessionID)
+		{
+			refSectorVector.erase(refSectorVector.begin() + i);
+			return;
+		}
+	}
+
+	printf("DeletePlayerSector NotFound!\n");
+	DebugBreak();
 }
 
 bool UpdateSector(st_CHARACTER* player)
@@ -107,6 +117,9 @@ bool UpdateSector(st_CHARACTER* player)
 
 	if (sectorX != player->CurSector.iX || sectorY != player->CurSector.iY)
 	{
+		//player->OldSector.iX = player->CurSector.iX;
+		//player->OldSector.iY = player->CurSector.iY;
+
 		player->CurSector.iX = sectorX;
 		player->CurSector.iY = sectorY;
 
@@ -131,6 +144,20 @@ void ChangeSector(st_CHARACTER* player)
 	// player의 OldSector, Cursector가 다른채로 있어야 한다.
 	GetUpdateSectorAround(player, &removeSector, &addSector);
 	_LOG(1, L"ChangeSector # playerID : %d # removeSectorCount : %d # addSectorCount : %d\n", player->dwSessionID, removeSector.iCount, addSector.iCount);
+
+	// 섹터에서 내 정보 이동
+	vector<st_CHARACTER*>& refSectorVector = m_Sector[player->OldSector.iY][player->OldSector.iX];
+	for (int i = 0; i < refSectorVector.size(); i++)
+	{
+		if (refSectorVector[i] == player)
+		{
+			refSectorVector.erase(refSectorVector.begin() + i);
+			break;
+		}
+	}
+	m_Sector[player->CurSector.iY][player->CurSector.iX].push_back(player);
+	player->OldSector.iX = player->CurSector.iX;
+	player->OldSector.iY = player->CurSector.iY;
 
 	scPacket.Clear();
 	mpDeleteCharacter(&scPacket, player->dwSessionID);
@@ -203,23 +230,9 @@ void ChangeSector(st_CHARACTER* player)
 		mpMoveStart(&scPacket, player->dwSessionID, player->dwAction, player->shX, player->shY);
 		SendPacket_SectorOne(sectorX, sectorY, &scPacket, player->dwSessionID);
 	}
-
-	// 섹터에서 내 정보 이동
-	vector<st_CHARACTER*>& refSectorVector = m_Sector[player->OldSector.iY][player->OldSector.iX];
-	for (int i = 0; i < refSectorVector.size(); i++)
-	{
-		if (refSectorVector[i] == player)
-		{
-			refSectorVector.erase(refSectorVector.begin() + i);
-			break;
-		}
-	}
-	m_Sector[player->CurSector.iY][player->CurSector.iX].push_back(player);
-
 	//player->OldSector = player->CurSector;
 	//_LOG(1, L"ChnageSector # playerID : %d # oldSector : %d, %d # curSector : %d,%d\n", player->dwSessionID, player->OldSector.iX, player->OldSector.iY,
 	//	player->CurSector.iX, player->CurSector.iY);
-	memcpy(&(player->OldSector), &(player->CurSector), sizeof(st_SECTOR_POS));
 }
 
 
@@ -778,14 +791,28 @@ void SendPacket_Around(st_CHARACTER* pCharacter, CPacket* cPacket, bool bSendMe)
 
 	for (int i = 0; i < stAround.iCount; i++)
 	{
+		bool playerSectorFlag = false;
+		bool bSendFlag = false;
+		if (stAround.Around[i].iY == iSectorY && stAround.Around[i].iX == iSectorX)
+			playerSectorFlag = true;
+
 		vector<st_CHARACTER*>& refSectorVector = m_Sector[stAround.Around[i].iY][stAround.Around[i].iX];
-
-		for (int i = 0; i < refSectorVector.size(); i++)
+		if (playerSectorFlag)
 		{
-			if ((bSendMe == false) && (refSectorVector[i]->dwSessionID == pCharacter->dwSessionID))
-				continue;
+			for (int i = 0; i < refSectorVector.size(); i++)
+			{
+				if (!bSendMe && refSectorVector[i]->dwSessionID == pCharacter->dwSessionID)
+					continue;
 
-			Send_UniCast(refSectorVector[i]->pSession, cPacket);
+				Send_UniCast(refSectorVector[i]->pSession, cPacket);
+			}
+		}
+		else
+		{
+			for (int i = 0; i < refSectorVector.size(); i++)
+			{
+				Send_UniCast(refSectorVector[i]->pSession, cPacket);
+			}
 		}
 	}
 }

@@ -44,9 +44,9 @@ void SetDeleteCharacter(DWORD dwSessionID)
 
 	mpDeleteCharacter(&csPacket, dwSessionID);
 
-	SendPacket_Around((*it).second, &csPacket);
+	SendPacket_Around(ptr, &csPacket);
 
-	DeletePlayerFromSector(dwSessionID, ptr->shX, ptr->shY);
+	DeletePlayerFromSector(ptr);
 
 	m_CharacterMap.erase(dwSessionID);
 
@@ -85,6 +85,11 @@ bool netPacketProc_MoveStart(st_SESSION* pSession, CPacket* packet)
 	{
 		_player->shX = csX;
 		_player->shY = csY;
+
+		if (!CharacterMoveCheck(_player->shX, _player->shY))
+			DebugBreak();
+
+		_LOG(0, L"MoveStart # playerID : %d # playerX : %d # playerY : %d\n", _player->dwSessionID, _player->shX, _player->shY);
 	}
 
 	// 방향 변경, 좌표 변경
@@ -101,12 +106,6 @@ bool netPacketProc_MoveStart(st_SESSION* pSession, CPacket* packet)
 	case dfPACKET_MOVE_DIR_LD:
 		_player->byDirection = dfPACKET_MOVE_DIR_LL;
 		break;
-	}
-
-	// 이동으로 섹터가 바뀌었다면, 섹터 변경
-	if (UpdateSector(_player))
-	{
-		ChangeSector(_player);
 	}
 
 	scPacket.Clear();
@@ -143,16 +142,15 @@ bool netPacketProc_MoveStop(st_SESSION* pSession, CPacket* packet)
 	{
 		_player->shX = csX;
 		_player->shY = csY;
+
+		if (!CharacterMoveCheck(_player->shX, _player->shY))
+			DebugBreak();
+
+		_LOG(0, L"MoveStart # playerID : %d # playerX : %d # playerY : %d\n", _player->dwSessionID, _player->shX, _player->shY);
 	}
 
 	_player->byDirection = csAction;
 	_player->dwAction = dfPACKET_MOVE_DIR_NONE;
-
-	// 이동으로 섹터가 바뀌었다면, 섹터 변경
-	if (UpdateSector(_player))
-	{
-		ChangeSector(_player);
-	}
 
 	mpMoveStop(&scPacket, _player->dwSessionID, _player->byDirection, _player->shX, _player->shY);
 	SendPacket_Around(_player, &scPacket);
@@ -187,6 +185,11 @@ bool netPacketProc_Attack(st_SESSION* pSession, BYTE type, CPacket* packet)
 	{
 		_player->shX = csX;
 		_player->shY = csY;
+
+		if (!CharacterMoveCheck(_player->shX, _player->shY))
+			DebugBreak();
+
+		_LOG(0, L"MoveStart # playerID : %d # playerX : %d # playerY : %d\n", _player->dwSessionID, _player->shX, _player->shY);
 	}
 
 	// 이동으로 섹터가 바뀌었다면, 섹터 변경
@@ -266,7 +269,6 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 	pTargetStack.clear();
 	pCollideCheckedStack.clear();
 
-
 	int playerX = pCenterPlayer->shX;
 	int playerY = pCenterPlayer->shY;
 
@@ -325,9 +327,10 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 		}
 	}
 	
-	st_SECTOR_AROUND damageShowSector;
-	GetDamageShowSector(playerX, playerY, &damageShowSector);
+	//st_SECTOR_AROUND damageShowSector;
+	//GetDamageShowSector(playerX, playerY, &damageShowSector);
 
+	// 데미지는 피격자 주변에 전송
 	while (!pCollideCheckedStack.empty())
 	{
 		st_CHARACTER* ptr = pCollideCheckedStack.top();
@@ -335,15 +338,7 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 
 		scPacket.Clear();
 		mpDamage(&scPacket, pCenterPlayer->dwSessionID, ptr->dwSessionID, ptr->chHP);
-
-		// 공격자와 피격자의 섹터가 다르면 모든 주변 섹터에 보내야한다.
-		for (int i = 0; i < damageShowSector.iCount; i++)
-		{
-			int iX = damageShowSector.Around[i].iX;
-			int iY = damageShowSector.Around[i].iY;
-
-			SendPacket_SectorOne(iX, iY, &scPacket, NULL);
-		}
+		SendPacket_Around(ptr, &scPacket);
 	}
 }
 
@@ -362,8 +357,10 @@ bool netPacketProc_Accept(st_SESSION* session)
 	playerPtr->dwSessionID = session->dwSessionID;
 	playerPtr->byDirection = dfPACKET_MOVE_DIR_RR;
 	playerPtr->dwAction = dfPACKET_MOVE_DIR_NONE;
-	playerPtr->shX = dfRANGE_MOVE_LEFT + (rand() % (dfRANGE_MOVE_RIGHT - dfRANGE_MOVE_LEFT));
-	playerPtr->shY = dfRANGE_MOVE_TOP + (rand() % (dfRANGE_MOVE_BOTTOM - dfRANGE_MOVE_TOP));
+	//playerPtr->shX = dfRANGE_MOVE_LEFT + (rand() % (dfRANGE_MOVE_RIGHT - dfRANGE_MOVE_LEFT));
+	playerPtr->shX = rand() % dfRANGE_MOVE_RIGHT;
+	//playerPtr->shY = dfRANGE_MOVE_TOP + (rand() % (dfRANGE_MOVE_BOTTOM - dfRANGE_MOVE_TOP));
+	playerPtr->shY = rand() % dfRANGE_MOVE_BOTTOM;
 	playerPtr->chHP = dfHP_MAX;
 
 	scPacket.Clear();
@@ -382,6 +379,10 @@ bool netPacketProc_Accept(st_SESSION* session)
 	scPacket.Clear();
 
 	m_CharacterMap.insert({ playerPtr->dwSessionID, playerPtr });
+
+	if (!CharacterMoveCheck(playerPtr->shX, playerPtr->shY))
+		DebugBreak();
+
 	_LOG(0, L"Accepted Player # playerID : %d # playerX : %d # playerY : %d\n", playerPtr->dwSessionID, playerPtr->shX, playerPtr->shY);
 
 	return true;

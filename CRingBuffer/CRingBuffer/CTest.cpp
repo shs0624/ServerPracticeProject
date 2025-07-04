@@ -142,7 +142,7 @@ UINT EnqueueThread(LPVOID lpThreadParameter)
 			DebugBreak();
 
 		ptail = tail;
-		printf("Enqueue Result : %s | FreeSize : %d | UseSize : %d\n", buffer + sizeof(st_HEADER), freeSize, pRingBuffer->GetUseSize());
+		//printf("Enqueue Result : %s | FreeSize : %d | UseSize : %d\n", buffer + sizeof(st_HEADER), freeSize, pRingBuffer->GetUseSize());
 	}
 }
 
@@ -182,6 +182,6 @@ UINT DequeueThread(LPVOID lpThreadParameter)
 		buffer[sizeof(st_HEADER) + header.iSize] = '\0';
 		pRet = dequeueRet;
 		pHead = head;
-		printf("Dequeue Result : %s | checkedUseSize : %d | UseSize : %d\n", buffer + sizeof(st_HEADER), useSize, pRingBuffer->GetUseSize());
+		//printf("Dequeue Result : %s | checkedUseSize : %d | UseSize : %d\n", buffer + sizeof(st_HEADER), useSize, pRingBuffer->GetUseSize());
 	}
 }

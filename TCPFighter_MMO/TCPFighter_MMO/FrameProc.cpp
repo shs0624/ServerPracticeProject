@@ -62,6 +62,7 @@ void Update()
 
 		if (pPlayer->chHP <= 0)
 		{
+			pPlayer->bDeleted = true;
 			DisconnectSession(pPlayer->pSession);
 			continue;
 		}
@@ -70,6 +71,7 @@ void Update()
 		{
 			// е╦юс╬ф©Т
 			//_LOG(2, L"TimeOut Session # ID : %d\n", pPlayer->dwSessionID);
+			pPlayer->bDeleted = true;
 			DisconnectSession(pPlayer->pSession);
 			continue;
 		}
@@ -130,73 +132,12 @@ void Update()
 			break;
 		}
 
-		/*switch (pPlayer->dwAction)
-		{
-		case dfPACKET_MOVE_DIR_LL:
-			if (CharacterMoveCheck(pPlayer->shX - shDeltaX, pPlayer->shY))
-			{
-				pPlayer->shX -= shDeltaX;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_LU:
-			if (CharacterMoveCheck(pPlayer->shX - shDeltaX, pPlayer->shY - shDeltaY))
-			{
-				pPlayer->shX -= shDeltaX;
-				pPlayer->shY -= shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_UU:
-			if (CharacterMoveCheck(pPlayer->shX, pPlayer->shY - shDeltaY))
-			{
-				pPlayer->shY -= shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_RU:
-			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY - shDeltaY))
-			{
-				pPlayer->shX += shDeltaX;
-				pPlayer->shY -= shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_RR:
-			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY))
-			{
-				pPlayer->shX += shDeltaX;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_RD:
-			if (CharacterMoveCheck(pPlayer->shX + shDeltaX, pPlayer->shY + shDeltaY))
-			{
-				pPlayer->shX += shDeltaX;
-				pPlayer->shY += shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_DD:
-			if (CharacterMoveCheck(pPlayer->shX, pPlayer->shY + shDeltaY))
-			{
-				pPlayer->shY += shDeltaY;
-			}
-			break;
-		case dfPACKET_MOVE_DIR_LD:
-			if (CharacterMoveCheck(pPlayer->shX - shDeltaX, pPlayer->shY + shDeltaY))
-			{
-				pPlayer->shX -= shDeltaX;
-				pPlayer->shY += shDeltaY;
-			}
-			break;
-		}*/
-
 		{
 			if (!UpdateSector(pPlayer))
 			{
 				ChangeSector(pPlayer);
 			}
 		}
-	}
-
-	{
-		//Profiler("DisconnectPlayer");
-		DisconnectDeletedSession();
 	}
 }
 

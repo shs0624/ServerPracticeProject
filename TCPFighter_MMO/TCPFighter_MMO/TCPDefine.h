@@ -32,14 +32,14 @@ public:
 
 	st_SESSION()
 	{
-		this->RecvQ = new CRingBuffer(PROTOCOL_MAXSIZE * 100);
-		this->SendQ = new CRingBuffer(PROTOCOL_MAXSIZE * 200);
+		//this->RecvQ = new CRingBuffer(PROTOCOL_MAXSIZE * 100);
+		//this->SendQ = new CRingBuffer(PROTOCOL_MAXSIZE * 200);
 	}
 
 	~st_SESSION()
 	{
-		delete(RecvQ);
-		delete(SendQ);
+		//delete(RecvQ);
+		//delete(SendQ);
 	}
 };
 

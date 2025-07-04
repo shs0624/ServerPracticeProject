@@ -41,17 +41,9 @@ int CRingBuffer::GetFreeSize()
 	int tempHead = head;
 	int tempTail = tail;
 
-	if (tempTail == tempHead)
-		return max - 1;
+	int useSize = (tempTail + max - tempHead) % max;
 
-	if (tempTail > tempHead)
-	{
-		return  max - (tempTail - tempHead) - 1;
-	}
-	else
-	{
-		return tempHead - tempTail - 1;
-	}
+	return max - useSize - 1;
 }
 
 int CRingBuffer::GetUseSize()
@@ -59,17 +51,7 @@ int CRingBuffer::GetUseSize()
 	int tempHead = head;
 	int tempTail = tail;
 
-	if (tempTail == tempHead)
-		return 0;
-
-	if (tempTail > tempHead)
-	{
-		return tempTail - tempHead;
-	}
-	else
-	{
-		return max - (tempHead - tempTail);
-	}
+	return (tempTail + max - tempHead) % max;
 }
 
 int CRingBuffer::Enqueue(char* input, int size)
@@ -143,7 +125,10 @@ int CRingBuffer::Peek(char* output, int size)
 
 int CRingBuffer::DirectEnqueueSize(void)
 {
-	return max - tail;
+	if (tail >= head)
+		return max - tail;
+	else
+		return head - tail - 1;
 }
 
 int CRingBuffer::DirectDequeueSize(void)

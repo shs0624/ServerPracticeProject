@@ -51,8 +51,8 @@ void InitSessionPool()
 	{
 		st_SESSION* ptr = _sessionPool.Alloc();
 
-		ptr->RecvQ = new CRingBuffer(PROTOCOL_MAXSIZE * 1000);
-		ptr->SendQ = new CRingBuffer(PROTOCOL_MAXSIZE * 2000);
+		ptr->RecvQ = new CRingBuffer(PROTOCOL_MAXSIZE * 500);
+		ptr->SendQ = new CRingBuffer(PROTOCOL_MAXSIZE * 1000);
 
 		arr[i] = ptr;
 	}
@@ -119,6 +119,7 @@ void netSelectIO()
 
 	unordered_map<SOCKET, st_SESSION*>::iterator it;
 
+	int cnt = 0;
 	{
 		//Profiler("Select_netSelectIO");
 		it = _sessionMap.begin();
@@ -146,6 +147,8 @@ void netSelectIO()
 		if (setSize > 0)
 			SelectProc(&readSet, &writeSet);
 	}
+
+	DisconnectDeletedSession();
 }
 
 void SelectProc(fd_set* readSet, fd_set* writeSet)
@@ -289,6 +292,7 @@ void netProc_Recv(SOCKET socket)
 		int peekRet = recvBuffer->Peek((char*)&header, sizeof(st_PACKET_HEADER));
 		if (peekRet != sizeof(st_PACKET_HEADER))
 		{
+			DebugBreak();
 			DisconnectSession(pSession);
 			return;
 		}
@@ -300,6 +304,7 @@ void netProc_Recv(SOCKET socket)
 		csPacket.MoveWritePos(peekRet + header.bySize);
 		if (dequeueRet != peekRet + header.bySize)
 		{
+			DebugBreak();
 			DisconnectSession(pSession);
 			return;
 		}
@@ -380,6 +385,7 @@ bool Send_UniCast(st_SESSION* pSession, CPacket* cPacket)
 	if (pSession->SendQ->GetFreeSize() < cPacket->GetDataSize())
 	{
 		// ¿¬°á²÷±â?
+		DebugBreak();
 		DisconnectSession(pSession);
 		return false;
 	}
@@ -388,6 +394,7 @@ bool Send_UniCast(st_SESSION* pSession, CPacket* cPacket)
 	if (ret != cPacket->GetDataSize())
 	{
 		// ¿¬°á ²÷±â
+		DebugBreak();
 		DisconnectSession(pSession);
 		return false;
 	}
