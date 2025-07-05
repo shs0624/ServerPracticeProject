@@ -86,17 +86,7 @@ void SendUserInfoToNewPlayer(st_SESSION* pSession, short shX, short shY)
 void DeletePlayerFromSector(st_CHARACTER* pPlayer)
 {
 	//Profiler("DeletePlayerFromSector");
-	vector<st_CHARACTER*>& refSectorVector = m_Sector[pPlayer->OldSector.iY][pPlayer->OldSector.iX];
-	for (int i = 0; i < refSectorVector.size(); i++)
-	{
-		if (refSectorVector[i]->dwSessionID == pPlayer->dwSessionID)
-		{
-			refSectorVector.erase(refSectorVector.begin() + i);
-			return;
-		}
-	}
-
-	refSectorVector = m_Sector[pPlayer->CurSector.iY][pPlayer->CurSector.iX];
+	vector<st_CHARACTER*>& refSectorVector = m_Sector[pPlayer->CurSector.iY][pPlayer->CurSector.iX];
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
 		if (refSectorVector[i]->dwSessionID == pPlayer->dwSessionID)
@@ -117,11 +107,23 @@ bool UpdateSector(st_CHARACTER* player)
 
 	if (sectorX != player->CurSector.iX || sectorY != player->CurSector.iY)
 	{
-		//player->OldSector.iX = player->CurSector.iX;
-		//player->OldSector.iY = player->CurSector.iY;
+		player->OldSector.iX = player->CurSector.iX;
+		player->OldSector.iY = player->CurSector.iY;
 
 		player->CurSector.iX = sectorX;
 		player->CurSector.iY = sectorY;
+
+		// 섹터에서 내 정보 이동
+		vector<st_CHARACTER*>& refSectorVector = m_Sector[player->OldSector.iY][player->OldSector.iX];
+		for (int i = 0; i < refSectorVector.size(); i++)
+		{
+			if (refSectorVector[i]->dwSessionID == player->dwSessionID)
+			{
+				refSectorVector.erase(refSectorVector.begin() + i);
+				break;
+			}
+		}
+		m_Sector[player->CurSector.iY][player->CurSector.iX].push_back(player);
 
 		return false;
 	}
@@ -145,19 +147,8 @@ void ChangeSector(st_CHARACTER* player)
 	GetUpdateSectorAround(player, &removeSector, &addSector);
 	_LOG(1, L"ChangeSector # playerID : %d # removeSectorCount : %d # addSectorCount : %d\n", player->dwSessionID, removeSector.iCount, addSector.iCount);
 
-	// 섹터에서 내 정보 이동
-	vector<st_CHARACTER*>& refSectorVector = m_Sector[player->OldSector.iY][player->OldSector.iX];
-	for (int i = 0; i < refSectorVector.size(); i++)
-	{
-		if (refSectorVector[i] == player)
-		{
-			refSectorVector.erase(refSectorVector.begin() + i);
-			break;
-		}
-	}
-	m_Sector[player->CurSector.iY][player->CurSector.iX].push_back(player);
-	player->OldSector.iX = player->CurSector.iX;
-	player->OldSector.iY = player->CurSector.iY;
+	//player->OldSector.iX = player->CurSector.iX;
+	//player->OldSector.iY = player->CurSector.iY;
 
 	scPacket.Clear();
 	mpDeleteCharacter(&scPacket, player->dwSessionID);
@@ -785,6 +776,11 @@ void SendPacket_Around(st_CHARACTER* pCharacter, CPacket* cPacket, bool bSendMe)
 	//Profiler("SendPacket_Around");
 	int iSectorX = pCharacter->shX / dfSECTOR_SIZE_X;
 	int iSectorY = pCharacter->shY / dfSECTOR_SIZE_Y;
+	//int iSectorX = pCharacter->CurSector.iX;
+	//int iSectorY = pCharacter->CurSector.iY;
+	/*if (iSectorX != pCharacter->CurSector.iX || iSectorY != pCharacter->CurSector.iY)
+		_LOG(2, L"SectorXY Not equal Cursector! Calc X,Y : %d, %d # CurSector X,Y : %d, %d # X, Y : %d, %d\n", 
+			iSectorX, iSectorY, pCharacter->CurSector.iX, pCharacter->CurSector.iY, pCharacter->shX, pCharacter->shY);*/
 
 	st_SECTOR_AROUND stAround;
 	GetSectorAround(iSectorX, iSectorY, &stAround);
