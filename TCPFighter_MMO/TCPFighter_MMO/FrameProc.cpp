@@ -44,10 +44,9 @@ void Update()
 	dwNetworkCurrentTick = timeGetTime();
 
 
-	double deltaRatio = ((double)dwDeltaTime) / (double)FRAME_TIME; 
-
-	short shDeltaX = (short)(deltaRatio * dfSPEED_PLAYER_X);
-	short shDeltaY = (short)(deltaRatio * dfSPEED_PLAYER_Y);
+	//double deltaRatio = ((double)dwDeltaTime) / (double)FRAME_TIME;
+	//short shDeltaX = (short)(deltaRatio * dfSPEED_PLAYER_X);
+	//short shDeltaY = (short)(deltaRatio * dfSPEED_PLAYER_Y);
 	//_LOG(2, L"dwDelatTime : %d # shDeltaX : %d # shDeltaY : %d # temp : %f\n", dwDeltaTime, shDeltaX, shDeltaY, ((float)dwDeltaTime) / ((float)FRAME_TIME));
 
 	st_CHARACTER* pPlayer = nullptr;

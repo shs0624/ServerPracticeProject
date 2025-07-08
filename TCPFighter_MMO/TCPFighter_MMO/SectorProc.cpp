@@ -35,19 +35,16 @@ void SetUserToSector(st_CHARACTER* player)
 	player->OldSector.iY = sectorY;
 
 	// 주변 섹터의 유저 정보 새로운 유저에게 전달
-	SendUserInfoToNewPlayer(player->pSession, player->shX, player->shY);
+	SendUserInfoToNewPlayer(player->pSession, sectorX, sectorY);
 
 	m_Sector[sectorY][sectorX].push_back(player);
 }
 
 // 주변 섹터의 유저 정보 새로운 유저에게 전달
-void SendUserInfoToNewPlayer(st_SESSION* pSession, short shX, short shY)
+void SendUserInfoToNewPlayer(st_SESSION* pSession, short sectorX, short sectorY)
 {
 	static CStack<st_CHARACTER*> pSectorSessionStack;
 	static CPacket scPacket(PROTOCOL_MAXSIZE);
-
-	short sectorX = shX / dfSECTOR_SIZE_X;
-	short sectorY = shY / dfSECTOR_SIZE_Y;
 
 	st_SECTOR_AROUND aroundSector;
 	GetSectorAround(sectorX, sectorY, &aroundSector);
@@ -105,8 +102,13 @@ bool UpdateSector(st_CHARACTER* player)
 	short sectorX = (player->shX) / dfSECTOR_SIZE_X;
 	short sectorY = (player->shY) / dfSECTOR_SIZE_Y;
 
+	short oldSectorX = player->OldSector.iX;
+	short oldSectorY = player->OldSector.iY;
+
 	if (sectorX != player->CurSector.iX || sectorY != player->CurSector.iY)
 	{
+		DeletePlayerFromSector(player);
+
 		player->OldSector.iX = player->CurSector.iX;
 		player->OldSector.iY = player->CurSector.iY;
 
@@ -114,7 +116,7 @@ bool UpdateSector(st_CHARACTER* player)
 		player->CurSector.iY = sectorY;
 
 		// 섹터에서 내 정보 이동
-		vector<st_CHARACTER*>& refSectorVector = m_Sector[player->OldSector.iY][player->OldSector.iX];
+		/*vector<st_CHARACTER*>& refSectorVector = m_Sector[player->OldSector.iY][player->OldSector.iX];
 		for (int i = 0; i < refSectorVector.size(); i++)
 		{
 			if (refSectorVector[i]->dwSessionID == player->dwSessionID)
@@ -122,8 +124,10 @@ bool UpdateSector(st_CHARACTER* player)
 				refSectorVector.erase(refSectorVector.begin() + i);
 				break;
 			}
-		}
+		}*/
 		m_Sector[player->CurSector.iY][player->CurSector.iX].push_back(player);
+
+		_LOG(0, L"ID : %d # SectorChange # X :%d -> %d # Y : %d -> %d\n", player->dwSessionID, oldSectorX, sectorX, oldSectorY, sectorY);
 
 		return false;
 	}
@@ -146,9 +150,6 @@ void ChangeSector(st_CHARACTER* player)
 	// player의 OldSector, Cursector가 다른채로 있어야 한다.
 	GetUpdateSectorAround(player, &removeSector, &addSector);
 	_LOG(1, L"ChangeSector # playerID : %d # removeSectorCount : %d # addSectorCount : %d\n", player->dwSessionID, removeSector.iCount, addSector.iCount);
-
-	//player->OldSector.iX = player->CurSector.iX;
-	//player->OldSector.iY = player->CurSector.iY;
 
 	scPacket.Clear();
 	mpDeleteCharacter(&scPacket, player->dwSessionID);
@@ -417,7 +418,7 @@ void GetUpdateSectorAround(st_CHARACTER* player, st_SECTOR_AROUND* pRemoveSector
 
 		for (int i = 0; i < 3; i++)
 		{
-			int sectorX = oldSectorX + removeXArr[i];
+			int sectorX = oldSectorX + removeXArr[i];	
 			int sectorY = oldSectorY + removeYArr[i];
 
 			if (sectorX < 0 || sectorX >= dfSECTOR_MAX_X || sectorY < 0 || sectorY >= dfSECTOR_MAX_Y)
@@ -774,13 +775,13 @@ void SendPacket_SectorOne(int iSectorX, int iSectorY, CPacket* cPacket, DWORD dw
 void SendPacket_Around(st_CHARACTER* pCharacter, CPacket* cPacket, bool bSendMe)
 {
 	//Profiler("SendPacket_Around");
-	int iSectorX = pCharacter->shX / dfSECTOR_SIZE_X;
-	int iSectorY = pCharacter->shY / dfSECTOR_SIZE_Y;
-	//int iSectorX = pCharacter->CurSector.iX;
-	//int iSectorY = pCharacter->CurSector.iY;
-	/*if (iSectorX != pCharacter->CurSector.iX || iSectorY != pCharacter->CurSector.iY)
+	//int iSectorX = pCharacter->shX / dfSECTOR_SIZE_X;
+	//int iSectorY = pCharacter->shY / dfSECTOR_SIZE_Y;
+	int iSectorX = pCharacter->CurSector.iX;
+	int iSectorY = pCharacter->CurSector.iY;
+	if (iSectorX != pCharacter->CurSector.iX || iSectorY != pCharacter->CurSector.iY)
 		_LOG(2, L"SectorXY Not equal Cursector! Calc X,Y : %d, %d # CurSector X,Y : %d, %d # X, Y : %d, %d\n", 
-			iSectorX, iSectorY, pCharacter->CurSector.iX, pCharacter->CurSector.iY, pCharacter->shX, pCharacter->shY);*/
+			iSectorX, iSectorY, pCharacter->CurSector.iX, pCharacter->CurSector.iY, pCharacter->shX, pCharacter->shY);
 
 	st_SECTOR_AROUND stAround;
 	GetSectorAround(iSectorX, iSectorY, &stAround);

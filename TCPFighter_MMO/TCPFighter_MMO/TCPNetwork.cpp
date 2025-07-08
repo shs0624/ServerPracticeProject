@@ -357,6 +357,7 @@ void DisconnectSession(st_SESSION* pSession)
 		return;
 
 	pSession->bDeleted = true;
+	SetDeleteCharacter(pSession->dwSessionID);
 	_disconnectStack.push(pSession);
 }
 
@@ -369,7 +370,7 @@ void DisconnectDeletedSession()
 
 		_LOG(0, L"Disconnect Session L4 # sessionID : %d\n", ptr->dwSessionID);
 
-		SetDeleteCharacter(ptr->dwSessionID);
+		//SetDeleteCharacter(ptr->dwSessionID);
 
 		_sessionMap.erase(ptr->Socket);
 

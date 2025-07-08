@@ -67,8 +67,12 @@ bool netPacketProc_MoveStart(st_SESSION* pSession, CPacket* packet)
 	*packet >> csX;
 	*packet >> csY;
 
-	st_CHARACTER* _player = (*(m_CharacterMap.find(pSession->dwSessionID))).second;
+	unordered_map<DWORD, st_CHARACTER*>::iterator it;
+	it = (m_CharacterMap.find(pSession->dwSessionID));
+	if (it == m_CharacterMap.end())
+		return true;
 
+	st_CHARACTER* _player = (*it).second;
 	// 이건 나중에 로그로 넘기던가 해야함
 	//char ipbuffer[50];
 	//inet_ntop(AF_INET, &(session->IPPtr.sin_addr), ipbuffer, 50);
@@ -108,8 +112,15 @@ bool netPacketProc_MoveStart(st_SESSION* pSession, CPacket* packet)
 		break;
 	}
 
+	// 이동으로 섹터가 바뀌었다면, 섹터 변경
+	if (!UpdateSector(_player))
+	{
+		_LOG(0, L"MoveStart UpdteSector # playerID : %d # playerX : %d # playerY : %d\n", _player->dwSessionID, _player->shX, _player->shY);
+		ChangeSector(_player);
+	}
+
 	scPacket.Clear();
-	mpMoveStart(&scPacket, _player->dwSessionID, _player->dwAction, csX, csY);
+	mpMoveStart(&scPacket, _player->dwSessionID, _player->dwAction, _player->shX, _player->shY);
 	SendPacket_Around(_player, &scPacket);
 
 	return true;
@@ -128,7 +139,13 @@ bool netPacketProc_MoveStop(st_SESSION* pSession, CPacket* packet)
 	*packet >> csX;
 	*packet >> csY;
 
-	st_CHARACTER* _player = (*(m_CharacterMap.find(pSession->dwSessionID))).second;
+	unordered_map<DWORD, st_CHARACTER*>::iterator it;
+	it = (m_CharacterMap.find(pSession->dwSessionID));
+	if (it == m_CharacterMap.end())
+		return true;
+
+	st_CHARACTER* _player = (*it).second;
+
 
 	//오차 범위 확인
 	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
@@ -152,6 +169,13 @@ bool netPacketProc_MoveStop(st_SESSION* pSession, CPacket* packet)
 	_player->byDirection = csAction;
 	_player->dwAction = dfPACKET_MOVE_DIR_NONE;
 
+	// 이동으로 섹터가 바뀌었다면, 섹터 변경
+	if (!UpdateSector(_player))
+	{
+		_LOG(0, L"MoveStop UpdteSector # playerID : %d # playerX : %d # playerY : %d\n", _player->dwSessionID, _player->shX, _player->shY);
+		ChangeSector(_player);
+	}
+
 	mpMoveStop(&scPacket, _player->dwSessionID, _player->byDirection, _player->shX, _player->shY);
 	SendPacket_Around(_player, &scPacket);
 
@@ -171,7 +195,12 @@ bool netPacketProc_Attack(st_SESSION* pSession, BYTE type, CPacket* packet)
 	*packet >> csX;
 	*packet >> csY;
 
-	st_CHARACTER* _player = (*(m_CharacterMap.find(pSession->dwSessionID))).second;
+	unordered_map<DWORD, st_CHARACTER*>::iterator it;
+	it = (m_CharacterMap.find(pSession->dwSessionID));
+	if (it == m_CharacterMap.end())
+		return true;
+
+	st_CHARACTER* _player = (*it).second;
 
 	//오차 범위 확인
 	if (abs(_player->shX - csX) > dfERROR_RANGE || abs(_player->shY - csY) > dfERROR_RANGE)
@@ -193,8 +222,9 @@ bool netPacketProc_Attack(st_SESSION* pSession, BYTE type, CPacket* packet)
 	}
 
 	// 이동으로 섹터가 바뀌었다면, 섹터 변경
-	if (UpdateSector(_player))
+	if (!UpdateSector(_player))
 	{
+		_LOG(0, L"Attack UpdteSector # playerID : %d # playerX : %d # playerY : %d\n", _player->dwSessionID, _player->shX, _player->shY);
 		ChangeSector(_player);
 	}
 

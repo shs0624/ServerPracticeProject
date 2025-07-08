@@ -2,7 +2,7 @@
 
 void SetUserToSector(st_CHARACTER* player);
 
-void SendUserInfoToNewPlayer(st_SESSION* pSession, short shX, short shY);
+void SendUserInfoToNewPlayer(st_SESSION* pSession, short sectorX, short sectorY);
 
 void DeletePlayerFromSector(st_CHARACTER* pPlayer);
 

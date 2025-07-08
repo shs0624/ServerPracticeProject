@@ -30,7 +30,7 @@ void mpMoveStop(CPacket* msg, DWORD id, char dir, short X, short Y)
 	_LOG(0, L"Make Packet type : dfPACKET_SC_MOVE_STOP # sessionID : %d\n", id);
 	st_PACKET_HEADER header;
 
-	header.byCode = 0x89;
+	header.byCode = 0x89;	
 	header.bySize = 9;
 	header.byType = dfPACKET_SC_MOVE_STOP;
 
@@ -60,7 +60,7 @@ void mpSync(CPacket* msg, DWORD id, short X, short Y)
 
 void mpCreateMyCharacter(CPacket* msg, DWORD id, char dir, short X, short Y, char HP)
 {
-	_LOG(0, L"Make Packet type : dfPACKET_SC_CREATE_MY_CHARACTER # sessionID : %d\n", id);
+	_LOG(0, L"Make Packet type : dfPACKET_SC_CREATE_MY_CHARACTER # sessionID : %d # X : %d # Y : %d\n", id, X, Y);
 	st_PACKET_HEADER header;
 
 	header.byCode = 0x89;
@@ -78,7 +78,7 @@ void mpCreateMyCharacter(CPacket* msg, DWORD id, char dir, short X, short Y, cha
 
 void mpCreateOtherCharacter(CPacket* msg, DWORD id, char dir, short X, short Y, char HP)
 {
-	_LOG(0, L"Make Packet type : dfPACKET_SC_CREATE_OTHER_CHARACTER # sessionID : %d\n", id);
+	_LOG(0, L"Make Packet type : dfPACKET_SC_CREATE_OTHER_CHARACTER # sessionID : %d # X : %d # Y : %d\n", id, X, Y);
 	st_PACKET_HEADER header;
 
 	header.byCode = 0x89;
