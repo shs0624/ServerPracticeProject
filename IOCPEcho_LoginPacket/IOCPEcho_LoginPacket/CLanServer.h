@@ -46,6 +46,7 @@ public:
 
 	bool Disconnect(ULONGLONG sessionID);
 	bool SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacket);
+	bool SendLoginPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacket);
 
 	int getAcceptTPS() { return _iAcceptTPS; }
 	int getRecvMessageTPS() { return _iRecvMessageTPS; }

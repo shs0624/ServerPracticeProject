@@ -32,7 +32,7 @@ void EchoServer::OnAccept(ULONGLONG SessionID)
 	LONGLONG login = 0x7fffffffffffffff;
 	*(*cPacket) << (LONGLONG)login;
 
-	SendPacket(SessionID, cPacket);
+	SendLoginPacket(SessionID, cPacket);
 }
 
 void EchoServer::OnRelease(ULONGLONG SessionID)

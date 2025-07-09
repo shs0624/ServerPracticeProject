@@ -25,8 +25,6 @@ CRITICAL_SECTION _csIndexStackCS;
 CRITICAL_SECTION _csProfilerCS;
 
 ULONGLONG _GetSessionPerSec;
-ULONGLONG _LastPopIndex = 0;
-ULONGLONG _LastPushIndex = 0;
 
 unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
@@ -183,10 +181,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 #endif
 				index = _indexStack.top();
 				_indexStack.pop();
-				//if (_LastPopIndex == index)
-					//DebugBreak();
-				_LastPopIndex = index;
-				printf("indexStackPop : %d\n", index);
+				//printf("indexStackPop : %d\n", index);
 			}
 			LeaveCriticalSection(&_csIndexStackCS);
 
@@ -381,6 +376,68 @@ bool CLanServer::Disconnect(ULONGLONG sessionID)
 	LeaveCriticalSection(&_csProfilerCS);
 #endif
 	closesocket(pSession->sock);
+
+	return true;
+}
+
+bool CLanServer::SendLoginPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacket)
+{
+	st_Session* pSession = NULL;
+	{
+#ifdef CHECKPROFILE
+		EnterCriticalSection(&_csProfilerCS);
+		Profiler("GetSession");
+#endif
+		GetSession(sessionID, &pSession);
+		if (pSession == NULL)
+		{
+#ifdef CHECKPROFILE
+			LeaveCriticalSection(&_csProfilerCS);
+#endif
+			return false;
+		}
+#ifdef CHECKPROFILE
+		LeaveCriticalSection(&_csProfilerCS);
+#endif
+	}
+
+
+	short shSize = (*cPacket)->GetDataSize();
+	st_NetHeader header;
+	header.shLen = shSize;
+
+	EnterCriticalSection(&pSession->crtLock);
+	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
+	//pSession->sendBuf.push_back(cPacket);
+	//if (InterlockedExchange((LONG*)&(pSession->bSendFlag), TRUE) != TRUE)
+	//{
+	//	if (!SetWSASend(pSession))
+	//	{
+	//		LeaveCriticalSection(&pSession->crtLock);
+	//		InterlockedExchange((LONG*)&(pSession->bSendFlag), FALSE);
+	//		if (InterlockedDecrement((DWORD*)&(pSession->dwIOCount)) == 0)
+	//		{
+	//			// ¿¬°á ²÷±â
+	//			ReleaseSession(pSession);
+	//		}
+	//		return false;
+	//	}
+	//}
+	int sendRet = send(pSession->sock, (*cPacket)->GetBufferPtr(), (*cPacket)->GetDataSize(), 0);
+	if (sendRet == SOCKET_ERROR)
+	{
+		int err = WSAGetLastError();
+		if (err == WSAEWOULDBLOCK)
+		{
+			return false;
+		}
+
+		printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
+		return false;
+	}
+	LeaveCriticalSection(&pSession->crtLock);
+
+	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
 
 	return true;
 }
@@ -636,12 +693,7 @@ void CLanServer::ReleaseSession(st_Session* ptr)
 	EnterCriticalSection(&_csIndexStackCS);
 	ULONGLONG idx = (ptr->ulSessionID) >> 48;
 	_indexStack.push(idx);
-	if (_LastPushIndex == idx)
-		DebugBreak();
-	_LastPushIndex = idx;
-	if (_LastPopIndex == idx)
-		_LastPopIndex = 0;
-	printf("indexStackPush : %d\n", idx);
+	//printf("indexStackPush : %d\n", idx);
 	LeaveCriticalSection(&_csIndexStackCS);
 
 	InterlockedIncrement((LONG*)&_iReleaseTPS);
