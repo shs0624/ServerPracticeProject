@@ -1,9 +1,10 @@
-﻿#include <Windows.h>
+﻿#pragma comment(lib,"winmm.lib")
+#include <Windows.h>
 #include <process.h>
 #include <iostream>
 
-//#define BREAK
-#define LOG
+#define BREAK
+//#define LOG
 //#define SETAFF
 
 enum InOut
@@ -27,6 +28,9 @@ int g_FlagVal = 0;
 LONG g_turn;
 LONG g_lock;
 
+ULONGLONG count;
+DWORD _startTime;
+
 int _result = 0;
 DWORD _criticalCount;
 
@@ -37,6 +41,8 @@ UINT Thread2(LPVOID lpThreadParameter);
 
 int main()
 {
+	timeBeginPeriod(1);
+
 	HANDLE threadArr[2];
 
 	HANDLE hThread1;
@@ -44,10 +50,13 @@ int main()
 
 	UINT dwThread1Id;
 	UINT dwThread2Id;
+	DWORD resultTime;
 	_result = 0;	
 
 	threadArr[0] = (HANDLE)_beginthreadex(NULL, 0, Thread1, (LPVOID)30000000, 0, &dwThread1Id);
 	threadArr[1] = (HANDLE)_beginthreadex(NULL, 0, Thread2, (LPVOID)30000000, 0, &dwThread2Id);
+
+	_startTime = timeGetTime();
 
 #ifdef SETAFF
 	SetThreadPriority(threadArr[0], THREAD_PRIORITY_HIGHEST);
@@ -59,6 +68,8 @@ int main()
 
 	WaitForMultipleObjects(2, threadArr, true, INFINITE);
 
+	resultTime = timeGetTime() - _startTime;
+
 	for (int i = 0; i < _criticalCount; i++)
 	{
 		if (_logArr[i].inOutInfo == CSIN)
@@ -69,10 +80,13 @@ int main()
 				_logArr[i].ThreadNum, _logArr[i].tFlag, _logArr[i].tTurn, _logArr[i].tResult);
 	}
 
-	printf("result : %d\n", _result);
+	printf("result : %d # amount Clock %lld # UseTime : %d\n", _result, count, resultTime);
 
 	return 0;
 }
+
+//25775075 25557059
+//13903057 15403185 13896608
 
 UINT Thread1(LPVOID lpThreadParameter)
 {
@@ -83,15 +97,26 @@ UINT Thread1(LPVOID lpThreadParameter)
 		LONG tTurn;
 		DWORD tTemp;
 
+		LARGE_INTEGER startTime;
+		LARGE_INTEGER endTime;
+
 		g_Flag[0] = true; // store Flag[0]
 		g_turn = 0; //store g_turn
 
+		QueryPerformanceCounter(&startTime);
+
 		//InterlockedIncrement(&tTemp);
+		_mm_mfence();
+		//__faststorefence();
+
+		QueryPerformanceCounter(&endTime);
+
+		count += endTime.QuadPart - startTime.QuadPart;
 
 		while (1)
 		{
-			tFlag = g_Flag[1]; // load Flag[1], store tFlag
 			tTurn = g_turn; // load g_turn, store tTurn
+			tFlag = g_Flag[1]; // load Flag[1], store tFlag
 
 			if (tFlag == false) // load tFlag  
 				break;
@@ -148,10 +173,21 @@ UINT Thread2(LPVOID lpThreadParameter)
 		LONG tTurn;
 		DWORD tTemp;
 
+		LARGE_INTEGER startTime;
+		LARGE_INTEGER endTime;
+
 		g_Flag[1] = true; // store Flag[0]
 		g_turn = 1; //store g_turn
 
+		QueryPerformanceCounter(&startTime);
+
 		//InterlockedIncrement(&tTemp);
+		_mm_mfence();
+		//__faststorefence();
+
+		QueryPerformanceCounter(&endTime);
+
+		count += endTime.QuadPart - startTime.QuadPart;
 
 		while (1)
 		{
