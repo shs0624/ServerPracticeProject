@@ -370,8 +370,6 @@ void DisconnectDeletedSession()
 
 		_LOG(0, L"Disconnect Session L4 # sessionID : %d\n", ptr->dwSessionID);
 
-		//SetDeleteCharacter(ptr->dwSessionID);
-
 		_sessionMap.erase(ptr->Socket);
 
 		closesocket(ptr->Socket);

@@ -18,7 +18,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="0723Task.cpp">
+    <ClCompile Include="Task1.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Task2.cpp">
@@ -26,6 +26,9 @@
     </ClCompile>
     <ClCompile Include="CRingBuffer.cpp">
       <Filter>Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="Task3.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

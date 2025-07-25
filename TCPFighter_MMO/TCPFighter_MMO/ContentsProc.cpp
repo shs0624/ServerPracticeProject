@@ -357,9 +357,6 @@ void CollisionCheck(st_CHARACTER* pCenterPlayer, char chDir, BYTE xRange, BYTE y
 		}
 	}
 	
-	//st_SECTOR_AROUND damageShowSector;
-	//GetDamageShowSector(playerX, playerY, &damageShowSector);
-
 	// 데미지는 피격자 주변에 전송
 	while (!pCollideCheckedStack.empty())
 	{
@@ -387,9 +384,7 @@ bool netPacketProc_Accept(st_SESSION* session)
 	playerPtr->dwSessionID = session->dwSessionID;
 	playerPtr->byDirection = dfPACKET_MOVE_DIR_RR;
 	playerPtr->dwAction = dfPACKET_MOVE_DIR_NONE;
-	//playerPtr->shX = dfRANGE_MOVE_LEFT + (rand() % (dfRANGE_MOVE_RIGHT - dfRANGE_MOVE_LEFT));
 	playerPtr->shX = rand() % dfRANGE_MOVE_RIGHT;
-	//playerPtr->shY = dfRANGE_MOVE_TOP + (rand() % (dfRANGE_MOVE_BOTTOM - dfRANGE_MOVE_TOP));
 	playerPtr->shY = rand() % dfRANGE_MOVE_BOTTOM;
 	playerPtr->chHP = dfHP_MAX;
 
