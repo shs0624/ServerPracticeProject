@@ -68,10 +68,10 @@ int main()
 		test = str.substr(0, randlen);
 		//memcpy_s((void*)test.c_str(), len * sizeof(wchar_t), (void*)str.c_str(), randlen * sizeof(wchar_t));
 
-		AcquireSRWLockExclusive(&_srwLock);
+		//AcquireSRWLockExclusive(&_srwLock);
 		g_msgQ->Enqueue((char*) & header, sizeof(st_MSG_HEAD));
 		g_msgQ->Enqueue((char*)test.c_str(), randlen * sizeof(wchar_t));
-		ReleaseSRWLockExclusive(&_srwLock);
+		//ReleaseSRWLockExclusive(&_srwLock);
 
 		SetEvent(_workerThreadEvent);
 
@@ -103,12 +103,12 @@ UINT WorkerThread(LPVOID arg)
 			continue;
 		}
 
-		g_msgQ->Dequeue((char*) & header, sizeof(st_MSG_HEAD));
+		g_msgQ->Peek((char*) & header, sizeof(st_MSG_HEAD));
 
-		if (g_msgQ->GetUseSize() < header.shPayloadLen)
+		if (g_msgQ->GetUseSize() < sizeof(st_MSG_HEAD) + header.shPayloadLen)
 		{
 			ReleaseSRWLockExclusive(&_srwLock);
-			DebugBreak();
+			continue;
 		}
 
 		g_msgQ->Dequeue((char*)temp, header.shPayloadLen);
