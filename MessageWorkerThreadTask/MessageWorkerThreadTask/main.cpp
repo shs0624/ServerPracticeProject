@@ -94,7 +94,7 @@ UINT WorkerThread(LPVOID arg)
 	while (1)
 	{
 		WaitForSingleObject(_workerThreadEvent, INFINITE);
-		ZeroMemory(temp, sizeof(temp));
+ 		ZeroMemory(temp, sizeof(temp));
 
 		AcquireSRWLockExclusive(&_srwLock);
 		if (g_msgQ->GetUseSize() < sizeof(st_MSG_HEAD))
@@ -103,7 +103,7 @@ UINT WorkerThread(LPVOID arg)
 			continue;
 		}
 
-		g_msgQ->Peek((char*) & header, sizeof(st_MSG_HEAD));
+		g_msgQ->Peek((char*)&header, sizeof(st_MSG_HEAD));
 
 		if (g_msgQ->GetUseSize() < sizeof(st_MSG_HEAD) + header.shPayloadLen)
 		{
@@ -111,6 +111,7 @@ UINT WorkerThread(LPVOID arg)
 			continue;
 		}
 
+		g_msgQ->MoveFront(sizeof(st_MSG_HEAD));
 		g_msgQ->Dequeue((char*)temp, header.shPayloadLen);
 		ReleaseSRWLockExclusive(&_srwLock);
 
