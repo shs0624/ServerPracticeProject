@@ -109,6 +109,8 @@ int main(int argc, char* argv[])
 	LARGE_INTEGER recvTime;
 	ULONGLONG roundTime;
 
+	memset(sendTempPage, 's', sizeof(sendTempPage));
+
 	// 서버와 데이터 통신
 	while (1)
 	{
@@ -123,19 +125,19 @@ int main(int argc, char* argv[])
 
 		// 데이터 보내기
 		QueryPerformanceCounter(&sendTime);
-		//retval = send(_socket, sendTempPage, sizeof(sendTempPage), 0);
-		retval = send(_socket, temp.c_str(), temp.size(), 0);
+		retval = send(_socket, sendTempPage, sizeof(sendTempPage), 0);
+		//retval = send(_socket, temp.c_str(), temp.size(), 0);
 		if (retval == SOCKET_ERROR)
 		{
 			err_display("send()");
 			break;
 		}
-		//printf("[TCP 클라이언트] %d바이트를 보냈습니다.\n", retval);
+		printf("[TCP 클라이언트] %d바이트를 보냈습니다.\n", retval);
 
 		// 데이터 받기
 		//retval = recvn(_socket, recvbuf, retval, 0);
-		//retval = recv(_socket, recvTempPage, sizeof(recvTempPage), 0);
-		retval = recv(_socket, recvbuf, sizeof(recvbuf), 0);
+		retval = recv(_socket, recvTempPage, sizeof(recvTempPage), 0);
+		//retval = recv(_socket, recvbuf, sizeof(recvbuf), 0);
 		if (retval == SOCKET_ERROR)
 		{
 			err_display("recv()");

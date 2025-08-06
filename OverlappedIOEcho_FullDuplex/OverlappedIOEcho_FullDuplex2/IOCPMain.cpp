@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
 	{
 		if (GetAsyncKeyState(VK_SPACE))
 		{
-			ProfileDataOutText("ProfileData_SyncIO.txt");
+			ProfileDataOutText("ProfileData_ZeroCopy_5000.txt");
 		}
 	}
 
@@ -198,8 +198,8 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 					continue;
 				}
 			}
-			//printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
-			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
+			printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
+				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
 
 			ptr->overlapped.type = SEND;
 			wsabuf.buf = ptr->sendBuf;
@@ -229,14 +229,14 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 		{
 			ptr->overlapped.type = RECV;
 			DWORD cbTransferred, flag;
-			/*retval = WSAGetOverlappedResult(ptr->sock, &(ptr->overlapped.overlappedVar), &cbTransferred, FALSE, &flag);
+			retval = WSAGetOverlappedResult(ptr->sock, &(ptr->overlapped.overlappedVar), &cbTransferred, FALSE, &flag);
 			if (retval == FALSE || cbTransferred == 0)
 			{
 				printf("[TCP 서버] 클라이언트 종료 : IP주소 = %s, 포트 번호 = %d\n",
 					inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
-				LeaveCriticalSection(&cs);
+				LeaveCriticalSection(&ptr->_cs);
 				continue;
-			}*/
+			}
 
 			//printf("[TCP WSASend Result] IP주소 = %s, 포트 번호 = %d | cbTransferred : %d\n",
 			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), cbTransferred);
