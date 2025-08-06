@@ -319,7 +319,7 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 		{
 			DebugBreak();
 			return false;
-		}
+		}   
 
 		// sendQ ÀÎÅ¥
 		int enqueueRet = ptr->sendBuf->Enqueue(tempBuffer, PROTOCOL_SIZE);
