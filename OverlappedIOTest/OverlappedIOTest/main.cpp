@@ -7,6 +7,9 @@ int interval;
 int len;
 string str = "Hello Monster Hunter World";
 
+ULONGLONG totalTime;
+int Count;
+
 void err_quit(const char* msg)
 {
 	int err = WSAGetLastError();
@@ -99,6 +102,8 @@ int main(int argc, char* argv[])
 	// 데이터 통신에 사용할 변수
 	char buf[BUFSIZE + 1];
 	char recvbuf[BUFSIZE + 1];
+	char sendTempPage[5000];
+	char recvTempPage[5000];
 	string temp;
 	LARGE_INTEGER sendTime;
 	LARGE_INTEGER recvTime;
@@ -107,23 +112,30 @@ int main(int argc, char* argv[])
 	// 서버와 데이터 통신
 	while (1)
 	{
+		if (GetAsyncKeyState(VK_SPACE))
+		{
+			break;
+		}
+
 		// 데이터 입력
 		size_t randlen = 1 + (rand() % (len - 1));
 		temp = str.substr(0, randlen);
 
 		// 데이터 보내기
 		QueryPerformanceCounter(&sendTime);
+		//retval = send(_socket, sendTempPage, sizeof(sendTempPage), 0);
 		retval = send(_socket, temp.c_str(), temp.size(), 0);
 		if (retval == SOCKET_ERROR)
 		{
 			err_display("send()");
 			break;
 		}
-		printf("[TCP 클라이언트] %d바이트를 보냈습니다.\n", retval);
+		//printf("[TCP 클라이언트] %d바이트를 보냈습니다.\n", retval);
 
 		// 데이터 받기
 		//retval = recvn(_socket, recvbuf, retval, 0);
-		retval = recv(_socket, recvbuf, retval, 0);
+		//retval = recv(_socket, recvTempPage, sizeof(recvTempPage), 0);
+		retval = recv(_socket, recvbuf, sizeof(recvbuf), 0);
 		if (retval == SOCKET_ERROR)
 		{
 			err_display("recv()");
@@ -134,12 +146,19 @@ int main(int argc, char* argv[])
 
 		QueryPerformanceCounter(&recvTime);
 		roundTime = recvTime.QuadPart - sendTime.QuadPart;
+
+		totalTime += roundTime;
+		Count++;
 		// 받은 데이터 출력
-		recvbuf[retval] = '\0';
-		printf("[TCP 클라이언트] %d바이트를 받았습니다.\n", retval);
-		printf("[TCP 클라이언트] 소요 시간 : %lld.\n", roundTime);
+		//recvbuf[retval] = '\0';
+		//printf("[TCP 클라이언트] %d바이트를 받았습니다.\n", retval);
+		//printf("[TCP 클라이언트] 소요 시간 : %lld.\n", roundTime);
 		//printf("[받은 데이터] %s\n", recvbuf);
 	}
+
+	printf("---------------------------------------------------------------\n");
+	printf("Average RTT : %lld\n", totalTime / Count);
+	printf("---------------------------------------------------------------\n");
 
 	closesocket(_socket);
 

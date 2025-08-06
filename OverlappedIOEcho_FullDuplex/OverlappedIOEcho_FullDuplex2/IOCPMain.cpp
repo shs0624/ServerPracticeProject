@@ -24,7 +24,7 @@ unsigned int WINAPI AcceptThread(LPVOID arg);
 int main(int argc, char* argv[])
 {
 	int retval;
-	InitializeCriticalSection(&cs);
+	//InitializeCriticalSection(&cs);
 
 	// 윈속 초기화
 	WSADATA wsa;
@@ -39,10 +39,10 @@ int main(int argc, char* argv[])
 	if (listen_sock == INVALID_SOCKET)
 		err_quit("socket()");
 
-	/*int optval = 0;
+	int optval = 0;
 	retval = setsockopt(listen_sock, SOL_SOCKET, SO_SNDBUF, (char*)&optval, sizeof(optval));
 	if (retval == SOCKET_ERROR)
-		err_quit("SO_SNDBUF()");*/
+		err_quit("SO_SNDBUF()");
 
 	// bind()
 	SOCKADDR_IN serveraddr;
@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
 	}
 
 	WSACleanup();
-	DeleteCriticalSection(&cs);
+	//DeleteCriticalSection(&cs);
 	return 0;
 }
 
@@ -123,6 +123,7 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		wsabuf.len = BUFSIZE;
 		ptr->sock = client_sock;
 		ptr->overlapped.type = RECV;
+		InitializeCriticalSection(&ptr->_cs);
 		int recvRet = WSARecv(ptr->sock, &wsabuf, 1, &recvbytes, &flags, &ptr->overlapped.overlappedVar, NULL);
 		if (recvRet == SOCKET_ERROR)
 		{
@@ -157,6 +158,7 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 		int addrlen = sizeof(clientaddr);
 		getpeername(ptr->sock, (SOCKADDR*)&clientaddr, &addrlen);
 
+		
 		if (retval == 0 || cbTransferred == 0)
 		{
 			if (retval == 0)
@@ -170,17 +172,16 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 			printf("[TCP 서버] 클라이언트 종료 : IP주소 = %s, 포트 번호 = %d\n",
 				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
 			delete ptr;
-			LeaveCriticalSection(&cs);
 			continue;
 		}
 
-		EnterCriticalSection(&cs);
+		EnterCriticalSection(&ptr->_cs);
 		if (ptr->overlapped.type == RECV)
 		{
 			ptr->recvBuf[cbTransferred] = '\0';
 			memcpy(ptr->sendBuf, ptr->recvBuf, cbTransferred + 1);
-			printf("[TCP / %s : %d] %s\n", inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50),
-				ntohs(clientaddr.sin_port), ptr->recvBuf);
+			//printf("[TCP / %s : %d] %s\n", inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50),
+			//	ntohs(clientaddr.sin_port), ptr->recvBuf);
 
 			DWORD flags = 0;
 			ZeroMemory(&ptr->overlapped, sizeof(ptr->overlapped));
@@ -193,12 +194,12 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 				if (WSAGetLastError() != WSA_IO_PENDING)
 				{
 					err_display("WSARecv()");
-					LeaveCriticalSection(&cs);
+					LeaveCriticalSection(&ptr->_cs);
 					continue;
 				}
 			}
-			printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
-				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
+			//printf("\n[TCP WSARecv] IP주소 = %s, 포트 번호 = %d | recvRet : %d\n",
+			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), recvRet);
 
 			ptr->overlapped.type = SEND;
 			wsabuf.buf = ptr->sendBuf;
@@ -207,8 +208,8 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 			retval = WSASend(ptr->sock, &wsabuf, 1, &sendbytes,
 				0, &ptr->overlapped.overlappedVar, NULL);
 			PRO_END("SEND_Zerocopy");
-			printf("[TCP WSASend] IP주소 = %s, 포트 번호 = %d | sendbytes : %d\n",
-				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), sendbytes);
+			//printf("[TCP WSASend] IP주소 = %s, 포트 번호 = %d | sendbytes : %d\n",
+			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), sendbytes);
 
 			if (retval == SOCKET_ERROR)
 			{
@@ -218,9 +219,9 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 				}
 				else
 				{
-					printf("[WSA_IO_PENDING] WSASend\n");
+					//printf("[WSA_IO_PENDING] WSASend\n");
 				}
-				LeaveCriticalSection(&cs);
+				LeaveCriticalSection(&ptr->_cs);
 				continue;
 			}
 		}
@@ -228,19 +229,19 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 		{
 			ptr->overlapped.type = RECV;
 			DWORD cbTransferred, flag;
-			retval = WSAGetOverlappedResult(ptr->sock, &(ptr->overlapped.overlappedVar), &cbTransferred, FALSE, &flag);
+			/*retval = WSAGetOverlappedResult(ptr->sock, &(ptr->overlapped.overlappedVar), &cbTransferred, FALSE, &flag);
 			if (retval == FALSE || cbTransferred == 0)
 			{
 				printf("[TCP 서버] 클라이언트 종료 : IP주소 = %s, 포트 번호 = %d\n",
 					inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port));
 				LeaveCriticalSection(&cs);
 				continue;
-			}
+			}*/
 
-			printf("[TCP WSASend Result] IP주소 = %s, 포트 번호 = %d | cbTransferred : %d\n",
-				inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), cbTransferred);
+			//printf("[TCP WSASend Result] IP주소 = %s, 포트 번호 = %d | cbTransferred : %d\n",
+			//	inet_ntop(AF_INET, &(clientaddr.sin_addr), ipbuffer, 50), ntohs(clientaddr.sin_port), cbTransferred);
 		}
-		LeaveCriticalSection(&cs);
+		LeaveCriticalSection(&ptr->_cs);
 	}
 }
 
