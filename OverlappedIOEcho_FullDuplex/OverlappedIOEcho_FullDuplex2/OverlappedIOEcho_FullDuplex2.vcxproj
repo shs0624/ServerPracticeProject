@@ -130,14 +130,18 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CompletionRoutineMain.cpp" />
+    <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="IOCPMain.cpp" />
+    <ClCompile Include="IOCPMain_temp.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ProcademyProfiler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CompletionRoutineheader.h" />
+    <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="header.h" />
     <ClInclude Include="IOCPHeader.h" />
+    <ClInclude Include="IOCPHeader_temp.h" />
     <ClInclude Include="ProcademyProfiler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

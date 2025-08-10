@@ -16,6 +16,9 @@
     <Filter Include="Profiler">
       <UniqueIdentifier>{fc1d93e4-abb9-4460-b2df-024b33288120}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Lib">
+      <UniqueIdentifier>{8d09234e-0a3c-4096-aed8-9210afbb1e11}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -24,11 +27,17 @@
     <ClCompile Include="CompletionRoutineMain.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="IOCPMain.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
     <ClCompile Include="ProcademyProfiler.cpp">
       <Filter>Profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="CRingBuffer.cpp">
+      <Filter>Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="IOCPMain_temp.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="IOCPMain.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -38,11 +47,17 @@
     <ClInclude Include="CompletionRoutineheader.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="IOCPHeader.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="ProcademyProfiler.h">
       <Filter>Profiler</Filter>
+    </ClInclude>
+    <ClInclude Include="CRingBuffer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="IOCPHeader_temp.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="IOCPHeader.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
