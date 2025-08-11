@@ -125,8 +125,8 @@ int main(int argc, char* argv[])
 
 		// 데이터 보내기
 		QueryPerformanceCounter(&sendTime);
-		retval = send(_socket, sendTempPage, sizeof(sendTempPage), 0);
-		//retval = send(_socket, temp.c_str(), temp.size(), 0);
+		//retval = send(_socket, sendTempPage, sizeof(sendTempPage), 0);
+		retval = send(_socket, temp.c_str(), temp.size(), 0);
 		if (retval == SOCKET_ERROR)
 		{
 			err_display("send()");
@@ -136,8 +136,8 @@ int main(int argc, char* argv[])
 
 		// 데이터 받기
 		//retval = recvn(_socket, recvbuf, retval, 0);
-		retval = recv(_socket, recvTempPage, sizeof(recvTempPage), 0);
-		//retval = recv(_socket, recvbuf, sizeof(recvbuf), 0);
+		//retval = recv(_socket, recvTempPage, sizeof(recvTempPage), 0);
+		retval = recv(_socket, recvbuf, sizeof(recvbuf), 0);
 		if (retval == SOCKET_ERROR)
 		{
 			err_display("recv()");

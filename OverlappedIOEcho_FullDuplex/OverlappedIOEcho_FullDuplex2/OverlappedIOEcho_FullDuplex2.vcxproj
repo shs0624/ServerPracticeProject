@@ -133,6 +133,7 @@
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="IOCPMain.cpp" />
     <ClCompile Include="IOCPMain_temp.cpp" />
+    <ClCompile Include="IOCP_FullDuplex_New.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ProcademyProfiler.cpp" />
   </ItemGroup>
@@ -142,6 +143,7 @@
     <ClInclude Include="header.h" />
     <ClInclude Include="IOCPHeader.h" />
     <ClInclude Include="IOCPHeader_temp.h" />
+    <ClInclude Include="IOCP_FullDuplex_New.h" />
     <ClInclude Include="ProcademyProfiler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
