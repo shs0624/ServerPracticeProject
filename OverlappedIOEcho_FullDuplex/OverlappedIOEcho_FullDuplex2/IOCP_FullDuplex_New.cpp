@@ -164,6 +164,7 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 		retval = GetQueuedCompletionStatus(_iocpHandle, &cbTransferred,
 			(PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlap, INFINITE);
 
+		EnterCriticalSection(&ptr->_cs);
 		// 큐에서 꺼내질 못함 -> 서버가 닫혀야함
 		if (retval == 0)
 		{
@@ -205,17 +206,14 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 			SetWSARecv(ptr);
 
 			// 받은 클라에 전송
-			EnterCriticalSection(&ptr->_cs);
 			SetWSASend(ptr);
-			LeaveCriticalSection(&ptr->_cs);
 		}
 		// send 완료통지
 		else
 		{
-			EnterCriticalSection(&ptr->_cs);
 			ptr->sendBuf->MoveFront(cbTransferred);
-			LeaveCriticalSection(&ptr->_cs);
 		}
+		LeaveCriticalSection(&ptr->_cs);
 	}
 }
 
