@@ -129,9 +129,10 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		}
 
 		// 비동기 입출력 시작
-		EnterCriticalSection(&_poolLock);
-		st_Session* ptr = _sessionPool->Alloc();//new st_Session;
-		LeaveCriticalSection(&_poolLock);
+		/*EnterCriticalSection(&_poolLock);
+		st_Session* ptr = _sessionPool->Alloc();
+		LeaveCriticalSection(&_poolLock);*/
+		st_Session* ptr = new st_Session;
 		if (ptr == NULL) break;
 
 		// 소켓을 IOCP에 등록
@@ -205,12 +206,12 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 
 		if (&(ptr->recvOverlapped) == pOverlapped)
 		{
-			EnterCriticalSection(&(ptr->CrtLock));
+			//EnterCriticalSection(&(ptr->CrtLock));
 			if (!RecvProc(ptr, cbTransferred))
 			{
 				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
 				{
-					LeaveCriticalSection(&(ptr->CrtLock));
+					//LeaveCriticalSection(&(ptr->CrtLock));
 					// 연결 끊기
 					ReleaseSession(ptr);
 					continue;
@@ -223,7 +224,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 				{
 					if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
 					{
-						LeaveCriticalSection(&(ptr->CrtLock));
+						//LeaveCriticalSection(&(ptr->CrtLock));
 						// 연결 끊기
 						ReleaseSession(ptr);
 						continue;
@@ -256,7 +257,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 
 				recvRet = WSARecv(ptr->sock, &recvWsa[0], 1, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
 			}
-			LeaveCriticalSection(&(ptr->CrtLock));
+			//LeaveCriticalSection(&(ptr->CrtLock));
 
 			if (recvRet == SOCKET_ERROR)
 			{
@@ -273,7 +274,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 		}
 		else
 		{
-			EnterCriticalSection(&(ptr->CrtLock));
+			//EnterCriticalSection(&(ptr->CrtLock));
 			ptr->sendBuf->MoveFront(cbTransferred);
 			int useSize = ptr->sendBuf->GetUseSize();
 			if (useSize > 0)
@@ -284,7 +285,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			{
 				InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), FALSE);
 			}
-			LeaveCriticalSection(&(ptr->CrtLock));
+			//LeaveCriticalSection(&(ptr->CrtLock));
 		}
 
 		if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
@@ -393,9 +394,10 @@ void ReleaseSession(st_Session* ptr)
 	closesocket(ptr->sock);
 	ptr->recvBuf->ClearBuffer();
 	ptr->sendBuf->ClearBuffer();
-	EnterCriticalSection(&_poolLock);
-	_sessionPool->Free(ptr);
-	LeaveCriticalSection(&_poolLock);
+	//EnterCriticalSection(&_poolLock);
+	//_sessionPool->Free(ptr);
+	//LeaveCriticalSection(&_poolLock);
+	delete(ptr);
 }
 
 // 소켓 함수 오류 출력 후 종료

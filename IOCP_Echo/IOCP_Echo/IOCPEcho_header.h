@@ -33,4 +33,4 @@ unsigned int WINAPI AcceptThread(LPVOID arg);
 unsigned int WINAPI IOCPWorkerThread(LPVOID arg); 
 // 오류 출력 함수
 void err_quit(const char* msg);
-void err_display(const char* msg);a
+void err_display(const char* msg);
