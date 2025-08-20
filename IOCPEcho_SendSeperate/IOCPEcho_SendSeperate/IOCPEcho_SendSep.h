@@ -9,6 +9,11 @@ struct st_PACKET
 	short shLen;
 	LONGLONG llNum;
 };
+
+struct st_PACKET_HEADER
+{
+	DWORD dwSessionID;
+};
 #pragma pack(pop)
 
 struct st_Session

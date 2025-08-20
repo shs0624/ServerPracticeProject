@@ -18,17 +18,25 @@ using namespace std;
 bool b_sendFlag = false;
 
 CRITICAL_SECTION _poolLock;
+CRITICAL_SECTION _echoBufferLock;
 
 SOCKET listen_sock;
 
 HANDLE _acceptThreadHandle;
-HANDLE _iocpHandle;
-HANDLE _iocpWorkerThreadHandleArr[50];
+HANDLE _NetIOCPHandle;
+HANDLE _NetIOCPWorkerThreadHandleArr[50];
+
+HANDLE _EchoIOCPHandle;
+HANDLE _EchoIOCPWorkerThreadHandleArr[3];
+
 
 DWORD _threadID = 0;
 
 unsigned int _acceptThreadID;
-unsigned int _iocpWorkerThreadID[50];
+unsigned int _NetIOCPWorkerThreadID[50];
+unsigned int _EchoIOCPWorkerThreadID[50];
+
+CRingBuffer* _echoBuffer;
 
 unordered_map<DWORD, st_Session*> _sessionList;
 procademy::CMemoryPool<st_Session>* _sessionPool;
@@ -43,16 +51,21 @@ int main(int argc, char* argv[])
 	int retval;
 	InitializeSRWLock(&_srwLock);
 	InitializeCriticalSection(&_poolLock);
+	InitializeCriticalSection(&_echoBufferLock);
 
 	_sessionPool = new procademy::CMemoryPool<st_Session>(200, false, false);
+	_echoBuffer = new CRingBuffer(100000);	
 
 	// 윈속 초기화
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
 
-	_iocpHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
-	if (_iocpHandle == NULL) return 1;
+	_NetIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	if (_NetIOCPHandle == NULL) return 1;
+
+	_EchoIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	if (_EchoIOCPHandle == NULL) return 1;
 
 	// socket();
 	listen_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -87,10 +100,17 @@ int main(int argc, char* argv[])
 	if (_acceptThreadHandle == NULL)
 		return 1;
 
-	for (int i = 0; i < (int)si.dwNumberOfProcessors * 2; i++)
+	for (int i = 0; i < (int)si.dwNumberOfProcessors * 2 - 3; i++)
 	{
-		_iocpWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, 0, 0, &_iocpWorkerThreadID[i]);
-		if (_iocpWorkerThreadHandleArr[i] == NULL)
+		_NetIOCPWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, 0, 0, &_NetIOCPWorkerThreadID[i]);
+		if (_NetIOCPWorkerThreadHandleArr[i] == NULL)
+			return 1;
+	}
+
+	for (int i = 0; i < 3; i++)
+	{
+		_EchoIOCPWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, EchoThread, 0, 0, &_EchoIOCPWorkerThreadID[i]);
+		if (_EchoIOCPWorkerThreadHandleArr[i] == NULL)
 			return 1;
 	}
 
@@ -136,7 +156,7 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		if (ptr == NULL) break;
 
 		// 소켓을 IOCP에 등록
-		CreateIoCompletionPort((HANDLE)client_sock, _iocpHandle, (ULONG_PTR)ptr, 0);
+		CreateIoCompletionPort((HANDLE)client_sock, _NetIOCPHandle, (ULONG_PTR)ptr, 0);
 
 		// 수정이 필요함
 		ZeroMemory(&ptr->recvOverlapped, sizeof(ptr->recvOverlapped));
@@ -174,7 +194,88 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 
 unsigned int WINAPI EchoThread(LPVOID arg)
 {
+	char tempBuffer[PROTOCOL_SIZE + 1];
+	int retval;
 
+	while (1)
+	{
+		WSABUF wsabuf;
+		DWORD cbTransferred = 0, recvbytes;
+		SOCKET client_sock;
+		st_Session* ptr = NULL;
+		OVERLAPPED* pOverlapped = NULL;
+		unordered_map<DWORD, st_Session*>::iterator it;
+		st_PACKET_HEADER header;
+
+		retval = GetQueuedCompletionStatus(_EchoIOCPHandle, &cbTransferred,
+			(PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
+
+		if (cbTransferred == 0 && ptr == NULL && pOverlapped == NULL)
+		{
+			// 종료
+			continue;
+		}
+
+		EnterCriticalSection(&_echoBufferLock);
+		if (_echoBuffer->GetUseSize() < sizeof(st_PACKET_HEADER) + PROTOCOL_SIZE)
+		{
+			DebugBreak();
+			LeaveCriticalSection(&_echoBufferLock);
+			continue;
+		}
+
+		_echoBuffer->Dequeue((char*)&header, sizeof(st_PACKET_HEADER));
+
+		AcquireSRWLockExclusive(&_srwLock);
+		it = _sessionList.find(header.dwSessionID);
+		if (it == _sessionList.end())
+		{
+			DebugBreak();
+			ReleaseSRWLockExclusive(&_srwLock);
+			LeaveCriticalSection(&_echoBufferLock);
+			continue;
+		}
+		ReleaseSRWLockExclusive(&_srwLock);
+
+		ptr = (*it).second;
+
+		// 세션은 찾았으니, 걔한테 SendPacket
+		_echoBuffer->Dequeue(tempBuffer, PROTOCOL_SIZE);
+		ptr->sendBuf->Enqueue(tempBuffer, PROTOCOL_SIZE);
+
+		if (InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+		{
+			LeaveCriticalSection(&_echoBufferLock);
+			if (!SendProc(ptr))
+			{
+				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+				{
+					//LeaveCriticalSection(&(ptr->CrtLock));
+					// 연결 끊기
+					ReleaseSession(ptr);
+					continue;
+				}
+			}
+		}
+		else
+		{
+			// 전부 뺐으니까 큐의 끝에 다시 넣어주기?
+			header.dwSessionID = ptr->dwSessionID;
+			_echoBuffer->Enqueue((char*)&header, sizeof(st_PACKET_HEADER));
+			int enqueueRet = _echoBuffer->Enqueue(tempBuffer, PROTOCOL_SIZE);
+			if (enqueueRet != PROTOCOL_SIZE)
+			{
+				DebugBreak();
+				ReleaseSession((*it).second);
+				LeaveCriticalSection(&_echoBufferLock);
+				continue;
+			}
+
+			// Post
+			PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, &(ptr->sendOverlapped));
+			LeaveCriticalSection(&_echoBufferLock);
+		}
+	}
 }
 
 unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
@@ -190,7 +291,7 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 		SOCKET client_sock;
 		st_Session* ptr = NULL;
 		OVERLAPPED* pOverlapped;
-		retval = GetQueuedCompletionStatus(_iocpHandle, &cbTransferred,
+		retval = GetQueuedCompletionStatus(_NetIOCPHandle, &cbTransferred,
 			(PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
 
 		if (pOverlapped == 0 && cbTransferred == 0 && ptr == 0)
@@ -220,20 +321,6 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 					// 연결 끊기
 					ReleaseSession(ptr);
 					continue;
-				}
-			}
-
-			if (InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), TRUE) != TRUE)
-			{
-				if (!SendProc(ptr))
-				{
-					if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
-					{
-						//LeaveCriticalSection(&(ptr->CrtLock));
-						// 연결 끊기
-						ReleaseSession(ptr);
-						continue;
-					}
 				}
 			}
 
@@ -307,6 +394,8 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 {
 	char tempBuffer[PROTOCOL_SIZE + 1];
 
+	st_PACKET_HEADER header;
+
 	// 받은 데이터 카피
 	ptr->recvBuf->MoveRear(cbTransferred);
 
@@ -327,13 +416,19 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 			return false;
 		}
 
-		// sendQ 인큐
-		int enqueueRet = ptr->sendBuf->Enqueue(tempBuffer, PROTOCOL_SIZE);
+		header.dwSessionID = ptr->dwSessionID;
+		EnterCriticalSection(&_echoBufferLock);
+		_echoBuffer->Enqueue((char*)&header, sizeof(st_PACKET_HEADER));
+		int enqueueRet = _echoBuffer->Enqueue(tempBuffer, PROTOCOL_SIZE);
 		if (enqueueRet != PROTOCOL_SIZE)
 		{
 			DebugBreak();
 			return false;
 		}
+		LeaveCriticalSection(&_echoBufferLock);
+
+		// Post
+		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, &(ptr->sendOverlapped));
 	}
 
 	return true;
