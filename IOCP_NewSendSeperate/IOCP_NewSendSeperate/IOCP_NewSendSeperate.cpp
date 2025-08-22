@@ -100,7 +100,7 @@ int main()
 			return 1;
 	}
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 1; i++)
 	{
 		_EchoIOCPWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, EchoThread, 0, 0, &_EchoIOCPWorkerThreadID[i]);
 		if (_EchoIOCPWorkerThreadHandleArr[i] == NULL)
@@ -234,8 +234,8 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 					if (InterlockedDecrement(&(ptr->dwIOCount)) == 0)
 					{
 						// 연결 끊기
-						ReleaseSession(ptr);
 						LeaveCriticalSection(&ptr->CrtLock);
+						ReleaseSession(ptr);
 						continue;
 					}
 				}
@@ -388,14 +388,6 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 		
 		// Post
 		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, &(ptr->sendOverlapped));
-
-		// 에코 버퍼 사용 X
-		/*int enqueueRet = ptr->sendBuf->Enqueue((char*) & packet, sizeof(st_PACKET));
-		if (enqueueRet != PROTOCOL_SIZE)
-		{
-			DebugBreak();
-			return false;
-		}*/
 	}
 
 	return true;
@@ -489,8 +481,8 @@ void ReleaseSession(st_Session* ptr)
 	EnterCriticalSection(&(ptr->CrtLock));
 	LeaveCriticalSection(&(ptr->CrtLock));
 
-	DeleteCriticalSection(&(ptr->CrtLock));
 	closesocket(ptr->sock);
+	DeleteCriticalSection(&(ptr->CrtLock));
 
 	delete(ptr->recvBuf);
 	delete(ptr->sendBuf);
