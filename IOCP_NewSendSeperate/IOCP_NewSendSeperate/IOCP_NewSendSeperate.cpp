@@ -155,7 +155,7 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		ZeroMemory(&ptr->recvOverlapped, sizeof(ptr->recvOverlapped));
 		ZeroMemory(&ptr->sendOverlapped, sizeof(ptr->sendOverlapped));
 		ptr->dwSessionID = _threadID++;
-		ptr->dwIOCount = 1;
+		ptr->dwIOCount = 0;
 		ptr->bSendFlag = false;
 		ptr->sock = client_sock;
 		ptr->recvBuf = new CRingBuffer(15000);
@@ -298,6 +298,7 @@ unsigned int WINAPI EchoThread(LPVOID arg)
 			LeaveCriticalSection(&_echoBufferLock);
 			continue;
 		}
+
 		ptr = (*it).second;
 		EnterCriticalSection(&ptr->CrtLock);
 
