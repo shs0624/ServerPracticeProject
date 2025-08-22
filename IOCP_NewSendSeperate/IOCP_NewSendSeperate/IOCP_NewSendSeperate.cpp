@@ -35,9 +35,9 @@ CRingBuffer* _echoBuffer;
 
 unordered_map<DWORD, st_Session*> _sessionMap;
 
-bool RecvProc();
+bool RecvProc(st_Session* ptr, DWORD cbTransferred);
 
-void SetWSARecv(st_Session* ptr);
+bool SetWSARecv(st_Session* ptr);
 bool SetWSASend(st_Session* ptr);
 void ReleaseSession(st_Session* ptr);
 
@@ -212,7 +212,15 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 				}
 			}
 
-			SetWSARecv(ptr);
+			if (!SetWSARecv(ptr))
+			{
+				if (InterlockedDecrement(&(ptr->dwIOCount)) == 0)
+				{
+					// 연결 끊기
+					ReleaseSession(ptr);
+					continue;
+				}
+			}
 		}
 		else
 		{
@@ -221,7 +229,16 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 			int useSize = ptr->sendBuf->GetUseSize();
 			if (useSize > 0)
 			{
-				SendProc(ptr);
+				if (!SetWSASend(ptr))
+				{
+					if (InterlockedDecrement(&(ptr->dwIOCount)) == 0)
+					{
+						// 연결 끊기
+						ReleaseSession(ptr);
+						LeaveCriticalSection(&ptr->CrtLock);
+						continue;
+					}
+				}
 			}
 			else
 			{
@@ -238,14 +255,92 @@ unsigned int WINAPI IOCPWorkerThread(LPVOID arg)
 	}
 }
 
+
 unsigned int WINAPI EchoThread(LPVOID arg)
 {
+	char tempBuffer[PROTOCOL_SIZE + 1];
+	int retval;
 
+	while (1)
+	{
+		WSABUF wsabuf;
+		DWORD cbTransferred = 0;
+		st_Session* ptr = NULL;
+		OVERLAPPED* pOverlapped = NULL;
+		unordered_map<DWORD, st_Session*>::iterator it;
+		st_PACKET_HEADER header;
+
+		retval = GetQueuedCompletionStatus(_EchoIOCPHandle, &cbTransferred,
+			(PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
+
+		if (cbTransferred == 0 && ptr == NULL && pOverlapped == NULL)
+		{
+			// 종료
+			continue;
+		}
+
+		EnterCriticalSection(&_echoBufferLock);
+		if (_echoBuffer->GetUseSize() < sizeof(st_PACKET_HEADER) + sizeof(st_PACKET))
+		{
+			DebugBreak();
+			LeaveCriticalSection(&_echoBufferLock);
+			continue;
+		}
+
+		_echoBuffer->Dequeue((char*)&header, sizeof(st_PACKET_HEADER));
+
+		AcquireSRWLockExclusive(&_sessionMapLock);
+		it = _sessionMap.find(header.dwSessionID);
+		if (it == _sessionMap.end())
+		{
+			DebugBreak();
+			ReleaseSRWLockExclusive(&_sessionMapLock);
+			LeaveCriticalSection(&_echoBufferLock);
+			continue;
+		}
+		ptr = (*it).second;
+		EnterCriticalSection(&ptr->CrtLock);
+
+		ReleaseSRWLockExclusive(&_sessionMapLock);
+
+		// 세션은 찾았으니, 걔한테 SendPacket
+		_echoBuffer->Dequeue(tempBuffer, PROTOCOL_SIZE);
+		LeaveCriticalSection(&_echoBufferLock);
+
+		ptr->sendBuf->Enqueue(tempBuffer, PROTOCOL_SIZE);
+		if (InterlockedExchange((ULONGLONG*)&(ptr->bSendFlag), TRUE) == FALSE)
+		{
+			if (!SetWSASend(ptr))
+			{
+				if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
+				{
+					// 연결 끊기
+					LeaveCriticalSection(&ptr->CrtLock);
+					ReleaseSession(ptr);
+					continue;
+				}
+			}
+		}
+		else
+		{
+			// send버퍼에 넣어주기
+			/*int enqueueRet = ptr->sendBuf->Enqueue(tempBuffer, PROTOCOL_SIZE);
+			if (enqueueRet != PROTOCOL_SIZE)
+			{
+				DebugBreak();
+				closesocket(ptr->sock);
+				LeaveCriticalSection(&ptr->CrtLock);
+				continue;
+			}*/			
+		}
+		LeaveCriticalSection(&ptr->CrtLock);
+	}
 }
 
 bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 {
 	char tempBuffer[PROTOCOL_SIZE + 1];
+	st_PACKET packet;
 	st_PACKET_HEADER header;
 
 	ptr->recvBuf->MoveRear(cbTransferred);
@@ -254,38 +349,58 @@ bool RecvProc(st_Session* ptr, DWORD cbTransferred)
 	while (1)
 	{
 		int useSize = ptr->recvBuf->GetUseSize();
-		if (useSize < PROTOCOL_SIZE)
+		if (useSize < sizeof(packet.shLen))
 		{
 			break;
 		}
 
-		int dequeueRet = ptr->recvBuf->Dequeue(tempBuffer, PROTOCOL_SIZE);
-		if (dequeueRet != PROTOCOL_SIZE)
+		int peekRet = ptr->recvBuf->Peek((char*)&packet.shLen, sizeof(packet.shLen));
+		if (peekRet != sizeof(packet.shLen))
 		{
 			DebugBreak();
 			closesocket(ptr->sock);
 			return false;
 		}
 
+		if (useSize < sizeof(packet.shLen) + packet.shLen)
+		{
+			DebugBreak();
+			closesocket(ptr->sock);
+			return false;
+		}
+
+		ptr->recvBuf->MoveFront(sizeof(packet.shLen));
+		ptr->recvBuf->Dequeue((char*)&packet.llNum, packet.shLen);
+
 		header.dwSessionID = ptr->dwSessionID;
 		EnterCriticalSection(&_echoBufferLock);
 		_echoBuffer->Enqueue((char*)&header, sizeof(st_PACKET_HEADER));
-		int enqueueRet = _echoBuffer->Enqueue(tempBuffer, PROTOCOL_SIZE);
+		int enqueueRet = _echoBuffer->Enqueue((char*)&packet, sizeof(st_PACKET));
+		LeaveCriticalSection(&_echoBufferLock);
+
+		if (enqueueRet != sizeof(st_PACKET))
+		{
+			DebugBreak();
+			closesocket(ptr->sock);
+			return false;
+		}
+		
+		// Post
+		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, &(ptr->sendOverlapped));
+
+		// 에코 버퍼 사용 X
+		/*int enqueueRet = ptr->sendBuf->Enqueue((char*) & packet, sizeof(st_PACKET));
 		if (enqueueRet != PROTOCOL_SIZE)
 		{
 			DebugBreak();
 			return false;
-		}
-		LeaveCriticalSection(&_echoBufferLock);
-
-		// Post
-		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, &(ptr->sendOverlapped));
+		}*/
 	}
 
 	return true;
 }
 
-void SetWSARecv(st_Session* ptr)
+bool SetWSARecv(st_Session* ptr)
 {
 	// WSARecv
 	WSABUF recvWsa[2];
@@ -317,13 +432,11 @@ void SetWSARecv(st_Session* ptr)
 	{
 		if (WSAGetLastError() != WSA_IO_PENDING)
 		{
-			if (InterlockedDecrement((ULONGLONG*)&(ptr->dwIOCount)) == 0)
-			{
-				// 연결 끊기
-				ReleaseSession(ptr);
-			}
+			return false;
 		}
 	}
+
+	return true;
 }
 
 bool SetWSASend(st_Session* ptr)
@@ -370,9 +483,10 @@ void ReleaseSession(st_Session* ptr)
 {
 	AcquireSRWLockExclusive(&_sessionMapLock);
 	_sessionMap.erase(ptr->dwSessionID);
-	//EnterCriticalSection(&(ptr->CrtLock));
-	//LeaveCriticalSection(&(ptr->CrtLock));
 	ReleaseSRWLockExclusive(&_sessionMapLock);
+
+	EnterCriticalSection(&(ptr->CrtLock));
+	LeaveCriticalSection(&(ptr->CrtLock));
 
 	DeleteCriticalSection(&(ptr->CrtLock));
 	closesocket(ptr->sock);
