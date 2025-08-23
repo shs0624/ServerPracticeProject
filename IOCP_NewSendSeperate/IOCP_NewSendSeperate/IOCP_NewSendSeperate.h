@@ -28,6 +28,7 @@ struct st_Session
 	CRITICAL_SECTION CrtLock;
 	DWORD dwIOCount;
 	BOOL bSendFlag;
+	BOOL bSessionUsing;
 };
 
 int nTotalSockets = 0;

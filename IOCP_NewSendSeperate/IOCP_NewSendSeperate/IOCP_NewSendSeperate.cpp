@@ -34,7 +34,10 @@ unsigned int _EchoIOCPWorkerThreadID[50];
 CRingBuffer* _echoBuffer;
 
 unordered_map<DWORD, st_Session*> _sessionMap;
+// 300 사이즈 배열로 동적할당
+st_Session* _sessionArr;
 
+bool Init();
 bool RecvProc(st_Session* ptr, DWORD cbTransferred);
 
 bool SetWSARecv(st_Session* ptr);
@@ -44,21 +47,11 @@ void ReleaseSession(st_Session* ptr);
 int main()
 {
 	int retval;
-	InitializeSRWLock(&_sessionMapLock);
-	InitializeCriticalSection(&_echoBufferLock);
-
-	_echoBuffer = new CRingBuffer(100000);
 
 	// 윈속 초기화
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
-
-	_NetIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
-	if (_NetIOCPHandle == NULL) return 1;
-
-	_EchoIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
-	if (_EchoIOCPHandle == NULL) return 1;
 
 	// socket();
 	listen_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -85,13 +78,49 @@ int main()
 	if (retval == SOCKET_ERROR)
 		err_quit("listen()");
 
-	//CPU 개수 확인
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
+	if (!Init())
+		return 1;
+	
+	printf("\n[TCP 서버] 시작\n");
+	char ch;
+	while (1)
+	{
+		// 컨트롤?
+		ch = _getch();
+		if (ch == 'Q' || ch == 'q')
+			break;
+	}
+
+	WSACleanup();
+	return 0;
+}
+
+bool Init()
+{
+	InitializeSRWLock(&_sessionMapLock);
+	InitializeCriticalSection(&_echoBufferLock);
+
+	_echoBuffer = new CRingBuffer(100000);
+	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * 300);
+
+	for (int i = 0; i < 300; i++)
+	{
+		//_sessionArr[i].bSessionUsing = false;
+	}
+
+	_NetIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	if (_NetIOCPHandle == NULL) return 1;
+
+	_EchoIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	if (_EchoIOCPHandle == NULL) return 1;
 
 	_acceptThreadHandle = (HANDLE)_beginthreadex(NULL, 0, AcceptThread, 0, 0, &_acceptThreadID);
 	if (_acceptThreadHandle == NULL)
-		return 1;
+		return false;
+
+	//CPU 개수 확인
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
 
 	for (int i = 0; i < (int)si.dwNumberOfProcessors * 2 - 3; i++)
 	{
@@ -106,19 +135,6 @@ int main()
 		if (_EchoIOCPWorkerThreadHandleArr[i] == NULL)
 			return 1;
 	}
-
-	printf("\n[TCP 서버] 시작\n");
-	char ch;
-	while (1)
-	{
-		// 컨트롤?
-		ch = _getch();
-		if (ch == 'Q' || ch == 'q')
-			break;
-	}
-
-	WSACleanup();
-	return 0;
 }
 
 unsigned int WINAPI AcceptThread(LPVOID arg)
@@ -142,9 +158,6 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		}
 
 		// 비동기 입출력 시작
-		/*EnterCriticalSection(&_poolLock);
-		st_Session* ptr = _sessionPool->Alloc();
-		LeaveCriticalSection(&_poolLock);*/
 		st_Session* ptr = new st_Session;
 		if (ptr == NULL) break;
 
@@ -160,6 +173,7 @@ unsigned int WINAPI AcceptThread(LPVOID arg)
 		ptr->sock = client_sock;
 		ptr->recvBuf = new CRingBuffer(15000);
 		ptr->sendBuf = new CRingBuffer(15000);
+		//ptr->bSessionUsing = true;
 		InitializeCriticalSection(&(ptr->CrtLock));
 
 		AcquireSRWLockExclusive(&_sessionMapLock);
