@@ -124,9 +124,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CLanServer.cpp" />
+    <ClCompile Include="CRingBuffer.cpp" />
+    <ClCompile Include="CSerializationBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CCrashDump.h" />
     <ClInclude Include="CLanServer.h" />
+    <ClInclude Include="CRingBuffer.h" />
+    <ClInclude Include="CSerializationBuffer.h" />
+    <ClInclude Include="Debug.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
