@@ -2,6 +2,7 @@
 #include "CSerializationBuffer.h"
 #include "CRingBuffer.h"
 #define PROTOCOL_MAX_SIZE 16
+#define SERVERPORT	6000
 
 #pragma pack(1)
 struct st_NetHeader
@@ -66,11 +67,13 @@ protected:
 
 	// 초기화 함수
 	void InitializeSessions(int maxConnection);
+	bool Init();
 
 	// 스레드 함수들
 	static unsigned int WINAPI TPSThread(LPVOID arg);
 	static unsigned int WINAPI AcceptThread(LPVOID arg);
 	static unsigned int WINAPI IOCPWorkerThread(LPVOID arg);
+	static unsigned int WINAPI EchoThread(LPVOID arg);
 
 	// 메세지 처리를 위한 함수
 	void GetSession(ULONG ulSessionID, st_Session** pSession);
