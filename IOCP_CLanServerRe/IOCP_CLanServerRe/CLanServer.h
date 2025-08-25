@@ -62,12 +62,15 @@ protected:
 
 	HANDLE _hTPSUpdateEvent;
 
-	DWORD _threadID = 1;
+	ULONG _threadID = 1;
 	st_Session* _sessionArr;
 
 	// 초기화 함수
-	void InitializeSessions(int maxConnection);
+	void InitializeSessions(ULONG maxConnection);
 	bool Init();
+
+	int FindUsableSessionIndex();
+	void FindSession(ULONG sessionID, st_Session** ptr);
 
 	// 스레드 함수들
 	static unsigned int WINAPI TPSThread(LPVOID arg);

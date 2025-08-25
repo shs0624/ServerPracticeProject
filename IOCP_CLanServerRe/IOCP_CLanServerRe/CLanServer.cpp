@@ -36,6 +36,38 @@ unsigned int _NetIOCPWorkerThreadID[50];
 
 bool _bServerEnabled = true;
 
+// thread-safe 락 걸음
+int CLanServer::FindUsableSessionIndex()
+{
+	AcquireSRWLockShared(&_sessionMapLock);
+	for (int i = 0; i < 300; i++)
+	{
+		if (!_sessionArr[i].bSessionUsing)
+			return i;
+	}
+	ReleaseSRWLockShared(&_sessionMapLock);
+
+	return -1;
+}
+
+// thread-safe 락 걸음
+void CLanServer::FindSession(ULONG sessionID, st_Session** pSession)
+{
+	AcquireSRWLockShared(&_sessionMapLock);
+	for (int i = 0; i < 300; i++)
+	{
+		if (_sessionArr[i].ulSessionID == sessionID && _sessionArr[i].bSessionUsing)
+		{
+			*pSession = &_sessionArr[i];
+			return;
+		}
+	}
+	ReleaseSRWLockShared(&_sessionMapLock);
+
+	*pSession = NULL;
+	return;
+}
+
 bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection)
 {
 	int retval;
@@ -76,7 +108,7 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 	printf("\n[TCP 서버] 시작\n");
 }
 
-void CLanServer::InitializeSessions(int maxConnection)
+void CLanServer::InitializeSessions(ULONG maxConnection)
 {
 	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * 300);
 	_iSessionCount = 0;
@@ -119,4 +151,104 @@ bool CLanServer::Init()
 	}
 
 	_EchoIOCPWorkerHandle = (HANDLE)_beginthreadex(NULL, 0, EchoThread, 0, 0, &_EchoIOCPWorkerThreadID);
+}
+
+bool CLanServer::Disconnect(ULONG sessionID)
+{
+	st_Session* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+		return false;
+
+	closesocket(ptr->sock);
+	return true;
+}
+
+bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
+{
+	st_Session* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+		return false;
+
+
+}
+
+bool CLanServer::SetWSARecv(st_Session* ptr)
+{
+	// WSARecv
+	WSABUF recvWsa[2];
+	int recvRet;
+	DWORD flags = 0, recvbytes = 0;
+	ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
+	ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
+	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
+	if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
+	{
+		// 두개로 나눠 받아야 함
+		recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
+		recvWsa[0].len = ptr->recvBuf->DirectEnqueueSize();
+
+		recvWsa[1].buf = ptr->recvBuf->GetArrPtr();
+		recvWsa[1].len = ptr->recvBuf->GetFreeSize() - ptr->recvBuf->DirectEnqueueSize();
+
+		recvRet = WSARecv(ptr->sock, recvWsa, 2, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
+	}
+	else
+	{
+		recvWsa[0].buf = ptr->recvBuf->GetRearBufferPtr();
+		recvWsa[0].len = ptr->recvBuf->GetFreeSize();
+
+		recvRet = WSARecv(ptr->sock, &recvWsa[0], 1, &recvbytes, &flags, &(ptr->recvOverlapped), NULL);
+	}
+
+	if (recvRet == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != WSA_IO_PENDING)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool CLanServer::SetWSASend(st_Session* ptr)
+{
+	int retval;
+	DWORD sendbytes;
+
+	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
+	int sendSize = ptr->sendBuf->GetUseSize();
+	// WSASend
+	if (ptr->sendBuf->DirectDequeueSize() < sendSize)
+	{
+		// 두개로 나눠 보내야함
+		WSABUF sendWsa[2];
+		sendWsa[0].buf = ptr->sendBuf->GetFrontBufferPtr();
+		sendWsa[0].len = ptr->sendBuf->DirectDequeueSize();
+
+		sendWsa[1].buf = ptr->sendBuf->GetArrPtr();
+		sendWsa[1].len = sendSize - ptr->sendBuf->DirectDequeueSize();
+		retval = WSASend(ptr->sock, sendWsa, 2, &sendbytes,
+			0, &(ptr->sendOverlapped), NULL);
+	}
+	else
+	{
+		WSABUF sendWsa;
+		sendWsa.buf = ptr->sendBuf->GetFrontBufferPtr();
+		sendWsa.len = sendSize;
+		retval = WSASend(ptr->sock, &sendWsa, 1, &sendbytes,
+			0, &(ptr->sendOverlapped), NULL);
+	}
+
+	if (retval == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != WSA_IO_PENDING)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
