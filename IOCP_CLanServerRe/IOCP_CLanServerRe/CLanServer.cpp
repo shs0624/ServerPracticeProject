@@ -108,6 +108,10 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 	printf("\n[TCP 서버] 시작\n");
 }
 
+static unsigned int WINAPI AcceptThread(LPVOID arg);
+static unsigned int WINAPI IOCPWorkerThread(LPVOID arg);
+static unsigned int WINAPI EchoThread(LPVOID arg);
+
 void CLanServer::InitializeSessions(ULONG maxConnection)
 {
 	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * 300);
