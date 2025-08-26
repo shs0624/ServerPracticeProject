@@ -33,6 +33,9 @@
     <ClCompile Include="CSerializationBuffer.cpp">
       <Filter>CSerializationBuffer</Filter>
     </ClCompile>
+    <ClCompile Include="EchoServer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CLanServer.h">
@@ -49,6 +52,9 @@
     </ClInclude>
     <ClInclude Include="CSerializationBuffer.h">
       <Filter>CSerializationBuffer</Filter>
+    </ClInclude>
+    <ClInclude Include="EchoServer.h">
+      <Filter>소스 파일</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

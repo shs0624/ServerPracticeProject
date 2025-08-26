@@ -3,11 +3,24 @@
 #include "CRingBuffer.h"
 #define PROTOCOL_MAX_SIZE 16
 #define SERVERPORT	6000
+#define PROTOCOL_SIZE 10
+#define PROTOCOL_NUMSIZE 8
 
 #pragma pack(1)
 struct st_NetHeader
 {
 	short shLen;
+};
+
+struct st_PACKET
+{
+	short shLen;
+	LONGLONG llNum;
+};
+
+struct st_PACKET_HEADER
+{
+	ULONG ulSessionID;
 };
 #pragma pack(pop)
 
@@ -67,7 +80,7 @@ protected:
 
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);
-	bool Init();
+	bool Init(int maxConnection);
 
 	int FindUsableSessionIndex();
 	void FindSession(ULONG sessionID, st_Session** ptr);

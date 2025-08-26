@@ -51,6 +51,10 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	char* GetBufferPtr(void) { return _iBuffer; }
 
+	char* GetTailPtr(void) { return _iBuffer + _tail; }
+
+	char* GetHeadPtr(void) { return _iBuffer + _head; }
+
 	//////////////////////////////////////////////////////////////////////////
 	// 버퍼 Pos 이동. (음수이동은 안됨)
 	// GetBufferPtr 함수를 이용하여 외부에서 강제로 버퍼 내용을 수정할 경우 사용. 
