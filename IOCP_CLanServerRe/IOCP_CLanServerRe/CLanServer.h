@@ -1,6 +1,7 @@
 #pragma once
 #include "CSerializationBuffer.h"
 #include "CRingBuffer.h"
+#include "TestStack.h"
 #define PROTOCOL_MAX_SIZE 16
 #define SERVERPORT	6000
 #define PROTOCOL_SIZE 10
@@ -77,6 +78,8 @@ protected:
 
 	ULONG _threadID = 1;
 	st_Session* _sessionArr;
+
+	TestStack<ULONGLONG> _emptyIndexStack;
 
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);

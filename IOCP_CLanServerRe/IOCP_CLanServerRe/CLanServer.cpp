@@ -39,18 +39,16 @@ bool _bServerEnabled = true;
 // thread-safe 락 걸음
 int CLanServer::FindUsableSessionIndex()
 {
+	int idx = -1;
 	AcquireSRWLockExclusive(&_sessionMapLock);
-	for (int i = 0; i < _imaxConnection; i++)
+	if (_emptyIndexStack.count() != 0)
 	{
-		if (!_sessionArr[i].bSessionUsing)
-		{
-			ReleaseSRWLockExclusive(&_sessionMapLock);
-			return i;
-		}
+		idx = _emptyIndexStack.top();
+		_emptyIndexStack.pop();
 	}
 
 	ReleaseSRWLockExclusive(&_sessionMapLock);
-	return -1;
+	return idx;
 }
 
 // thread-safe 락 걸음
@@ -133,6 +131,8 @@ unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 		{
 			continue;
 		}
+
+		thisPtr->OnAccept();
 	}
 
 	return 0;
@@ -167,14 +167,17 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	// 수정이 필요함
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
-	ptr->ulSessionID = _threadID++;
+	ptr->bSessionUsing = true;
+	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
+	ULONGLONG ulIdx = (idx << 48);
+	ptr->ulSessionID = (ulIdx | id);
 	ptr->dwIOCount = 0;
 	ptr->bSendFlag = false;
 	ptr->sock = client_sock;
 	ptr->sendBuf->ClearBuffer();
 	ptr->recvBuf->ClearBuffer();
-	ptr->bSessionUsing = true;
-
+	
+	
 	InterlockedIncrement((LONG*)&_iSessionCount);
 
 	// 소켓을 IOCP에 등록
@@ -335,11 +338,13 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * maxConnection);
 	_iSessionCount = 0;
 
-	for (int i = 0; i < maxConnection; i++)
+	for (ULONGLONG i = 0; i < maxConnection; i++)
 	{
 		_sessionArr[i].bSessionUsing = false;
 		_sessionArr[i].sendBuf = new CRingBuffer(15000);
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
+
+		_emptyIndexStack.push(i);
 	}
 }
 
@@ -563,10 +568,13 @@ void CLanServer::ReleaseSession(st_Session* ptr)
 {
 	closesocket(ptr->sock);
 
+	ULONGLONG idx = (ptr->ulSessionID) >> 48;
 	OnRelease(ptr->ulSessionID);
 	ptr->recvBuf->ClearBuffer();
 	ptr->sendBuf->ClearBuffer();
 	ptr->bSessionUsing = false;
+	_emptyIndexStack.push(idx);
+	// 인덱스를 아직 ID에 넣지 않음
 	InterlockedDecrement((LONG*)&_iSessionCount);
 }
 

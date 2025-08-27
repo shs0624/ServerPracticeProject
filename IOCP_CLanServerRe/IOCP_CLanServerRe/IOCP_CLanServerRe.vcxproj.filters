@@ -22,6 +22,9 @@
     <Filter Include="CSerializationBuffer">
       <UniqueIdentifier>{18093af1-c126-4614-a938-3e57cdbf4a92}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Lib">
+      <UniqueIdentifier>{6d8a319b-588c-4de0-8577-f4845d6c4020}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CLanServer.cpp">
@@ -55,6 +58,9 @@
     </ClInclude>
     <ClInclude Include="EchoServer.h">
       <Filter>소스 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="TestStack.h">
+      <Filter>Lib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
