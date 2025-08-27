@@ -39,6 +39,9 @@
     <ClCompile Include="EchoServer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="CLanServer_Monitor.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CLanServer.h">

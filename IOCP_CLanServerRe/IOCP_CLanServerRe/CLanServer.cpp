@@ -12,7 +12,6 @@
 procademy::CCrashDump cCrashDump;
 
 CRITICAL_SECTION _echoBufferLock;
-SRWLOCK _sessionMapLock;
 
 SOCKET _ListenSocket;
 
@@ -40,33 +39,20 @@ bool _bServerEnabled = true;
 int CLanServer::FindUsableSessionIndex()
 {
 	int idx = -1;
-	AcquireSRWLockExclusive(&_sessionMapLock);
 	if (_emptyIndexStack.count() != 0)
 	{
 		idx = _emptyIndexStack.top();
 		_emptyIndexStack.pop();
 	}
 
-	ReleaseSRWLockExclusive(&_sessionMapLock);
 	return idx;
 }
 
 // thread-safe 락 걸음
 void CLanServer::FindSession(ULONG sessionID, st_Session** pSession)
 {
-	AcquireSRWLockExclusive(&_sessionMapLock);
-	for (int i = 0; i < _imaxConnection; i++)
-	{
-		if (_sessionArr[i].ulSessionID == sessionID && _sessionArr[i].bSessionUsing)
-		{
-			*pSession = &_sessionArr[i];
-			ReleaseSRWLockExclusive(&_sessionMapLock);
-			return;
-		}
-	}
-	ReleaseSRWLockExclusive(&_sessionMapLock);
-
-	*pSession = NULL;
+	ULONGLONG idx = sessionID >> 48;
+	*pSession = &_sessionArr[idx];
 	return;
 }
 
@@ -177,7 +163,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	ptr->sendBuf->ClearBuffer();
 	ptr->recvBuf->ClearBuffer();
 	
-	
+	InterlockedIncrement((LONG*)&_iAcceptTPS);
 	InterlockedIncrement((LONG*)&_iSessionCount);
 
 	// 소켓을 IOCP에 등록
@@ -351,7 +337,6 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 bool CLanServer::Init(int maxConnection)
 {
 	_imaxConnection = maxConnection;
-	InitializeSRWLock(&_sessionMapLock);
 	InitializeCriticalSection(&_echoBufferLock);
 
 	_echoBuffer = new CRingBuffer(100000);
@@ -362,6 +347,11 @@ bool CLanServer::Init(int maxConnection)
 
 	_EchoIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 	if (_EchoIOCPHandle == NULL) return false;
+
+	_hTPSUpdateEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	_tpsThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TPSThread, this, 0, &_acceptThreadID);
+	if (_tpsThreadHandle == NULL)
+		return false;
 
 	_acceptThreadHandle = (HANDLE)_beginthreadex(NULL, 0, AcceptThread, this, 0, &_acceptThreadID);
 	if (_acceptThreadHandle == NULL)
@@ -404,14 +394,14 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 		if (peekRet != sizeof(st_NetHeader))
 		{
 			DebugBreak();
-			closesocket(ptr->sock);
+			Disconnect(ptr->ulSessionID);
 			return false;
 		}
 
 		if (useSize < sizeof(st_NetHeader) + netHeader.shLen)
 		{
 			DebugBreak();
-			closesocket(ptr->sock);
+			Disconnect(ptr->ulSessionID);
 			return false;
 		}
 
@@ -427,12 +417,14 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 		if (enqueueRet != netHeader.shLen)
 		{
 			DebugBreak();
-			closesocket(ptr->sock);
+			Disconnect(ptr->ulSessionID);
 			return false;
 		}
 
 		// Post
 		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, &(ptr->sendOverlapped));
+
+		InterlockedIncrement((LONG*)&_iRecvMessageTPS);
 	}
 }
 
@@ -574,6 +566,7 @@ void CLanServer::ReleaseSession(st_Session* ptr)
 	ptr->sendBuf->ClearBuffer();
 	ptr->bSessionUsing = false;
 	_emptyIndexStack.push(idx);
+
 	// 인덱스를 아직 ID에 넣지 않음
 	InterlockedDecrement((LONG*)&_iSessionCount);
 }

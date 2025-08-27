@@ -126,6 +126,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CLanServer.cpp" />
+    <ClCompile Include="CLanServer_Monitor.cpp" />
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
     <ClCompile Include="EchoServer.cpp" />
