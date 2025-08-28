@@ -12,6 +12,7 @@
 procademy::CCrashDump cCrashDump;
 
 CRITICAL_SECTION _echoBufferLock;
+CRITICAL_SECTION _indexStackLock;
 
 SOCKET _ListenSocket;
 
@@ -39,17 +40,18 @@ bool _bServerEnabled = true;
 int CLanServer::FindUsableSessionIndex()
 {
 	int idx = -1;
+	EnterCriticalSection(&_indexStackLock);
 	if (_emptyIndexStack.count() != 0)
 	{
 		idx = _emptyIndexStack.top();
 		_emptyIndexStack.pop();
 	}
-
+	LeaveCriticalSection(&_indexStackLock);
 	return idx;
 }
 
 // thread-safe 락 걸음
-void CLanServer::FindSession(ULONG sessionID, st_Session** pSession)
+void CLanServer::FindSession(ULONGLONG sessionID, st_Session** pSession)
 {
 	ULONGLONG idx = sessionID >> 48;
 	*pSession = &_sessionArr[idx];
@@ -141,7 +143,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	}
 
 	// 비동기 입출력 시작
-	int idx = FindUsableSessionIndex();
+	ULONGLONG idx = FindUsableSessionIndex();
 	if (idx == -1)
 	{
 		DebugBreak();
@@ -153,14 +155,14 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	// 수정이 필요함
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
-	ptr->bSessionUsing = true;
+	ptr->bSessionAlive = true;
 	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
 	ULONGLONG ulIdx = (idx << 48);
 	ptr->ulSessionID = (ulIdx | id);
 	ptr->dwIOCount = 0;
 	ptr->bSendFlag = false;
 	ptr->sock = client_sock;
-	ptr->sendBuf->ClearBuffer();
+	ptr->sendBuf.clear();
 	ptr->recvBuf->ClearBuffer();
 	
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
@@ -234,12 +236,25 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		}
 		else
 		{
-			ptr->sendBuf->MoveFront(cbTransferred);
-			int useSize = ptr->sendBuf->GetUseSize();
-			if (useSize > 0)
+			EnterCriticalSection(&ptr->sendLock);
+			int cnt = ptr->dwSendCount;
+			for (int i = 0; i < cnt; i++)
+			{
+				CPacket* cPacketPtr = (CPacket*)(ptr->sendBuf.front());
+				delete(cPacketPtr);
+
+				ptr->sendBuf.pop_front();
+			}
+
+			ptr->dwSendCount -= cnt;
+			if (ptr->dwSendCount < 0)
+				DebugBreak();
+
+			if (!ptr->sendBuf.empty())
 			{
 				if (!thisPtr->SetWSASend(ptr))
 				{
+					InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 					{
 						// 연결 끊기
@@ -251,6 +266,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			{
 				InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
 			}
+			LeaveCriticalSection(&ptr->sendLock);
 		}
 
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
@@ -306,16 +322,13 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 			continue;
 		}
 
-		// 세션은 찾았으니, 걔한테 SendPacket
-		if (!thisPtr->SendPacket(header.ulSessionID, &csPacket))
+		if (!ptr->bSessionAlive)
 		{
-			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
-			{
-				// 연결 끊기
-				thisPtr->ReleaseSession(ptr);
-				continue;
-			}
+			continue;
 		}
+
+		// 세션은 찾았으니, 걔한테 SendPacket
+		thisPtr->SendPacket(header.ulSessionID, &csPacket);
 	}
 }
 
@@ -326,9 +339,9 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 
 	for (ULONGLONG i = 0; i < maxConnection; i++)
 	{
-		_sessionArr[i].bSessionUsing = false;
-		_sessionArr[i].sendBuf = new CRingBuffer(15000);
+		_sessionArr[i].bSessionAlive = false;
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
+		InitializeCriticalSection(&_sessionArr[i].sendLock);
 
 		_emptyIndexStack.push(i);
 	}
@@ -338,6 +351,7 @@ bool CLanServer::Init(int maxConnection)
 {
 	_imaxConnection = maxConnection;
 	InitializeCriticalSection(&_echoBufferLock);
+	InitializeCriticalSection(&_indexStackLock);
 
 	_echoBuffer = new CRingBuffer(100000);
 	InitializeSessions(maxConnection);
@@ -406,13 +420,13 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 		}
 
 		ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
-		ptr->recvBuf->Dequeue((char*)csPacket.GetTailPtr(), netHeader.shLen);
+		ptr->recvBuf->Dequeue(csPacket.GetTailPtr(), netHeader.shLen);
 		csPacket.MoveWritePos(netHeader.shLen);
 
 		header.ulSessionID = ptr->ulSessionID;
 		EnterCriticalSection(&_echoBufferLock);
 		_echoBuffer->Enqueue((char*)&header, sizeof(st_PACKET_HEADER));
-		int enqueueRet = _echoBuffer->Enqueue((char*)csPacket.GetBufferPtr(), netHeader.shLen);
+		int enqueueRet = _echoBuffer->Enqueue((char*)csPacket.GetHeadPtr(), netHeader.shLen);
 		LeaveCriticalSection(&_echoBufferLock);
 		if (enqueueRet != netHeader.shLen)
 		{
@@ -428,20 +442,22 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 	}
 }
 
-bool CLanServer::Disconnect(ULONG sessionID)
+bool CLanServer::Disconnect(ULONGLONG sessionID)
 {
 	st_Session* ptr;
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 		return false;
 
+	ptr->bSessionAlive = false;
 	closesocket(ptr->sock);
 	return true;
 }
 
-bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
+// send가 아닌 IOCP에서만 연결을 끊어야함. 지금 메세지마다 연결끊기해서 세션수 지랄남
+bool CLanServer::SendPacket(ULONGLONG sessionID, CPacket* cPacket)
 {
-	char temp[PROTOCOL_MAX_SIZE + 1];
+	CPacket* sendCPacket = new CPacket(PROTOCOL_MAX_SIZE);
 
 	st_Session* ptr;
 	FindSession(sessionID, &ptr);
@@ -449,29 +465,30 @@ bool CLanServer::SendPacket(ULONG sessionID, CPacket* cPacket)
 		return false;
 
 	short shSize = cPacket->GetDataSize();
-	cPacket->GetData(temp, shSize);
-
 	st_NetHeader header;
 	header.shLen = shSize;
+	
+	sendCPacket->PutData((char*)&header, sizeof(st_NetHeader));
+	cPacket->GetData(sendCPacket->GetHeadPtr() + sizeof(st_NetHeader), shSize);
+	sendCPacket->MoveWritePos(shSize);
 
-	if (ptr->sendBuf->GetFreeSize() < sizeof(st_NetHeader) + shSize)
-	{
-		DebugBreak();
-		Disconnect(sessionID);
-		return false;
-	}
-
-	ptr->sendBuf->Enqueue((char*)&header, sizeof(st_NetHeader));
-	ptr->sendBuf->Enqueue(temp, shSize);
-
+	EnterCriticalSection(&ptr->sendLock);
+	ptr->sendBuf.push_back(sendCPacket);
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
 		if (!SetWSASend(ptr))
 		{
+			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+			{
+				// 연결 끊기
+				ReleaseSession(ptr);
+			}
+			LeaveCriticalSection(&ptr->sendLock);
 			return false;
 		}
 	}
-
+	LeaveCriticalSection(&ptr->sendLock);
 	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
 
 	return true;
@@ -518,37 +535,32 @@ bool CLanServer::SetWSARecv(st_Session* ptr)
 
 bool CLanServer::SetWSASend(st_Session* ptr)
 {
-	int retval;
+	int retval, sendCount = 0;
 	DWORD sendbytes;
 
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
-	int sendSize = ptr->sendBuf->GetUseSize();
-	// WSASend
-	if (ptr->sendBuf->DirectDequeueSize() < sendSize)
-	{
-		// 두개로 나눠 보내야함
-		WSABUF sendWsa[2];
-		sendWsa[0].buf = ptr->sendBuf->GetFrontBufferPtr();
-		sendWsa[0].len = ptr->sendBuf->DirectDequeueSize();
+	WSABUF sendWsa[200];
 
-		sendWsa[1].buf = ptr->sendBuf->GetArrPtr();
-		sendWsa[1].len = sendSize - ptr->sendBuf->DirectDequeueSize();
-		retval = WSASend(ptr->sock, sendWsa, 2, &sendbytes,
-			0, &(ptr->sendOverlapped), NULL);
-	}
-	else
+	int loopCnt = ptr->sendBuf.size();
+	for (int i = 0; i < loopCnt; i++)
 	{
-		WSABUF sendWsa;
-		sendWsa.buf = ptr->sendBuf->GetFrontBufferPtr();
-		sendWsa.len = sendSize;
-		retval = WSASend(ptr->sock, &sendWsa, 1, &sendbytes,
-			0, &(ptr->sendOverlapped), NULL);
+		CPacket* cpacket = (CPacket*)ptr->sendBuf[i];
+		sendWsa[i].buf = cpacket->GetBufferPtr();
+
+		sendWsa[i].len = sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
+		sendCount++;
 	}
+
+	retval = WSASend(ptr->sock, sendWsa, sendCount, &sendbytes,
+		0, &(ptr->sendOverlapped), NULL);
+	ptr->dwSendCount = sendCount;
 
 	if (retval == SOCKET_ERROR)
 	{
-		if (WSAGetLastError() != WSA_IO_PENDING)
+		int err = WSAGetLastError();
+		if (err != WSA_IO_PENDING)
 		{
+			printf("WSASend Fail! : %d\n", err);
 			return false;
 		}
 	}
@@ -558,13 +570,16 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 
 void CLanServer::ReleaseSession(st_Session* ptr)
 {
+	EnterCriticalSection(&ptr->sendLock);
+	LeaveCriticalSection(&ptr->sendLock);
+
 	closesocket(ptr->sock);
 
 	ULONGLONG idx = (ptr->ulSessionID) >> 48;
 	OnRelease(ptr->ulSessionID);
 	ptr->recvBuf->ClearBuffer();
-	ptr->sendBuf->ClearBuffer();
-	ptr->bSessionUsing = false;
+	ptr->sendBuf.clear();
+	ptr->bSessionAlive = false;
 	_emptyIndexStack.push(idx);
 
 	// 인덱스를 아직 ID에 넣지 않음

@@ -34,9 +34,9 @@ public:
 
 	virtual void OnAccept();
 
-	virtual void OnRelease(ULONG SessionID);
+	virtual void OnRelease(ULONGLONG SessionID);
 
-	virtual void OnRecv(ULONG SessionID, CPacket* cpacket);
+	virtual void OnRecv(ULONGLONG SessionID, CPacket* cpacket);
 
 	virtual void OnError(int errorcode, WCHAR* message);
 private:

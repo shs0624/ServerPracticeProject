@@ -2,6 +2,7 @@
 #include "CSerializationBuffer.h"
 #include "CRingBuffer.h"
 #include "TestStack.h"
+#include <deque>
 #define PROTOCOL_MAX_SIZE 16
 #define SERVERPORT	6000
 #define PROTOCOL_SIZE 10
@@ -21,7 +22,7 @@ struct st_PACKET
 
 struct st_PACKET_HEADER
 {
-	ULONG ulSessionID;
+	ULONGLONG ulSessionID;
 };
 #pragma pack(pop)
 
@@ -29,14 +30,17 @@ struct st_Session
 {
 	OVERLAPPED sendOverlapped;
 	OVERLAPPED recvOverlapped;
-	ULONG ulSessionID;
+	ULONGLONG ulSessionID;
 	SOCKET sock;
-	CRingBuffer* sendBuf;
+	//CRingBuffer* sendBuf;
+	std::deque<LPVOID> sendBuf;
 	CRingBuffer* recvBuf;
 
+	DWORD dwSendCount;
 	DWORD dwIOCount;
 	BOOL bSendFlag;
-	BOOL bSessionUsing;
+	BOOL bSessionAlive;
+	CRITICAL_SECTION sendLock;
 };
 
 class CLanServer
@@ -47,8 +51,8 @@ public:
 	int GetSessionCount();
 	virtual void QuitServer();
 
-	bool Disconnect(ULONG sessionID);
-	bool SendPacket(ULONG sessionID, CPacket* cPacket);
+	bool Disconnect(ULONGLONG sessionID);
+	bool SendPacket(ULONGLONG sessionID, CPacket* cPacket);
 
 	int getAcceptTPS() { return _iAcceptTPS; }
 	int getRecvMessageTPS() { return _iRecvMessageTPS; }
@@ -58,9 +62,9 @@ public:
 
 	virtual void OnAccept() = 0; // Accept 후 접속처리 완료 후 호출
 
-	virtual void OnRelease(ULONG SessionID) = 0;
+	virtual void OnRelease(ULONGLONG SessionID) = 0;
 
-	virtual void OnRecv(ULONG SessionID, CPacket* cpacket) = 0;
+	virtual void OnRecv(ULONGLONG SessionID, CPacket* cpacket) = 0;
 	//virtual void OnMessage() = 0;
 
 	//	virtual void OnWorkerThreadBegin() = 0;                    < 워커스레드 GQCS 바로 하단에서 호출
@@ -86,7 +90,7 @@ protected:
 	bool Init(int maxConnection);
 
 	int FindUsableSessionIndex();
-	void FindSession(ULONG sessionID, st_Session** ptr);
+	void FindSession(ULONGLONG sessionID, st_Session** ptr);
 
 	// 스레드 함수들
 	static unsigned int WINAPI TPSThread(LPVOID arg);
@@ -95,7 +99,7 @@ protected:
 	static unsigned int WINAPI EchoThread(LPVOID arg);
 
 	// 메세지 처리를 위한 함수
-	void GetSession(ULONG ulSessionID, st_Session** pSession);
+	void GetSession(ULONGLONG ulSessionID, st_Session** pSession);
 	bool AcceptProc(CLanServer* thisPtr);
 	bool SetWSARecv(st_Session* ptr);
 	bool SetWSASend(st_Session* ptr);

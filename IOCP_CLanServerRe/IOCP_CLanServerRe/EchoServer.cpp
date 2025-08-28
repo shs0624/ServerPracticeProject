@@ -29,12 +29,12 @@ void EchoServer::OnAccept()
 
 }
 
-void EchoServer::OnRelease(ULONG SessionID)
+void EchoServer::OnRelease(ULONGLONG SessionID)
 {
 
 }
 
-void EchoServer::OnRecv(ULONG SessionID, CPacket* cpacket)
+void EchoServer::OnRecv(ULONGLONG SessionID, CPacket* cpacket)
 {
 	//Profiler pro(L"OnRecv");
 	char temp[PROTOCOL_MAX_SIZE + 1];

@@ -16,7 +16,7 @@ void CLanServer::ResetTPS()
 	printf("AcceptTPS : %d\n", _iAcceptTPS);
 	printf("RecvMessageTPS : %d\n", _iRecvMessageTPS);
 	printf("SendMessageTPS : %d\n", _iSendMessageTPS);
-	printf("\n\n");
+	printf("\n");
 
 	_iAcceptTPS = 0;
 	_iRecvMessageTPS = 0;
