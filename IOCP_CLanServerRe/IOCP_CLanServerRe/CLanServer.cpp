@@ -54,7 +54,15 @@ int CLanServer::FindUsableSessionIndex()
 void CLanServer::FindSession(ULONGLONG sessionID, st_Session** pSession)
 {
 	ULONGLONG idx = sessionID >> 48;
-	*pSession = &_sessionArr[idx];
+	if (sessionID == _sessionArr[idx].ulSessionID)
+	{
+		*pSession = &_sessionArr[idx];
+	}
+	else
+	{
+		*pSession = NULL;
+	}
+
 	return;
 }
 
@@ -176,7 +184,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
 			// ¿¬°á ²÷±â
-			ReleaseSession(ptr);
+			ReleaseSession(ptr->ulSessionID);
 		}
 	}
 
@@ -208,7 +216,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 			{
 				// ¿¬°á ²÷±â
-				thisPtr->ReleaseSession(ptr);
+				thisPtr->ReleaseSession(ptr->ulSessionID);
 			}
 			continue;
 		}
@@ -219,7 +227,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			{
 				if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
 				{
-					thisPtr->ReleaseSession(ptr);
+					thisPtr->ReleaseSession(ptr->ulSessionID);
 					continue;
 				}
 			}
@@ -229,7 +237,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 				if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 				{
 					// ¿¬°á ²÷±â
-					thisPtr->ReleaseSession(ptr);
+					thisPtr->ReleaseSession(ptr->ulSessionID);
 					continue;
 				}
 			}
@@ -258,7 +266,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 					{
 						// ¿¬°á ²÷±â
-						thisPtr->ReleaseSession(ptr);
+						thisPtr->ReleaseSession(ptr->ulSessionID);
 					}
 				}
 			}
@@ -272,7 +280,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
 			// ¿¬°á ²÷±â
-			thisPtr->ReleaseSession(ptr);
+			thisPtr->ReleaseSession(ptr->ulSessionID);
 		}
 	}
 }
@@ -482,7 +490,7 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, CPacket* cPacket)
 			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 			{
 				// ¿¬°á ²÷±â
-				ReleaseSession(ptr);
+				ReleaseSession(ptr->ulSessionID);
 			}
 			LeaveCriticalSection(&ptr->sendLock);
 			return false;
@@ -568,18 +576,26 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	return true;
 }
 
-void CLanServer::ReleaseSession(st_Session* ptr)
+void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 {
+	st_Session* ptr;
+	FindSession(ulSessionID, &ptr);
+	if (ptr == NULL)
+		return;
+
 	EnterCriticalSection(&ptr->sendLock);
 	LeaveCriticalSection(&ptr->sendLock);
 
-	closesocket(ptr->sock);
+	if (!ptr->bSessionAlive)
+		DebugBreak();
 
-	ULONGLONG idx = (ptr->ulSessionID) >> 48;
+	ULONGLONG idx = (ulSessionID) >> 48;
+	closesocket(ptr->sock);
 	OnRelease(ptr->ulSessionID);
 	ptr->recvBuf->ClearBuffer();
 	ptr->sendBuf.clear();
 	ptr->bSessionAlive = false;
+	ptr->dwIOCount = 0;
 	_emptyIndexStack.push(idx);
 
 	// ÀÎµ¦½º¸¦ ¾ÆÁ÷ ID¿¡ ³ÖÁö ¾ÊÀ½

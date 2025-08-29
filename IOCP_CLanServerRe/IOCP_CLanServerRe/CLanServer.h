@@ -104,6 +104,6 @@ protected:
 	bool SetWSARecv(st_Session* ptr);
 	bool SetWSASend(st_Session* ptr);
 	bool RecvProc(st_Session* ptr, DWORD cbTransferred);
-	void ReleaseSession(st_Session* ptr);
+	void ReleaseSession(ULONGLONG ulSessionID);
 	void ResetTPS();
 };
