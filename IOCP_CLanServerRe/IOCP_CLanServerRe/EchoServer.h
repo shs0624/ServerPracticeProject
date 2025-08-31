@@ -32,7 +32,7 @@ public:
 		return true;
 	}
 
-	virtual void OnAccept();
+	virtual void OnAccept(ULONGLONG SessionID);
 
 	virtual void OnRelease(ULONGLONG SessionID);
 

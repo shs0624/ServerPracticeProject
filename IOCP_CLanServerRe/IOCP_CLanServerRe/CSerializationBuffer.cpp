@@ -1,5 +1,22 @@
 #include "CSerializationBuffer.h"
 
+procademy::CMemoryPool<CPacket> CPacket::_CPacketPool(0, true, false);
+
+// 헤더를 넣을 직렬화버퍼는 이걸로 초기화
+void CPacket::Initialize(int iBufferSize, int iHeaderSize)
+{
+	_iBufferSize = iBufferSize;
+	_head = iHeaderSize;
+	_tail = iHeaderSize;
+	_iDataSize = 0;
+	_iBuffer = (char*)malloc(_iBufferSize);
+	if (_iBuffer == nullptr)
+	{
+		DebugBreak();
+		return;
+	}
+}
+
 CPacket::CPacket()
 {
 	_iBufferSize = eBUFFER_DFAULT;
@@ -74,4 +91,13 @@ void CPacket::Clear(void)
 CPacket::~CPacket()
 {
 	free(_iBuffer);
+}
+
+void CPacket::PushHeader(char* header, int headerSize)
+{
+	_head -= headerSize;
+
+	memcpy(_iBuffer + _head, header, headerSize);
+
+	_iDataSize += headerSize;
 }

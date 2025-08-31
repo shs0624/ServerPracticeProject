@@ -1,5 +1,6 @@
 #pragma once
 #include "CSerializationBuffer.h"
+#include "RefCountPointer.h"
 #include "CRingBuffer.h"
 #include "TestStack.h"
 #include <deque>
@@ -33,10 +34,12 @@ struct st_Session
 	ULONGLONG ulSessionID;
 	SOCKET sock;
 	//CRingBuffer* sendBuf;
-	std::deque<LPVOID> sendBuf;
+	std::deque<RefCountPointer<CPacket>> sendBuf;
 	CRingBuffer* recvBuf;
+	//std::deque<LPVOID> recvBuf;
 
 	DWORD dwSendCount;
+	DWORD dwRecvCount;
 	DWORD dwIOCount;
 	BOOL bSendFlag;
 	BOOL bSessionAlive;
@@ -52,7 +55,7 @@ public:
 	virtual void QuitServer();
 
 	bool Disconnect(ULONGLONG sessionID);
-	bool SendPacket(ULONGLONG sessionID, CPacket* cPacket);
+	bool SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacket);
 
 	int getAcceptTPS() { return _iAcceptTPS; }
 	int getRecvMessageTPS() { return _iRecvMessageTPS; }
@@ -60,7 +63,7 @@ public:
 
 	virtual bool OnConnectionRequest(ULONG ip, LONG port) = 0; // accept 직후 핸들러
 
-	virtual void OnAccept() = 0; // Accept 후 접속처리 완료 후 호출
+	virtual void OnAccept(ULONGLONG sessionID) = 0; // Accept 후 접속처리 완료 후 호출
 
 	virtual void OnRelease(ULONGLONG SessionID) = 0;
 
@@ -103,7 +106,8 @@ protected:
 	bool AcceptProc(CLanServer* thisPtr);
 	bool SetWSARecv(st_Session* ptr);
 	bool SetWSASend(st_Session* ptr);
+	bool SendLoginPacket(ULONGLONG ulSessionID, CPacket* cPacket);
 	bool RecvProc(st_Session* ptr, DWORD cbTransferred);
 	void ReleaseSession(ULONGLONG ulSessionID);
 	void ResetTPS();
-};
+}; 

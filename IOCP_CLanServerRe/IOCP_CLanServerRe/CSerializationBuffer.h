@@ -3,6 +3,7 @@
 #ifndef _CPACKET_
 #define _CPACKET_
 #include <Windows.h>
+#include "CFreeList.h"
 
 enum en_PACKET
 {
@@ -23,8 +24,7 @@ public:
 	// Parameters: 없음.
 	// Return: 없음.
 	//////////////////////////////////////////////////////////////////////////
-	void	Clear(void);
-
+	void Clear(void);
 
 	//////////////////////////////////////////////////////////////////////////
 	// 버퍼 사이즈 얻기.
@@ -41,7 +41,7 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	int		GetDataSize(void) { return _iDataSize; }
 
-
+	void Initialize(int iBufferSize, int iHeaderSize);
 
 	//////////////////////////////////////////////////////////////////////////
 	// 버퍼 포인터 얻기.
@@ -65,6 +65,7 @@ public:
 	int		MoveWritePos(int iSize);
 	int		MoveReadPos(int iSize);
 
+	void PushHeader(char* header, int headerSize);
 
 	CPacket& operator = (CPacket& clSrcPacket)
 	{
@@ -308,7 +309,8 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	int	PutData(char* chpSrc, int iSrcSize);
 
-
+	static procademy::CMemoryPool<CPacket> _CPacketPool;
+	friend class procademy::CMemoryPool<CPacket>;
 protected:
 	int _iBufferSize;
 	// 현재 버퍼에 사용중인 사이즈

@@ -24,9 +24,15 @@ int main()
 	}
 }
 
-void EchoServer::OnAccept()
+void EchoServer::OnAccept(ULONGLONG SessionID)
 {
+	CPacket* cPacket = new CPacket(PROTOCOL_MAX_SIZE);
+	(cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
 
+	LONGLONG login = 0x7fffffffffffffff;
+	(*cPacket) << (LONGLONG)login;
+
+	SendLoginPacket(SessionID, cPacket);
 }
 
 void EchoServer::OnRelease(ULONGLONG SessionID)
@@ -37,7 +43,7 @@ void EchoServer::OnRelease(ULONGLONG SessionID)
 void EchoServer::OnRecv(ULONGLONG SessionID, CPacket* cpacket)
 {
 	//Profiler pro(L"OnRecv");
-	char temp[PROTOCOL_MAX_SIZE + 1];
+	/*char temp[PROTOCOL_MAX_SIZE + 1];
 
 	int iSize = cpacket->GetDataSize();
 	cpacket->GetData(temp, iSize);
@@ -45,7 +51,7 @@ void EchoServer::OnRecv(ULONGLONG SessionID, CPacket* cpacket)
 	CPacket sendCPacket;
 	sendCPacket.PutData(temp, iSize);
 
-	SendPacket(SessionID, &sendCPacket);
+	SendPacket(SessionID, &sendCPacket);*/
 }
 
 void EchoServer::OnError(int errorcode, WCHAR* message)

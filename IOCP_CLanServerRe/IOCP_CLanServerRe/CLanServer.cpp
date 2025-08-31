@@ -29,6 +29,7 @@ HANDLE _tpsThreadHandle;
 
 CRingBuffer* _echoBuffer;
 
+
 unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
 unsigned int _EchoIOCPWorkerThreadID;
@@ -127,8 +128,6 @@ unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 		{
 			continue;
 		}
-
-		thisPtr->OnAccept();
 	}
 
 	return 0;
@@ -175,6 +174,8 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
 	InterlockedIncrement((LONG*)&_iSessionCount);
+
+	OnAccept(ptr->ulSessionID);
 
 	// 소켓을 IOCP에 등록
 	CreateIoCompletionPort((HANDLE)client_sock, _NetIOCPHandle, (ULONG_PTR)ptr, 0);
@@ -248,9 +249,6 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
-				CPacket* cPacketPtr = (CPacket*)(ptr->sendBuf.front());
-				delete(cPacketPtr);
-
 				ptr->sendBuf.pop_front();
 			}
 
@@ -287,10 +285,8 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 
 unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 {
-	char tempBuffer[PROTOCOL_SIZE + 1];
 	int retval;
 	CLanServer* thisPtr = (CLanServer*)arg;
-	CPacket csPacket(PROTOCOL_MAX_SIZE);
 
 	while (1)
 	{
@@ -309,7 +305,8 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 			continue;
 		}
 
-		csPacket.Clear();
+		RefCountPointer<CPacket> csPacket = RefCountPointer<CPacket>::MakeSharedPtr();
+		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
 
 		EnterCriticalSection(&_echoBufferLock);
 		if (_echoBuffer->GetUseSize() < sizeof(st_PACKET_HEADER) + PROTOCOL_NUMSIZE)
@@ -320,10 +317,10 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 		}
 
 		_echoBuffer->Dequeue((char*)&header, sizeof(st_PACKET_HEADER));
-		_echoBuffer->Dequeue(csPacket.GetTailPtr(), PROTOCOL_NUMSIZE);
+		_echoBuffer->Dequeue((*csPacket)->GetTailPtr(), PROTOCOL_NUMSIZE);
 		LeaveCriticalSection(&_echoBufferLock);
 
-		csPacket.MoveWritePos(PROTOCOL_NUMSIZE);
+		(*csPacket)->MoveWritePos(PROTOCOL_NUMSIZE);
 		thisPtr->FindSession(header.ulSessionID, &ptr);
 		if (ptr == NULL)
 		{
@@ -336,7 +333,7 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 		}
 
 		// 세션은 찾았으니, 걔한테 SendPacket
-		thisPtr->SendPacket(header.ulSessionID, &csPacket);
+		thisPtr->SendPacket(header.ulSessionID, csPacket);
 	}
 }
 
@@ -462,26 +459,22 @@ bool CLanServer::Disconnect(ULONGLONG sessionID)
 	return true;
 }
 
-// send가 아닌 IOCP에서만 연결을 끊어야함. 지금 메세지마다 연결끊기해서 세션수 지랄남
-bool CLanServer::SendPacket(ULONGLONG sessionID, CPacket* cPacket)
+bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacket)
 {
-	CPacket* sendCPacket = new CPacket(PROTOCOL_MAX_SIZE);
-
 	st_Session* ptr;
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 		return false;
 
-	short shSize = cPacket->GetDataSize();
+	short shSize = (*cPacket)->GetDataSize();
 	st_NetHeader header;
 	header.shLen = shSize;
 	
-	sendCPacket->PutData((char*)&header, sizeof(st_NetHeader));
-	cPacket->GetData(sendCPacket->GetHeadPtr() + sizeof(st_NetHeader), shSize);
-	sendCPacket->MoveWritePos(shSize);
+
+	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
 
 	EnterCriticalSection(&ptr->sendLock);
-	ptr->sendBuf.push_back(sendCPacket);
+	ptr->sendBuf.push_back(cPacket);
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
 		if (!SetWSASend(ptr))
@@ -505,12 +498,14 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, CPacket* cPacket)
 bool CLanServer::SetWSARecv(st_Session* ptr)
 {
 	// WSARecv
-	WSABUF recvWsa[2];
-	int recvRet;
+	int recvRet, recvCount = 0;
 	DWORD flags = 0, recvbytes = 0;
+
+	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
+	WSABUF recvWsa[200];
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(ptr->recvOverlapped));
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(ptr->sendOverlapped));
-	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
+	
 	if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
 	{
 		// 두개로 나눠 받아야 함
@@ -552,9 +547,8 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	int loopCnt = ptr->sendBuf.size();
 	for (int i = 0; i < loopCnt; i++)
 	{
-		CPacket* cpacket = (CPacket*)ptr->sendBuf[i];
+		CPacket* cpacket = *(ptr->sendBuf[i]);
 		sendWsa[i].buf = cpacket->GetBufferPtr();
-
 		sendWsa[i].len = sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
 		sendCount++;
 	}
@@ -576,6 +570,45 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	return true;
 }
 
+bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, CPacket* cPacket)
+{
+	DWORD sendBytes, retval;
+	st_Session* pSession = NULL;
+	FindSession(ulSessionID, &pSession);
+	if (pSession == NULL)
+	{
+		return false;
+	}
+
+	short shSize = (cPacket)->GetDataSize();
+	st_NetHeader header;
+	header.shLen = shSize;
+
+	//EnterCriticalSection(&pSession->crtLock);
+	(cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
+
+	WSABUF sendWsa;
+	sendWsa.buf = cPacket->GetBufferPtr();
+	sendWsa.len = cPacket->GetDataSize();
+
+	int sendRet = WSASend(pSession->sock, &sendWsa, 1, &sendBytes, 0, &(pSession->sendOverlapped), NULL);
+	if (sendRet == SOCKET_ERROR)
+	{
+		int err = WSAGetLastError();
+		if (err == WSAEWOULDBLOCK)
+		{
+			return false;
+		}
+
+		printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
+		return false;
+	}
+	//LeaveCriticalSection(&pSession->crtLock);
+
+	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
+	return true;
+}
+
 void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 {
 	st_Session* ptr;
@@ -583,19 +616,21 @@ void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 	if (ptr == NULL)
 		return;
 
-	EnterCriticalSection(&ptr->sendLock);
-	LeaveCriticalSection(&ptr->sendLock);
-
-	if (!ptr->bSessionAlive)
-		DebugBreak();
+	if (!(ptr->bSessionAlive))
+		return;
 
 	ULONGLONG idx = (ulSessionID) >> 48;
-	closesocket(ptr->sock);
+	printf("Release Session IDX : %d\n", idx);
 	OnRelease(ptr->ulSessionID);
+
 	ptr->recvBuf->ClearBuffer();
+	EnterCriticalSection(&ptr->sendLock);
 	ptr->sendBuf.clear();
+	LeaveCriticalSection(&ptr->sendLock);
+
 	ptr->bSessionAlive = false;
 	ptr->dwIOCount = 0;
+	closesocket(ptr->sock);
 	_emptyIndexStack.push(idx);
 
 	// 인덱스를 아직 ID에 넣지 않음
