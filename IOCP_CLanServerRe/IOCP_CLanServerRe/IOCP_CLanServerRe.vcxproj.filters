@@ -42,6 +42,9 @@
     <ClCompile Include="CLanServer_Monitor.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="ProcademyProfiler.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CLanServer.h">
@@ -70,6 +73,9 @@
     </ClInclude>
     <ClInclude Include="CFreeList.h">
       <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcademyProfiler.h">
+      <Filter>Debug</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -130,6 +130,7 @@
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
     <ClCompile Include="EchoServer.cpp" />
+    <ClCompile Include="ProcademyProfiler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CCrashDump.h" />
@@ -139,6 +140,7 @@
     <ClInclude Include="CSerializationBuffer.h" />
     <ClInclude Include="Debug.h" />
     <ClInclude Include="EchoServer.h" />
+    <ClInclude Include="ProcademyProfiler.h" />
     <ClInclude Include="RefCountPointer.h" />
     <ClInclude Include="TestStack.h" />
   </ItemGroup>
