@@ -1,5 +1,5 @@
 #include "EchoServer.h"
-//#include "ProcademyProfiler.h"
+#include "ProcademyProfiler.h"
 #include <conio.h>
 
 int main()
@@ -18,7 +18,7 @@ int main()
 		}
 		if (ch == 'P' || ch == 'p')
 		{
-			//ProfileDataOutText("ProfileData_NoLock.txt");
+			ProfileDataOutText("ProfileData.txt");
 		}
 
 	}

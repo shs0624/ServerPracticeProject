@@ -17,6 +17,14 @@ public:
 	~Profiler();
 private:
 	const char* tag;
+
+	//void ProfileBegin(const CHAR* tagName);
+
+	//void ProfileEnd(const CHAR* tagName);
+
+	//void ProfileDataOutText(const CHAR* szFileName);
+
+	//void ProfileReset(void);
 };
 
 void ProfileBegin(const CHAR* tagName);

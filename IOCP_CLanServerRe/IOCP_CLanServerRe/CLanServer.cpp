@@ -8,6 +8,7 @@
 #include "CCrashDump.h"
 #include "Debug.h"
 #include "CLanServer.h"
+#include "ProcademyProfiler.h"
 
 procademy::CCrashDump cCrashDump;
 
@@ -149,12 +150,16 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		return false;
 	}
 
+	ULONGLONG idx;
 	// 비동기 입출력 시작
-	ULONGLONG idx = FindUsableSessionIndex();
-	if (idx == -1)
 	{
-		DebugBreak();
-		return false;
+		Profiler("FindSessionIdx");
+		idx = FindUsableSessionIndex();
+		if (idx == -1)
+		{
+			DebugBreak();
+			return false;
+		}
 	}
 
 	st_Session* ptr = &_sessionArr[idx];
@@ -224,22 +229,27 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
-			if (!thisPtr->RecvProc(ptr, cbTransferred))
 			{
-				if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
+				Profiler("RecvProc");
+				if (!thisPtr->RecvProc(ptr, cbTransferred))
 				{
-					thisPtr->ReleaseSession(ptr->ulSessionID);
-					continue;
+					if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
+					{
+						thisPtr->ReleaseSession(ptr->ulSessionID);
+						continue;
+					}
 				}
 			}
-
-			if (!thisPtr->SetWSARecv(ptr))
 			{
-				if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+				Profiler("SetWSARecv");
+				if (!thisPtr->SetWSARecv(ptr))
 				{
-					// 연결 끊기
-					thisPtr->ReleaseSession(ptr->ulSessionID);
-					continue;
+					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+					{
+						// 연결 끊기
+						thisPtr->ReleaseSession(ptr->ulSessionID);
+						continue;
+					}
 				}
 			}
 		}
