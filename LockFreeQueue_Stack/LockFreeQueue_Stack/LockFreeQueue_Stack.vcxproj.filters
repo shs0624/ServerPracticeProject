@@ -29,5 +29,8 @@
     <ClInclude Include="CFreeList.h">
       <Filter>Lib</Filter>
     </ClInclude>
+    <ClInclude Include="LockFreeStack_Re.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

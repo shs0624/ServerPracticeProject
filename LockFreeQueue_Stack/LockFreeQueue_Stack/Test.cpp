@@ -4,12 +4,14 @@
 #include <winsock2.h>
 #include <Windows.h>
 #include <queue>
-#include "LockFreeStack.h"
+#include "LockFreeStack_Re.h"
 #include "CFreeList.h"
 using namespace std;
 
 procademy::CMemoryPool<int> _testPool(200000);
 queue<void*> _deletePrintQ;
+
+LockFreeStack<int> _lfStack;
 
 HANDLE _pushThreadHandleArr[10];
 HANDLE _popThreadHandleArr[10];
@@ -41,10 +43,10 @@ int wmain()
 		return 1;*/
 
 	// 메모리 문제 확인용
-	/*for (int i = 0; i < 1000000 * 20; i++)
+	for (int i = 0; i < 1000000 * 20; i++)
 	{
 		_lfStack.push(i);
-	}*/
+	}
 
 	for (int i = 0; i < 20; i++)
 	{
@@ -53,10 +55,16 @@ int wmain()
 			return 1;
 	}
 
-	while (1)
+	/*for (int i = 0; i < 20; i++)
 	{
+		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
+		if (_workerThreadHandleArr[i] == NULL)
+			return 1;
+	}*/
 
-	}
+	WaitForMultipleObjects(5, _workerThreadHandleArr, TRUE, INFINITE);
+
+	printf("Done!");
 
 	return 0;
 }
@@ -93,43 +101,44 @@ unsigned int WINAPI PrintThread(LPVOID arg)
 //}
 
 // 메모리 문제 확인용
-//unsigned int WINAPI WorkerThread(LPVOID arg)
-//{
-//	int idx = 0;
-//	int output;
-//	void* ptr;
-//
-//	//while (idx < 1000000)
-//	//{
-//	//	//printf("push : %d\n", idx);
-//	//	//_PrintQ.push(make_pair(PUSH, idx));
-//	//	_lfStack.push(idx++);
-//	//}
-//
-//	for (int i = 0; i < 1000000; i++)
-//	{
-//		_lfStack.pop(&output, &ptr);
-//		//_PrintQ.push(make_pair(POP, output));
-//		//printf("pop : %p\n", ptr);
-//	}
-//
-//	return 0;
-//}
-
-// 메모리풀 테스트용
 unsigned int WINAPI WorkerThread(LPVOID arg)
 {
-	int* arr[10000];
+	int idx = 0;
+	int output;
+	void* ptr;
 
-	for (int i = 0; i < 10000; i++)
-	{
-		arr[i] = _testPool.Alloc();
-	}
+	//while (idx < 1000000)
+	//{
+	//	//printf("push : %d\n", idx);
+	//	//_PrintQ.push(make_pair(PUSH, idx));
+	//	_lfStack.push(idx++);
+	//}
 
-	for (int i = 0; i < 10000; i++)
+	for (int i = 0; i < 1000000; i++)
 	{
-		_testPool.Free(arr[i]);
+		_lfStack.pop(&output, &ptr);
+		//_PrintQ.push(make_pair(POP, output));
+		//printf("pop : %p\n", ptr);
 	}
 
 	return 0;
 }
+
+// 메모리풀 테스트용
+//unsigned int WINAPI WorkerThread(LPVOID arg)
+//{
+//	int* arr[10000];
+//
+//	for (int i = 0; i < 10000; i++)
+//	{
+//		arr[i] = _testPool.Alloc();
+//	}
+//
+//	for (int i = 0; i < 10000; i++)
+//	{
+//
+//		_testPool.Free(arr[i]);
+//	}
+//
+//	return 0;
+//}
