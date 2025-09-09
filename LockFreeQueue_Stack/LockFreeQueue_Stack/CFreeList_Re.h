@@ -60,9 +60,8 @@ namespace procademy
 			for (int i = 0; i < iBlockNum; i++)
 			{
 				st_BLOCK_NODE* node = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE));
-				ULONGLONG localIdx = _IDCnt++;
 
-				localIdx = 0x000000000001ffff & localIdx;
+				ULONGLONG localIdx = _IDCnt++;
 				localIdx = localIdx << 47;
 
 				if (bCreateNew)
@@ -83,14 +82,13 @@ namespace procademy
 
 		virtual	~CMemoryPool()
 		{
-			st_BLOCK_NODE* node = _pTopNode;
-
 			int subCount = (m_iCapacity - m_iUseCount);
 			for (int i = 0; i < subCount; i++)
 			{
-				st_BLOCK_NODE* next = _pTopNode->nextPtr;
-				delete(_pTopNode->allocPtr);
-				delete(_pTopNode);
+				st_BLOCK_NODE* node = (st_BLOCK_NODE*)((ULONGLONG)_pTopNode & 0x00007fffffffffff);
+				st_BLOCK_NODE* next = node->nextPtr;
+				delete(node->allocPtr);
+				delete(node);
 				_pTopNode = next;
 			}
 		}
@@ -157,9 +155,8 @@ namespace procademy
 				st_BLOCK_NODE* oldTopNode = _pTopNode;
 				nodePtr->nextPtr = oldTopNode;
 
-				localIdx = 0x000000000001ffff & localIdx;
 				localIdx = localIdx << 47;
-				st_BLOCK_NODE* newNode = (st_BLOCK_NODE*)((ULONGLONG)newNode | localIdx);
+				st_BLOCK_NODE* newNode = (st_BLOCK_NODE*)((ULONGLONG)nodePtr | localIdx);
 
 				if (InterlockedCompareExchange64((__int64*)&_pTopNode, (__int64)newNode, (__int64)oldTopNode) == (__int64)oldTopNode)
 				{
