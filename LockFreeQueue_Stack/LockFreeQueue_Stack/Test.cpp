@@ -5,10 +5,10 @@
 #include <Windows.h>
 #include <queue>
 #include "LockFreeStack_Re.h"
-#include "CFreeList.h"
+#include "CFreeList_Re.h"
 using namespace std;
 
-//procademy::CMemoryPool<int> _testPool(200000);
+procademy::CMemoryPool<int> _testPool(300000);
 //queue<void*> _deletePrintQ;
 
 LockFreeStack<int> _lfStack;
@@ -80,26 +80,26 @@ unsigned int WINAPI PrintThread(LPVOID arg)
 }
 
 // ABA 문제 확인용
-unsigned int WINAPI WorkerThread(LPVOID arg)
-{
-	int idx = 0;
-	int output;
-	void* ptr;
-
-	while (idx < 1000000)
-	{
-		//printf("push : %d\n", idx);
-		//_PrintQ.push(make_pair(PUSH, idx));
-		_lfStack.push(idx++);
-		//_lfStack.push(idx++);
-
-		_lfStack.pop(&output, &ptr);
-		//_PrintQ.push(make_pair(POP, output));
-		//printf("pop : %p\n", ptr);
-	}
-
-	return 0;
-}
+//unsigned int WINAPI WorkerThread(LPVOID arg)
+//{
+//	int idx = 0;
+//	int output;
+//	void* ptr;
+//
+//	while (idx < 1000000)
+//	{
+//		//printf("push : %d\n", idx);
+//		//_PrintQ.push(make_pair(PUSH, idx));
+//		_lfStack.push(idx++);
+//		//_lfStack.push(idx++);
+//
+//		_lfStack.pop(&output, &ptr);
+//		//_PrintQ.push(make_pair(POP, output));
+//		//printf("pop : %p\n", ptr);
+//	}
+//
+//	return 0;
+//}
 
 // 메모리 문제 확인용
 //unsigned int WINAPI WorkerThread(LPVOID arg)
@@ -126,20 +126,22 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 //}
 
 // 메모리풀 테스트용
-//unsigned int WINAPI WorkerThread(LPVOID arg)
-//{
-//	int* arr[10000];
-//
-//	for (int i = 0; i < 10000; i++)
-//	{
-//		arr[i] = _testPool.Alloc();
-//	}
-//
-//	for (int i = 0; i < 10000; i++)
-//	{
-//
-//		_testPool.Free(arr[i]);
-//	}
-//
-//	return 0;
-//}
+unsigned int WINAPI WorkerThread(LPVOID arg)
+{
+	int* arr[10000];
+	int cnt = 0;
+
+	for (int i = 0; i < 10000; i++)
+	{
+		arr[i] = _testPool.Alloc();
+		*arr[i] = i;
+	}
+
+	for (int i = 0; i < 10000; i++)
+	{
+		printf("free[i] : %d\n", i, *arr[i]);
+		_testPool.Free(arr[i]);
+	}
+
+	return 0;
+}

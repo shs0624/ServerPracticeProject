@@ -30,7 +30,7 @@ namespace procademy
 		struct st_BLOCK_NODE
 		{
 			void* guardCode;
-			DATA* allocPtr;
+			DATA allocPtr;
 			st_BLOCK_NODE* nextPtr;
 		};
 	public:
@@ -66,31 +66,45 @@ namespace procademy
 
 				if (bCreateNew)
 				{
-					node->allocPtr = new DATA;
+					new(&(node->allocPtr))DATA;
 				}
-				else
-				{
-					node->allocPtr = (DATA*)malloc(sizeof(DATA));
-				}
-
+	
 				node->guardCode = m_guardCode;
 				node->nextPtr = _pTopNode;
+				node->allocPtr = 0;
 				node = (st_BLOCK_NODE*)((ULONGLONG)node | localIdx);
 				_pTopNode = node;
 			}
+
+			int a = 50;
 		}
 
 		virtual	~CMemoryPool()
 		{
-			int subCount = (m_iCapacity - m_iUseCount);
+			while (_pTopNode != nullptr)
+			{
+				st_BLOCK_NODE* node = (st_BLOCK_NODE*)((ULONGLONG)_pTopNode & 0x00007fffffffffff);
+				st_BLOCK_NODE* next = node->nextPtr;
+
+				if (m_bCreateNew || m_bPlacementNew)
+					node->allocPtr.~DATA();
+
+				_pTopNode = next;
+				free(node);
+			}
+
+			/*int subCount = (m_iCapacity - m_iUseCount);
 			for (int i = 0; i < subCount; i++)
 			{
 				st_BLOCK_NODE* node = (st_BLOCK_NODE*)((ULONGLONG)_pTopNode & 0x00007fffffffffff);
 				st_BLOCK_NODE* next = node->nextPtr;
-				delete(node->allocPtr);
+
+				if(m_bCreateNew || m_bPlacementNew)
+					node->allocPtr.~DATA();
+
 				delete(node);
 				_pTopNode = next;
-			}
+			}*/
 		}
 
 		//////////////////////////////////////////////////////////////////////////
@@ -117,10 +131,10 @@ namespace procademy
 				NodePtr->nextPtr = (st_BLOCK_NODE*)m_guardCode;
 #endif
 
-				if (InterlockedCompareExchange64((__int64*)&_pTopNode, (__int64)newNode, (__int64)oldTopNode) == (__int64)oldTopNode)
+ 				if (InterlockedCompareExchange64((__int64*)&_pTopNode, (__int64)newNode, (__int64)oldTopNode) == (__int64)oldTopNode)
 				{
 					// 바뀌었다!
-					DATA* data = NodePtr->allocPtr;
+					DATA* data = &(NodePtr->allocPtr);
 					if (m_bPlacementNew)
 					{
 						data = new(data) DATA;
@@ -163,7 +177,7 @@ namespace procademy
 					// 바뀌었다. 반환해야지.
 					if (m_bPlacementNew || m_bCreateNew)
 					{
-						nodePtr->allocPtr->~DATA();
+						nodePtr->allocPtr.~DATA();
 					}
 
 					InterlockedIncrement(&_IDCnt);
@@ -202,17 +216,18 @@ namespace procademy
 			{
 				st_BLOCK_NODE* node = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE));
 
+				ULONGLONG localIdx = _IDCnt++;
+				localIdx = localIdx << 47;
+
 				if (m_bCreateNew)
 				{
-					node->allocPtr = new DATA;
+					//node->allocPtr = new DATA;
+					new(&(node->allocPtr)) DATA;
 				}
-				else
-				{
-					node->allocPtr = (DATA*)malloc(sizeof(DATA));
-				}
-
+	
 				node->guardCode = m_guardCode;
 				node->nextPtr = _pTopNode;
+				node = (st_BLOCK_NODE*)((ULONGLONG)node | localIdx);
 				_pTopNode = node;
 			}
 
