@@ -239,6 +239,8 @@ void netProc_Accept()
 			return;
 		}
 
+		Log_Accept(session);
+
 		//PRO_END("Accept");
 		_LOG(0, L"Accepted Player # Port : %d\n", session->IPPtr.sin_port);
 	}
@@ -369,6 +371,8 @@ void DisconnectDeletedSession()
 		_disconnectStack.pop();
 
 		_LOG(0, L"Disconnect Session L4 # sessionID : %d\n", ptr->dwSessionID);
+
+		Log_Disconnect(ptr);
 
 		_sessionMap.erase(ptr->Socket);
 

@@ -173,6 +173,7 @@ namespace procademy
 	private:
 		void Resize(void)
 		{
+			DebugBreak();
 			for (int i = 0; i < m_iCreateCount; i++)
 			{
 				st_BLOCK_NODE* node = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE));
@@ -182,7 +183,7 @@ namespace procademy
 					DATA* data;
 					data = new(&(node->allocPtr)) DATA;
 				}
-
+					
 				node->guardCode = m_guardCode;
 				node->nextPtr = _pFreeNode;
 				_pFreeNode = node;

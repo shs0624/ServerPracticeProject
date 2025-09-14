@@ -16,9 +16,9 @@ using namespace std;
 #include "SectorProc.h"
 #include "ContentsProc.h"
 #include "MessageCreate.h"
-#include "Debug.h"
 #include "LogProc.h"
 #include "CFreeList.h"
+#include "Debug.h"
 #include "ProcademyProfiler.h"
 
 extern int g_iLogLevel;

@@ -2,6 +2,7 @@
 #include "PacketDefine.h"
 #include "CSerializationBuffer.h"
 #include "MessageCreate.h"
+#include "TCPDefine.h"
 #include "LogProc.h"
 
 extern int g_iLogLevel;

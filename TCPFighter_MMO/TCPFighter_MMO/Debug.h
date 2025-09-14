@@ -1,6 +1,4 @@
 #pragma once
-#include <iostream>
-#include <Windows.h>
 
 // 소켓 함수 오류 출력 후 종료
 inline void err_quit(const char* msg)

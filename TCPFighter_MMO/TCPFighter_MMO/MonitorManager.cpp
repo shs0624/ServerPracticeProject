@@ -2,9 +2,9 @@
 #include <ws2tcpip.h>
 #include <Windows.h>
 #include <iostream>
+#include "TCPDefine.h"
 #include "LogProc.h"
 #include "MonitorManager.h"
-#include "TCPDefine.h"
 #include "PacketDefine.h"
 #include "FrameProc.h"
 #include "TCPNetwork.h"
