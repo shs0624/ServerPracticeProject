@@ -5,13 +5,15 @@
 #include <Windows.h>
 #include <queue>
 #include "LockFreeStack_Re.h"
+#include "LockFreeQueue.h"
 #include "CFreeList_Re.h"
 using namespace std;
 
-procademy::CMemoryPool<int> _testPool(300000);
+//procademy::CMemoryPool<int> _testPool(300000);
 //queue<void*> _deletePrintQ;
 
 LockFreeStack<int> _lfStack;
+LockFreeQueue<int> _lfQueue;
 
 HANDLE _pushThreadHandleArr[10];
 HANDLE _popThreadHandleArr[10];
@@ -48,7 +50,7 @@ int wmain()
 		_lfStack.push(i);
 	}*/
 
-	for (int i = 0; i < 20; i++)
+	for (int i = 0; i < 3; i++)
 	{
 		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
 		if (_workerThreadHandleArr[i] == NULL)
@@ -62,7 +64,7 @@ int wmain()
 			return 1;
 	}*/
 
-	WaitForMultipleObjects(20, _workerThreadHandleArr, TRUE, INFINITE);
+	WaitForMultipleObjects(3, _workerThreadHandleArr, TRUE, INFINITE);
 
 	printf("Done!");
 
@@ -126,21 +128,44 @@ unsigned int WINAPI PrintThread(LPVOID arg)
 //}
 
 // 메모리풀 테스트용
+//unsigned int WINAPI WorkerThread(LPVOID arg)
+//{
+//	int* arr[10000];
+//	int cnt = 0;
+//
+//	for (int i = 0; i < 10000; i++)
+//	{
+//		arr[i] = _testPool.Alloc();
+//		*arr[i] = i;
+//	}
+//
+//	for (int i = 0; i < 10000; i++)
+//	{
+//		printf("free[i] : %d\n", i, *arr[i]);
+//		_testPool.Free(arr[i]);
+//	}
+//
+//	return 0;
+//}
+
+// 락프리큐 테스트용
 unsigned int WINAPI WorkerThread(LPVOID arg)
 {
-	int* arr[10000];
+	int arr[3];
 	int cnt = 0;
 
-	for (int i = 0; i < 10000; i++)
+	for (int i = 0; i < 100; i++)
 	{
-		arr[i] = _testPool.Alloc();
-		*arr[i] = i;
-	}
+		for (int i = 0; i < 3; i++)
+		{
+			_lfQueue.Enqueue(i);
+		}
 
-	for (int i = 0; i < 10000; i++)
-	{
-		printf("free[i] : %d\n", i, *arr[i]);
-		_testPool.Free(arr[i]);
+		for (int i = 0; i < 1; i++)
+		{
+			int num = _lfQueue.Dequeue(arr[i]);
+			printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
+		}
 	}
 
 	return 0;
