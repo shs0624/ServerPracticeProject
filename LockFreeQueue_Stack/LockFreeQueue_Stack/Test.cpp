@@ -161,7 +161,7 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 			_lfQueue.Enqueue(i);
 		}
 
-		for (int i = 0; i < 1; i++)
+		for (int i = 0; i < 3; i++)
 		{
 			int num = _lfQueue.Dequeue(arr[i]);
 			printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);

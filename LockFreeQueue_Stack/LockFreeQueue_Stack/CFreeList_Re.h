@@ -22,6 +22,12 @@
 #include <new.h>
 #include <Windows.h>
 
+enum FreeList_LOG
+{
+	ALLOC,
+	FREE
+};
+
 namespace procademy
 {
 	template <class DATA>
@@ -32,6 +38,12 @@ namespace procademy
 			void* guardCode;
 			DATA allocPtr;
 			st_BLOCK_NODE* nextPtr;
+		};
+
+		struct st_ALLOC_LOG
+		{
+			FreeList_LOG type;
+			st_BLOCK_NODE* ptr;
 		};
 	public:
 		//////////////////////////////////////////////////////////////////////////
@@ -74,7 +86,7 @@ namespace procademy
 				memset(&node->allocPtr, 0, sizeof(DATA));
 				//node->allocPtr = NULL;
 				node = (st_BLOCK_NODE*)((ULONGLONG)node | localIdx);
-				_pTopNode = node;
+				_pTopNode = node;				
 			}
 
 			int a = 50;
@@ -141,6 +153,10 @@ namespace procademy
 						data = new(data) DATA;
 					}
 
+					DWORD localCnt = InterlockedIncrement(&_logIdx);
+					_LogArr[localCnt].ptr = NodePtr;
+					_LogArr[localCnt].type = ALLOC;
+
 					InterlockedIncrement(&m_iUseCount);
 					return data;
 				}
@@ -180,6 +196,10 @@ namespace procademy
 					{
 						nodePtr->allocPtr.~DATA();
 					}
+
+					DWORD localCnt = InterlockedIncrement(&_logIdx);
+					_LogArr[localCnt].ptr = newNode;
+					_LogArr[localCnt].type = FREE;
 
 					InterlockedIncrement(&_IDCnt);
 					InterlockedDecrement(&m_iUseCount);
@@ -243,6 +263,9 @@ namespace procademy
 		bool m_bPlacementNew;
 		bool m_bCreateNew;
 		void* m_guardCode;
+
+		st_ALLOC_LOG _LogArr[30001];
+		DWORD _logIdx = 0;
 	};
 }
 #endif

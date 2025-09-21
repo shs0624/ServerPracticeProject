@@ -1,5 +1,6 @@
 #pragma once
 #include "CFreeList_Re.h"
+//#include "MemoryPool.h"
 #define LOGARR_MAX 10000
 
 enum workType_Q
@@ -15,6 +16,7 @@ private:
     DWORD _size;
     DWORD _dwCount;
     DWORD _dwLogCount;
+    DWORD _dwAllocCount;
 
     struct st_Node
     {
@@ -24,18 +26,20 @@ private:
 
     struct st_LOG
     {
-        workType_Q type;
+        alignas(8) workType_Q type;
         st_Node* pNode;
         st_Node* head;
         st_Node* tail;
-        DWORD _dwsize;
-        DWORD _dwThreadID;
+        DWORD64 _dwsize;
+        DWORD64 _dwThreadID;
     };
 
     st_Node* _head;        // 시작노드를 포인트한다.
     st_Node* _tail;        // 마지막노드를 포인트한다.
 
     st_LOG _workArr[LOGARR_MAX];
+    st_Node* _allocArr[LOGARR_MAX];
+    //procademy::CMemoryPool<st_Node>* _NodePool;
     procademy::CMemoryPool<st_Node>* _NodePool;
 public:
     LockFreeQueue() : _NodePool(new procademy::CMemoryPool<st_Node>(30000))
@@ -51,6 +55,9 @@ public:
         st_Node* node = _NodePool->Alloc();
         node->data = t;
         node->next = NULL;
+
+        DWORD allocIdx = _InterlockedIncrement(&_dwAllocCount) % LOGARR_MAX;
+        _allocArr[allocIdx] = node;
 
         DWORD localCnt = InterlockedIncrement(&_dwCount);
         st_Node* EnqueueNode = (st_Node*)((ULONGLONG)node | (ULONGLONG)localCnt << 47);
@@ -70,12 +77,12 @@ public:
                 {
                     DWORD logIdx = _InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
                     _workArr[logIdx].type = workType_Q::Enqueue;
-                    /*_workArr[logIdx].pNode = EnqueueNode;
+                    _workArr[logIdx].pNode = EnqueueNode;
                     _workArr[logIdx].head = _head;
-                    _workArr[logIdx].tail = _tail;*/
-                    _workArr[logIdx].pNode = node;
+                    _workArr[logIdx].tail = tail;
+                    /*_workArr[logIdx].pNode = node;
                     _workArr[logIdx].head = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
-                    _workArr[logIdx].tail = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_tail);
+                    _workArr[logIdx].tail = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_tail);*/
                     _workArr[logIdx]._dwsize = _size + 1;
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
@@ -116,17 +123,17 @@ public:
 
                     DWORD logIdx = _InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
                     _workArr[logIdx].type = workType_Q::Dequeue;
-                    /*_workArr[logIdx].pNode = head;
+                    _workArr[logIdx].pNode = head;
                     _workArr[logIdx].head = _head;
-                    _workArr[logIdx].tail = _tail;*/
-                    _workArr[logIdx].pNode = headPtr;
+                    _workArr[logIdx].tail = _tail;
+                    /*_workArr[logIdx].pNode = headPtr;
                     _workArr[logIdx].head = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
-                    _workArr[logIdx].tail = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_tail);
+                    _workArr[logIdx].tail = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_tail);*/
                     _workArr[logIdx]._dwsize = _size - 1;
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
                     t = localNode->data;
-                    _NodePool->Free(localNode);
+                    _NodePool->Free(headPtr);
                     break;
                 }
             }
