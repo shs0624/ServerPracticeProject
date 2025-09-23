@@ -50,7 +50,7 @@ int wmain()
 		_lfStack.push(i);
 	}*/
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 15; i++)
 	{
 		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
 		if (_workerThreadHandleArr[i] == NULL)
@@ -64,8 +64,8 @@ int wmain()
 			return 1;
 	}*/
 
-	WaitForMultipleObjects(3, _workerThreadHandleArr, TRUE, INFINITE);
-
+	WaitForMultipleObjects(15, _workerThreadHandleArr, TRUE, INFINITE);
+		
 	printf("Done!");
 
 	return 0;
@@ -154,7 +154,7 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 	int arr[3];
 	int cnt = 0;
 
-	for (int i = 0; i < 100; i++)
+	for (int i = 0; i < 1000; i++)
 	{
 		for (int i = 0; i < 3; i++)
 		{
@@ -164,7 +164,7 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 		for (int i = 0; i < 3; i++)
 		{
 			int num = _lfQueue.Dequeue(arr[i]);
-			printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
+			//printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
 		}
 	}
 

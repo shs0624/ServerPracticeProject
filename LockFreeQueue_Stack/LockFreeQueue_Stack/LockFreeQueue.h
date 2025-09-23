@@ -42,7 +42,7 @@ private:
     //procademy::CMemoryPool<st_Node>* _NodePool;
     procademy::CMemoryPool<st_Node>* _NodePool;
 public:
-    LockFreeQueue() : _NodePool(new procademy::CMemoryPool<st_Node>(30000))
+    LockFreeQueue() : _NodePool(new procademy::CMemoryPool<st_Node>(100000))
     {
         _size = 0;
         _head = _NodePool->Alloc();
@@ -80,9 +80,6 @@ public:
                     _workArr[logIdx].pNode = EnqueueNode;
                     _workArr[logIdx].head = _head;
                     _workArr[logIdx].tail = tail;
-                    /*_workArr[logIdx].pNode = node;
-                    _workArr[logIdx].head = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
-                    _workArr[logIdx].tail = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_tail);*/
                     _workArr[logIdx]._dwsize = _size + 1;
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
@@ -93,6 +90,19 @@ public:
                     }
                     break;
                 }
+
+                //if (InterlockedCompareExchangePointer((PVOID*)&_tail, EnqueueNode, tail) == tail)
+                //{
+                //    // 실패의 경우 그 이유 추적
+                //    DWORD logIdx = _InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
+                //    _workArr[logIdx].type = workType_Q::Enqueue;
+                //    _workArr[logIdx].pNode = EnqueueNode;
+                //    _workArr[logIdx].head = _head;
+                //    _workArr[logIdx].tail = tail;
+                //    _workArr[logIdx]._dwsize = _size + 1;
+                //    _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
+                //    break;
+                //}
             }
         }
 
@@ -126,9 +136,6 @@ public:
                     _workArr[logIdx].pNode = head;
                     _workArr[logIdx].head = _head;
                     _workArr[logIdx].tail = _tail;
-                    /*_workArr[logIdx].pNode = headPtr;
-                    _workArr[logIdx].head = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
-                    _workArr[logIdx].tail = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_tail);*/
                     _workArr[logIdx]._dwsize = _size - 1;
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
