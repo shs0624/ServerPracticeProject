@@ -12,8 +12,8 @@ int _selectIOFrame = 0;
 
 DWORD _iAcceptIdx = 0;
 DWORD _iDisconnectIdx = 0;
-st_SESSION* _pAcceptLog[LOGMAX];
-st_SESSION* _pDisconnectLog[LOGMAX];
+st_SESSION _pAcceptLog[LOGMAX];
+st_SESSION _pDisconnectLog[LOGMAX];
 
 void Log(WCHAR* szString)
 {
@@ -29,11 +29,13 @@ void Log(WCHAR* szString)
 void Log_Accept(st_SESSION* pSession)
 {
 	DWORD idx = (InterlockedIncrement(&_iAcceptIdx)) % LOGMAX;
-	_pAcceptLog[idx] = pSession;
+	//_pAcceptLog[idx] = pSession;
+	memcpy(&_pAcceptLog[idx], pSession, sizeof(st_SESSION));
 }
 
 void Log_Disconnect(st_SESSION* pSession)
 {
 	DWORD idx = (InterlockedIncrement(&_iDisconnectIdx)) % LOGMAX;
-	_pDisconnectLog[idx] = pSession;
+	//_pDisconnectLog[idx] = pSession;
+	memcpy(&_pDisconnectLog[idx], pSession, sizeof(st_SESSION));
 }

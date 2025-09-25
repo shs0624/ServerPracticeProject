@@ -165,7 +165,7 @@ bool netPacketProc_MoveStop(st_SESSION* pSession, CPacket* packet)
 
 		_LOG(0, L"MoveStart # playerID : %d # playerX : %d # playerY : %d\n", _player->dwSessionID, _player->shX, _player->shY);
 	}
-
+	 
 	_player->byDirection = csAction;
 	_player->dwAction = dfPACKET_MOVE_DIR_NONE;
 

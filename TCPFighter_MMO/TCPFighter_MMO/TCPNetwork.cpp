@@ -30,6 +30,9 @@ procademy::CMemoryPool<st_SESSION> _sessionPool(dfMAX_CONNECT, false, false);
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
+extern st_SESSION _pAcceptLog[LOGMAX];
+extern st_SESSION _pDisconnectLog[LOGMAX];
+
 extern int _selectIOFrame;
 
 void netProc_Accept();

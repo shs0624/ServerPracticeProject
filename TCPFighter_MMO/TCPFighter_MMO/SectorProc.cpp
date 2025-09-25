@@ -163,43 +163,44 @@ void ChangeSector(st_CHARACTER* player)
 	}
 
 	// player에게 RemoveSector 유저 삭제 패킷 보내기.
-	for (int i = 0; i < removeSector.iCount; i++)
+	for (int sectorIdx = 0; sectorIdx < removeSector.iCount; sectorIdx++)
 	{
-		int sectorX = removeSector.Around[i].iX;
-		int sectorY = removeSector.Around[i].iY;
+		int sectorX = removeSector.Around[sectorIdx].iX;
+		int sectorY = removeSector.Around[sectorIdx].iY;
 
 		vector<st_CHARACTER*>& refSectorVector = m_Sector[sectorY][sectorX];
-		for (int i = 0; i < refSectorVector.size(); i++)
+		for (int sessionIdx = 0; sessionIdx < refSectorVector.size(); sessionIdx++)
 		{
 			scPacket.Clear();
-			mpDeleteCharacter(&scPacket, refSectorVector[i]->dwSessionID);
+			mpDeleteCharacter(&scPacket, refSectorVector[sessionIdx]->dwSessionID);
 			Send_UniCast(player->pSession, &scPacket);
 			//_LOG(0, L"Delete Character # ID : %d\n", refSectorVector[i]->dwSessionID);
 		}
 	}
 
 	// player에게 Addsector 유저 정보 전송
-	for (int i = 0; i < addSector.iCount; i++)
+	for (int sectorIdx = 0; sectorIdx < addSector.iCount; sectorIdx++)
 	{
 		// 그 섹터의 캐릭터들 생성 - player에게 전송
-		vector<st_CHARACTER*>& refSectorVector = m_Sector[addSector.Around[i].iY][addSector.Around[i].iX];
-		for (int i = 0; i < refSectorVector.size(); i++)
+		vector<st_CHARACTER*>& refSectorVector = m_Sector[addSector.Around[sectorIdx].iY][addSector.Around[sectorIdx].iX];
+		for (int sessionIdx = 0; sessionIdx < refSectorVector.size(); sessionIdx++)
 		{
-			if (refSectorVector[i]->bDeleted)
+			if (refSectorVector[sessionIdx]->bDeleted)
 				continue;
 
 			scPacket.Clear();
-			mpCreateOtherCharacter(&scPacket, refSectorVector[i]->dwSessionID, refSectorVector[i]->byDirection,
-				refSectorVector[i]->shX, refSectorVector[i]->shY, refSectorVector[i]->chHP);
+			mpCreateOtherCharacter(&scPacket, refSectorVector[sessionIdx]->dwSessionID, refSectorVector[sessionIdx]->byDirection,
+				refSectorVector[sessionIdx]->shX, refSectorVector[sessionIdx]->shY, refSectorVector[sessionIdx]->chHP);
 			bool bRet = Send_UniCast(player->pSession, &scPacket);
 			if (bRet == false)
 				continue;
 
-			if (refSectorVector[i]->dwAction == dfPACKET_MOVE_DIR_NONE)
+			if (refSectorVector[sessionIdx]->dwAction == dfPACKET_MOVE_DIR_NONE)
 				continue;
 
 			scPacket.Clear();
-			mpMoveStart(&scPacket, refSectorVector[i]->dwSessionID, refSectorVector[i]->dwAction, refSectorVector[i]->shX, refSectorVector[i]->shY);
+			mpMoveStart(&scPacket, refSectorVector[sessionIdx]->dwSessionID, refSectorVector[sessionIdx]->dwAction,
+				refSectorVector[sessionIdx]->shX, refSectorVector[sessionIdx]->shY);
 			Send_UniCast(player->pSession, &scPacket);
 		}
 	}
