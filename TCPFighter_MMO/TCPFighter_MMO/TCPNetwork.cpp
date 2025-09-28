@@ -1,6 +1,7 @@
 #pragma comment(lib, "ws2_32")
 #include <WinSock2.h>
 #include <ws2tcpip.h>
+#include <conio.h>
 #include "TCPDefine.h"
 #include "PacketDefine.h"
 #include "TCPNetwork.h"
@@ -25,7 +26,7 @@ DWORD m_IDCnt = 1;
 
 CStack<st_SESSION*> _disconnectStack;
 unordered_map<SOCKET, st_SESSION*> _sessionMap;
-procademy::CMemoryPool<st_SESSION> _sessionPool(dfMAX_CONNECT, false, false);
+procademy::CMemoryPool<st_SESSION> _sessionPool (dfMAX_CONNECT, false, false);
 
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
@@ -151,7 +152,7 @@ void netSelectIO()
 			SelectProc(&readSet, &writeSet);
 	}
 
-	DisconnectDeletedSession();
+	DisconnectDeletedSession();	
 }
 
 void SelectProc(fd_set* readSet, fd_set* writeSet)
@@ -347,10 +348,12 @@ void netProc_Send(SOCKET socket)
 
 		_LOG(1, L"Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
 		DisconnectSession(pSession);
+		return;
 	}
 	else if (sendRet == 0)
 	{
 		DisconnectSession(pSession);
+		return;
 	}
 
 	pSession->SendQ->MoveFront(sendRet);

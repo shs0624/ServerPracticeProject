@@ -116,15 +116,6 @@ bool UpdateSector(st_CHARACTER* player)
 		player->CurSector.iY = sectorY;
 
 		// 섹터에서 내 정보 이동
-		/*vector<st_CHARACTER*>& refSectorVector = m_Sector[player->OldSector.iY][player->OldSector.iX];
-		for (int i = 0; i < refSectorVector.size(); i++)
-		{
-			if (refSectorVector[i]->dwSessionID == player->dwSessionID)
-			{
-				refSectorVector.erase(refSectorVector.begin() + i);
-				break;
-			}
-		}*/
 		m_Sector[player->CurSector.iY][player->CurSector.iX].push_back(player);
 
 		_LOG(0, L"ID : %d # SectorChange # X :%d -> %d # Y : %d -> %d\n", player->dwSessionID, oldSectorX, sectorX, oldSectorY, sectorY);
@@ -657,7 +648,7 @@ void GetUpdateSectorAround(st_CHARACTER* player, st_SECTOR_AROUND* pRemoveSector
 	{
 		// addSector
 		int addXArr[5] = { -1, -1 ,-1, 0, 1 };
-		int addYArr[5] = { 1, 0 ,-1, -1, -1 };
+		int addYArr[5] = { -1, 0 ,1, 1, 1 };
 
 		for (int i = 0; i < 5; i++)
 		{
@@ -797,19 +788,19 @@ void SendPacket_Around(st_CHARACTER* pCharacter, CPacket* cPacket, bool bSendMe)
 		vector<st_CHARACTER*>& refSectorVector = m_Sector[stAround.Around[i].iY][stAround.Around[i].iX];
 		if (playerSectorFlag)
 		{
-			for (int i = 0; i < refSectorVector.size(); i++)
+			for (int j = 0; j < refSectorVector.size(); j++)
 			{
-				if (!bSendMe && refSectorVector[i]->dwSessionID == pCharacter->dwSessionID)
+				if (!bSendMe && refSectorVector[j]->dwSessionID == pCharacter->dwSessionID)
 					continue;
 
-				Send_UniCast(refSectorVector[i]->pSession, cPacket);
+				Send_UniCast(refSectorVector[j]->pSession, cPacket);
 			}
 		}
 		else
 		{
-			for (int i = 0; i < refSectorVector.size(); i++)
+			for (int j = 0; j < refSectorVector.size(); j++)
 			{
-				Send_UniCast(refSectorVector[i]->pSession, cPacket);
+				Send_UniCast(refSectorVector[j]->pSession, cPacket);
 			}
 		}
 	}
