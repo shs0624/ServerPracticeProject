@@ -16,6 +16,9 @@
 
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "sha512_check_lib.lib")
+#define LOGMAX 10000
+
+
 
 struct stMESSAGE_REQ
 {
@@ -29,6 +32,25 @@ struct stMESSAGE_RES
 	std::string			sha512;
 };
 
+struct stREQ_LOG
+{
+	DWORD index;
+	stMESSAGE_REQ stReq;
+	DWORD threadID;
+};
+
+struct stMSG_LOG
+{
+	DWORD index;
+	stMESSAGE_RES stRes;
+	DWORD threadID;
+};
+
+DWORD g_reqIdx;
+DWORD g_msgIdx;
+
+stREQ_LOG g_reqLogArr[LOGMAX];
+stMSG_LOG g_MsgLogArr[LOGMAX];
 
 std::queue<stMESSAGE_REQ*> g_msgQueue;
 char g_msgQueueFlag = 0;
@@ -54,6 +76,8 @@ void MakeString(std::string &str)
 	{
 		str.append(1, text_table[rand() % 45]);
 	}
+
+	//str.append("Hello");
 }
 
 
@@ -67,12 +91,14 @@ void HashRequest(std::string &data)
 
 
 	AcquireSRWLockExclusive(&g_msgQueue_lock);
+	g_reqLogArr[g_reqIdx].index = g_reqIdx;
+	memcpy(&(g_reqLogArr[g_reqIdx].stReq), pmsg, sizeof(stMESSAGE_REQ));
+	g_reqLogArr[g_reqIdx].threadID = GetCurrentThreadId();
+
+	g_reqIdx = (g_reqIdx + 1) % LOGMAX;
+
 	g_msgQueue.push(pmsg);
 	ReleaseSRWLockExclusive(&g_msgQueue_lock);
-
-
-
-
 }
 
 
@@ -83,6 +109,12 @@ void HashResponse(const std::string &hash, unsigned __int64 key)
 	res->key = key;
 
 	AcquireSRWLockExclusive(&g_hashQueue_lock);
+	g_MsgLogArr[g_msgIdx].index = g_msgIdx;
+	memcpy(&(g_MsgLogArr[g_msgIdx].stRes), res, sizeof(stMESSAGE_RES));
+	g_MsgLogArr[g_msgIdx].threadID = GetCurrentThreadId();
+
+	g_msgIdx = (g_msgIdx + 1) % LOGMAX;
+
 	g_hashQueue.push(res);
 	ReleaseSRWLockExclusive(&g_hashQueue_lock);
 }
