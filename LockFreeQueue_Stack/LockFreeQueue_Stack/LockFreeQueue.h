@@ -16,6 +16,7 @@ private:
     DWORD _size;
     DWORD _dwCount;
     DWORD _dwLogCount;
+    DWORD _dwTailLogCount;
     DWORD _dwAllocCount;
 
     struct st_Node
@@ -38,6 +39,7 @@ private:
     st_Node* _tail;        // 마지막노드를 포인트한다.
 
     st_LOG _workArr[LOGARR_MAX];
+    st_LOG _tailLogArr[LOGARR_MAX];
     st_Node* _allocArr[LOGARR_MAX];
     //procademy::CMemoryPool<st_Node>* _NodePool;
     procademy::CMemoryPool<st_Node>* _NodePool;
@@ -56,7 +58,7 @@ public:
         node->data = t;
         node->next = NULL;
 
-        DWORD allocIdx = _InterlockedIncrement(&_dwAllocCount) % LOGARR_MAX;
+        DWORD allocIdx = InterlockedIncrement(&_dwAllocCount) % LOGARR_MAX;
         _allocArr[allocIdx] = node;
 
         DWORD localCnt = InterlockedIncrement(&_dwCount);
@@ -75,19 +77,29 @@ public:
             {
                 if (InterlockedCompareExchangePointer((PVOID*)&tailPtr->next, EnqueueNode, NULL) == next)
                 {
-                    DWORD logIdx = _InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
+                    DWORD logIdx = InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
                     _workArr[logIdx].type = workType_Q::Enqueue;
                     _workArr[logIdx].pNode = EnqueueNode;
                     _workArr[logIdx].head = _head;
                     _workArr[logIdx].tail = tail;
-                    _workArr[logIdx]._dwsize = _size + 1;
+                    _workArr[logIdx]._dwsize = InterlockedIncrement(&_size);
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
                     if (InterlockedCompareExchangePointer((PVOID*)&_tail, EnqueueNode, tail) != tail)
                     {
                         // 실패의 경우 그 이유 추적
-                        DebugBreak();
+                        //DebugBreak();
+
+                        // tail이 안바뀌면 별도로 로깅
+                        DWORD tailLogIdx = InterlockedIncrement(&_dwTailLogCount) % LOGARR_MAX;
+                        _tailLogArr[tailLogIdx].type = workType_Q::Enqueue;
+                        _tailLogArr[tailLogIdx].pNode = EnqueueNode;
+                        _tailLogArr[tailLogIdx].head = _head;
+                        _tailLogArr[tailLogIdx].tail = tail;
+                        _tailLogArr[tailLogIdx]._dwsize = _size;
+                        _tailLogArr[tailLogIdx]._dwThreadID = GetCurrentThreadId();
                     }
+
                     break;
                 }
 
@@ -105,12 +117,17 @@ public:
                 //}
             }
         }
-
-        InterlockedIncrement(&_size);
     }
 
     int Dequeue(T& t)
     {
+        int decSize = InterlockedDecrement(&_size);
+        if (decSize < 0)
+        {
+            InterlockedIncrement(&_size);
+            return 0;
+        }
+
         DWORD localCnt = InterlockedIncrement(&_dwCount);
 
         while (true)
@@ -120,9 +137,13 @@ public:
             st_Node* headPtr = (st_Node*)(0x00007fffffffffff & (ULONGLONG)head);
             st_Node* next = headPtr->next;
 
+            if (next == NULL)
+                continue;
+
             // 비어있다?
             if (next == NULL)
             {
+                DebugBreak();
                 return -1;
             }
             else
@@ -131,12 +152,12 @@ public:
                 {
                     st_Node* localNode = (st_Node*)(0x00007fffffffffff & (ULONGLONG)next);
 
-                    DWORD logIdx = _InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
+                    DWORD logIdx = InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
                     _workArr[logIdx].type = workType_Q::Dequeue;
                     _workArr[logIdx].pNode = head;
                     _workArr[logIdx].head = _head;
                     _workArr[logIdx].tail = _tail;
-                    _workArr[logIdx]._dwsize = _size - 1;
+                    _workArr[logIdx]._dwsize = decSize;
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
                     t = localNode->data;
@@ -146,7 +167,6 @@ public:
             }
         }
 
-        InterlockedDecrement(&_size);
         return 0;
     }
 };
