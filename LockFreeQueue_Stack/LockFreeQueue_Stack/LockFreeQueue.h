@@ -90,14 +90,13 @@ public:
                         // 실패의 경우 그 이유 추적
                         //DebugBreak();
 
-                        // tail이 안바뀌면 별도로 로깅
-                        DWORD tailLogIdx = InterlockedIncrement(&_dwTailLogCount) % LOGARR_MAX;
-                        _tailLogArr[tailLogIdx].type = workType_Q::Enqueue;
-                        _tailLogArr[tailLogIdx].pNode = EnqueueNode;
-                        _tailLogArr[tailLogIdx].head = _head;
-                        _tailLogArr[tailLogIdx].tail = tail;
-                        _tailLogArr[tailLogIdx]._dwsize = _size;
-                        _tailLogArr[tailLogIdx]._dwThreadID = GetCurrentThreadId();
+                        st_Node* node = (st_Node*)(0x00007fffffffffff & (ULONGLONG)tailPtr->next);
+                        while (node->next != NULL)
+                        {
+                            node = (st_Node*)(0x00007fffffffffff & (ULONGLONG)node->next);
+                        }
+
+                        InterlockedExchangePointer((PVOID*)&_tail, node);
                     }
 
                     break;
@@ -121,13 +120,6 @@ public:
 
     int Dequeue(T& t)
     {
-        int decSize = InterlockedDecrement(&_size);
-        if (decSize < 0)
-        {
-            InterlockedIncrement(&_size);
-            return 0;
-        }
-
         DWORD localCnt = InterlockedIncrement(&_dwCount);
 
         while (true)
@@ -136,6 +128,7 @@ public:
 
             st_Node* headPtr = (st_Node*)(0x00007fffffffffff & (ULONGLONG)head);
             st_Node* next = headPtr->next;
+            //T localData = ((st_Node*)(0x00007fffffffffff & (ULONGLONG)next))->data;
 
             if (next == NULL)
                 continue;
@@ -157,10 +150,11 @@ public:
                     _workArr[logIdx].pNode = head;
                     _workArr[logIdx].head = _head;
                     _workArr[logIdx].tail = _tail;
-                    _workArr[logIdx]._dwsize = decSize;
+                    _workArr[logIdx]._dwsize = InterlockedDecrement(&_size);
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
                     t = localNode->data;
+
                     _NodePool->Free(headPtr);
                     break;
                 }
