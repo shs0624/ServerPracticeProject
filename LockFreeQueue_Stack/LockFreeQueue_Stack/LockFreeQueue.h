@@ -65,6 +65,14 @@ public:
         st_Node* EnqueueNode = (st_Node*)((ULONGLONG)node | (ULONGLONG)localCnt << 47);
         // 이걸 넣어야지
 
+        // tail을 밀어줘야 한다.
+        st_Node* _t = _tail;
+        st_Node* _tailP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_t);
+        if (_tailP->next != NULL)
+        {
+            InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
+        }
+
         while (true)
         {
             // tail도 원상복귀 필요
@@ -81,39 +89,13 @@ public:
                     _workArr[logIdx].type = workType_Q::Enqueue;
                     _workArr[logIdx].pNode = EnqueueNode;
                     _workArr[logIdx].head = _head;
-                    _workArr[logIdx].tail = tail;
+                    _workArr[logIdx].tail = _tail;
                     _workArr[logIdx]._dwsize = InterlockedIncrement(&_size);
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
-                    if (InterlockedCompareExchangePointer((PVOID*)&_tail, EnqueueNode, tail) != tail)
-                    {
-                        // 실패의 경우 그 이유 추적
-                        //DebugBreak();
-
-                        st_Node* node = (st_Node*)(0x00007fffffffffff & (ULONGLONG)tailPtr->next);
-                        while (node->next != NULL)
-                        {
-                            node = (st_Node*)(0x00007fffffffffff & (ULONGLONG)node->next);
-                        }
-
-                        InterlockedExchangePointer((PVOID*)&_tail, node);
-                    }
-
+                    InterlockedCompareExchangePointer((PVOID*)&_tail, EnqueueNode, tail);
                     break;
                 }
-
-                //if (InterlockedCompareExchangePointer((PVOID*)&_tail, EnqueueNode, tail) == tail)
-                //{
-                //    // 실패의 경우 그 이유 추적
-                //    DWORD logIdx = _InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
-                //    _workArr[logIdx].type = workType_Q::Enqueue;
-                //    _workArr[logIdx].pNode = EnqueueNode;
-                //    _workArr[logIdx].head = _head;
-                //    _workArr[logIdx].tail = tail;
-                //    _workArr[logIdx]._dwsize = _size + 1;
-                //    _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
-                //    break;
-                //}
             }
         }
     }
@@ -124,40 +106,43 @@ public:
 
         while (true)
         {
+            T localData;
             st_Node* head = _head;
 
             st_Node* headPtr = (st_Node*)(0x00007fffffffffff & (ULONGLONG)head);
             st_Node* next = headPtr->next;
-            //T localData = ((st_Node*)(0x00007fffffffffff & (ULONGLONG)next))->data;
+
+            // 데이터 미리 뽑아두기
+            if(next != NULL)
+                localData = ((st_Node*)(0x00007fffffffffff & (ULONGLONG)next))->data;
 
             if (next == NULL)
                 continue;
 
-            // 비어있다?
-            if (next == NULL)
+            // tail을 밀어줘야 하는지 체크
+            st_Node* _t = _tail;
+            st_Node* _tailP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_t);
+            if (_tailP->next != NULL)
             {
-                DebugBreak();
-                return -1;
+                InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
             }
-            else
+
+            if (InterlockedCompareExchangePointer((PVOID*)&_head, next, head) == head)
             {
-                if (InterlockedCompareExchangePointer((PVOID*)&_head, next, head) == head)
-                {
-                    st_Node* localNode = (st_Node*)(0x00007fffffffffff & (ULONGLONG)next);
+                st_Node* localNode = (st_Node*)(0x00007fffffffffff & (ULONGLONG)next);
 
-                    DWORD logIdx = InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
-                    _workArr[logIdx].type = workType_Q::Dequeue;
-                    _workArr[logIdx].pNode = head;
-                    _workArr[logIdx].head = _head;
-                    _workArr[logIdx].tail = _tail;
-                    _workArr[logIdx]._dwsize = InterlockedDecrement(&_size);
-                    _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
+                DWORD logIdx = InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
+                _workArr[logIdx].type = workType_Q::Dequeue;
+                _workArr[logIdx].pNode = head;
+                _workArr[logIdx].head = _head;
+                _workArr[logIdx].tail = _tail;
+                _workArr[logIdx]._dwsize = InterlockedDecrement(&_size);
+                _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 
-                    t = localNode->data;
+                t = localData;
 
-                    _NodePool->Free(headPtr);
-                    break;
-                }
+                _NodePool->Free(headPtr);
+                break;
             }
         }
 

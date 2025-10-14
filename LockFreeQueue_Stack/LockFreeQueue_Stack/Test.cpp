@@ -32,6 +32,7 @@ unsigned int WINAPI WorkerThread(LPVOID arg);
 
 bool _pushEnd = false;
 bool _popEnd = false;
+int _check[10000];
 
 CRITICAL_SECTION _printCS;
 
@@ -154,16 +155,17 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 	int arr[3];
 	int cnt = 0;
 
-	for (int i = 0; i < 1000; i++)
+	for (int i = 0; i < 10000; i++)
 	{
-		for (int i = 0; i < 3; i++)
+		for (int j = 0; j < 1; j++)
 		{
 			_lfQueue.Enqueue(i);
 		}
 
-		for (int i = 0; i < 3; i++)
+		for (int j = 0; j < 1; j++)
 		{
-			int num = _lfQueue.Dequeue(arr[i]);
+			_lfQueue.Dequeue(arr[j]);
+			_check[arr[j]]++;
 			//printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
 		}
 	}
