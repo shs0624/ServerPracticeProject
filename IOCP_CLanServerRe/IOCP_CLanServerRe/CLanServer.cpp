@@ -484,7 +484,7 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacke
 
 	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
 
-	EnterCriticalSection(&ptr->sendLock);
+	//EnterCriticalSection(&ptr->sendLock);
 	ptr->sendBuf->Enqueue(cPacket);
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
@@ -496,11 +496,11 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacke
 				// ¿¬°á ²÷±â
 				ReleaseSession(ptr->ulSessionID);
 			}
-			LeaveCriticalSection(&ptr->sendLock);
+			//LeaveCriticalSection(&ptr->sendLock);
 			return false;
 		}
 	}
-	LeaveCriticalSection(&ptr->sendLock);
+	//LeaveCriticalSection(&ptr->sendLock);
 	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
 
 	return true;
@@ -576,6 +576,7 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 		if (err != WSA_IO_PENDING)
 		{
 			printf("WSASend Fail! : %d\n", err);
+			DebugBreak();
 			return false;
 		}
 	}

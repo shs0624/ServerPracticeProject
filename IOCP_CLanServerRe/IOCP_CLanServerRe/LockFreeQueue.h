@@ -63,7 +63,7 @@ public:
             _headP = _headP->next;
         }
 
-        _head->next = NULL;
+        _headP->next = NULL;
         _tail = _head;
     }
 
