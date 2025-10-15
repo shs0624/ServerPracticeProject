@@ -44,7 +44,7 @@ private:
     //procademy::CMemoryPool<st_Node>* _NodePool;
     procademy::CMemoryPool<st_Node>* _NodePool;
 public:
-    LockFreeQueue() : _NodePool(new procademy::CMemoryPool<st_Node>(100000))
+    LockFreeQueue() : _NodePool(new procademy::CMemoryPool<st_Node>(5000))
     {
         _size = 0;
         _head = _NodePool->Alloc();
@@ -74,7 +74,8 @@ public:
 
     bool Empty()
     {
-        if (_head->next == NULL)
+        st_Node* _headP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
+        if (_headP->next == NULL)
             return true;
 
         return false;
@@ -176,4 +177,13 @@ public:
 
         return 0;
     }
+
+    // 값을 뽑을 필요없이 그냥 뺄 때
+    void Pop_Front()
+    {
+        T t;
+
+        Dequeue(t);
+    }
+
 };

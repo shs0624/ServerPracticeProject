@@ -36,9 +36,11 @@ struct st_Session
 	SOCKET sock;
 	//CRingBuffer* sendBuf;
 	//std::deque<RefCountPointer<CPacket>> sendBuf;
-	LockFreeQueue<RefCountPointer<CPacket>> sendBuf;
+	LockFreeQueue<RefCountPointer<CPacket>>* sendBuf;
 	CRingBuffer* recvBuf;
 	//std::deque<LPVOID> recvBuf;
+
+	RefCountPointer<CPacket> cPacketArr[100];
 
 	DWORD dwSendCount;
 	DWORD dwRecvCount;

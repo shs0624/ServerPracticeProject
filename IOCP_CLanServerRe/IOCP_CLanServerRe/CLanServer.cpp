@@ -174,7 +174,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	ptr->dwIOCount = 0;
 	ptr->bSendFlag = false;
 	ptr->sock = client_sock;
-	ptr->sendBuf.clear();
+	ptr->sendBuf->Clear();
 	ptr->recvBuf->ClearBuffer();
 	
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
@@ -259,14 +259,14 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
-				ptr->sendBuf.pop_front();
+				ptr->cPacketArr[i].DecRefCount();
 			}
 
 			ptr->dwSendCount -= cnt;
 			if (ptr->dwSendCount < 0)
 				DebugBreak();
 
-			if (!ptr->sendBuf.Empty())
+			if (!ptr->sendBuf->Empty())
 			{
 				if (!thisPtr->SetWSASend(ptr))
 				{
@@ -355,6 +355,7 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 	for (ULONGLONG i = 0; i < maxConnection; i++)
 	{
 		_sessionArr[i].bSessionAlive = false;
+		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer<CPacket>>();
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
 		InitializeCriticalSection(&_sessionArr[i].sendLock);
 
@@ -484,7 +485,7 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacke
 	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
 
 	EnterCriticalSection(&ptr->sendLock);
-	ptr->sendBuf.Enqueue(cPacket);
+	ptr->sendBuf->Enqueue(cPacket);
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
 		if (!SetWSASend(ptr))
@@ -554,11 +555,11 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
 	WSABUF sendWsa[200];
 
-	int loopCnt = ptr->sendBuf.Size();
+	int loopCnt = ptr->sendBuf->Size();
 	for (int i = 0; i < loopCnt; i++)
 	{
-		RefCountPointer<CPacket> cpacket;
-		(ptr->sendBuf.Dequeue(cpacket));
+		(ptr->sendBuf->Dequeue(ptr->cPacketArr[i]));
+		RefCountPointer<CPacket> cpacket = ptr->cPacketArr[i];
 
 		sendWsa[i].buf = (*cpacket)->GetBufferPtr();
 		sendWsa[i].len = sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
@@ -612,7 +613,7 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, CPacket* cPacket)
 			return false;
 		}
 
-		//printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
+		printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
 		return false;
 	}
 	//LeaveCriticalSection(&pSession->crtLock);
@@ -637,7 +638,7 @@ void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 
 	ptr->recvBuf->ClearBuffer();
 	EnterCriticalSection(&ptr->sendLock);
-	ptr->sendBuf.Clear();
+	ptr->sendBuf->Clear();
 	LeaveCriticalSection(&ptr->sendLock);
 
 	ptr->bSessionAlive = false;
