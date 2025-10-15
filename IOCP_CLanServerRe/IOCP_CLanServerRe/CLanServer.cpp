@@ -153,7 +153,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	ULONGLONG idx;
 	// 비동기 입출력 시작
 	{
-		Profiler("FindSessionIdx");
+		//Profiler("FindSessionIdx");
 		idx = FindUsableSessionIndex();
 		if (idx == -1)
 		{
@@ -230,7 +230,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
 			{
-				Profiler("RecvProc");
+				//Profiler("RecvProc");
 				if (!thisPtr->RecvProc(ptr, cbTransferred))
 				{
 					if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
@@ -241,7 +241,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 				}
 			}
 			{
-				Profiler("SetWSARecv");
+				//Profiler("SetWSARecv");
 				if (!thisPtr->SetWSARecv(ptr))
 				{
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
@@ -266,7 +266,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			if (ptr->dwSendCount < 0)
 				DebugBreak();
 
-			if (!ptr->sendBuf.empty())
+			if (!ptr->sendBuf.Empty())
 			{
 				if (!thisPtr->SetWSASend(ptr))
 				{
@@ -484,7 +484,7 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacke
 	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
 
 	EnterCriticalSection(&ptr->sendLock);
-	ptr->sendBuf.push_back(cPacket);
+	ptr->sendBuf.Enqueue(cPacket);
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
 		if (!SetWSASend(ptr))
@@ -554,11 +554,13 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
 	WSABUF sendWsa[200];
 
-	int loopCnt = ptr->sendBuf.size();
+	int loopCnt = ptr->sendBuf.Size();
 	for (int i = 0; i < loopCnt; i++)
 	{
-		CPacket* cpacket = *(ptr->sendBuf[i]);
-		sendWsa[i].buf = cpacket->GetBufferPtr();
+		RefCountPointer<CPacket> cpacket;
+		(ptr->sendBuf.Dequeue(cpacket));
+
+		sendWsa[i].buf = (*cpacket)->GetBufferPtr();
 		sendWsa[i].len = sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
 		sendCount++;
 	}
@@ -610,7 +612,7 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, CPacket* cPacket)
 			return false;
 		}
 
-		printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
+		//printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
 		return false;
 	}
 	//LeaveCriticalSection(&pSession->crtLock);
@@ -630,12 +632,12 @@ void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 		return;
 
 	ULONGLONG idx = (ulSessionID) >> 48;
-	printf("Release Session IDX : %d\n", idx);
+	//printf("Release Session IDX : %d\n", idx);
 	OnRelease(ptr->ulSessionID);
 
 	ptr->recvBuf->ClearBuffer();
 	EnterCriticalSection(&ptr->sendLock);
-	ptr->sendBuf.clear();
+	ptr->sendBuf.Clear();
 	LeaveCriticalSection(&ptr->sendLock);
 
 	ptr->bSessionAlive = false;

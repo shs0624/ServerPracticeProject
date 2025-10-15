@@ -135,11 +135,14 @@
   <ItemGroup>
     <ClInclude Include="CCrashDump.h" />
     <ClInclude Include="CFreeList.h" />
+    <ClInclude Include="CFreeList_Re.h" />
     <ClInclude Include="CLanServer.h" />
     <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="CSerializationBuffer.h" />
     <ClInclude Include="Debug.h" />
     <ClInclude Include="EchoServer.h" />
+    <ClInclude Include="LockFreeQueue.h" />
+    <ClInclude Include="LockFreeStack_Re.h" />
     <ClInclude Include="ProcademyProfiler.h" />
     <ClInclude Include="RefCountPointer.h" />
     <ClInclude Include="TestStack.h" />

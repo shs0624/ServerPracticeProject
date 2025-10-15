@@ -2,6 +2,7 @@
 #include "CSerializationBuffer.h"
 #include "RefCountPointer.h"
 #include "CRingBuffer.h"
+#include "LockFreeQueue.h"
 #include "TestStack.h"
 #include <deque>
 #define PROTOCOL_MAX_SIZE 16
@@ -34,7 +35,8 @@ struct st_Session
 	ULONGLONG ulSessionID;
 	SOCKET sock;
 	//CRingBuffer* sendBuf;
-	std::deque<RefCountPointer<CPacket>> sendBuf;
+	//std::deque<RefCountPointer<CPacket>> sendBuf;
+	LockFreeQueue<RefCountPointer<CPacket>> sendBuf;
 	CRingBuffer* recvBuf;
 	//std::deque<LPVOID> recvBuf;
 
