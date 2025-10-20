@@ -6,10 +6,12 @@
 #include <queue>
 #include "LockFreeStack_Re.h"
 #include "LockFreeQueue.h"
-#include "CFreeList_Re.h"
+//#include "CFreeList_Re.h"
+#include "TLSMemoryPool.h"
 using namespace std;
 
 //procademy::CMemoryPool<int> _testPool(300000);
+TLSMemoryPoolManager<int> _testPool(1000, 10, 2, false, false);
 //queue<void*> _deletePrintQ;
 
 LockFreeStack<int> _lfStack;
@@ -51,7 +53,7 @@ int wmain()
 		_lfStack.push(i);
 	}*/
 
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 2; i++)
 	{
 		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
 		if (_workerThreadHandleArr[i] == NULL)
@@ -65,7 +67,7 @@ int wmain()
 			return 1;
 	}*/
 
-	WaitForMultipleObjects(10, _workerThreadHandleArr, TRUE, INFINITE);
+	WaitForMultipleObjects(2, _workerThreadHandleArr, TRUE, INFINITE);
 		
 	printf("Done!");
 
@@ -129,46 +131,46 @@ unsigned int WINAPI PrintThread(LPVOID arg)
 //}
 
 // 메모리풀 테스트용
-//unsigned int WINAPI WorkerThread(LPVOID arg)
-//{
-//	int* arr[10000];
-//	int cnt = 0;
-//
-//	for (int i = 0; i < 10000; i++)
-//	{
-//		arr[i] = _testPool.Alloc();
-//		*arr[i] = i;
-//	}
-//
-//	for (int i = 0; i < 10000; i++)
-//	{
-//		printf("free[i] : %d\n", i, *arr[i]);
-//		_testPool.Free(arr[i]);
-//	}
-//
-//	return 0;
-//}
-
-// 락프리큐 테스트용
 unsigned int WINAPI WorkerThread(LPVOID arg)
 {
-	int arr[3];
+	int* arr[10000];
 	int cnt = 0;
 
 	for (int i = 0; i < 10000; i++)
 	{
-		for (int j = 0; j < 1; j++)
-		{
-			_lfQueue.Enqueue(i);
-		}
+		arr[i] = _testPool.Alloc();
+		*arr[i] = i;
+	}
 
-		for (int j = 0; j < 1; j++)
-		{
-			_lfQueue.Dequeue(arr[j]);
-			_check[arr[j]]++;
-			//printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
-		}
+	for (int i = 0; i < 10000; i++)
+	{
+		printf("ID : %d | free[i] : %d\n", GetCurrentThreadId(), i, *arr[i]);
+		_testPool.Free(arr[i]);
 	}
 
 	return 0;
 }
+
+// 락프리큐 테스트용
+//unsigned int WINAPI WorkerThread(LPVOID arg)
+//{
+//	int arr[3];
+//	int cnt = 0;
+//
+//	for (int i = 0; i < 10000; i++)
+//	{
+//		for (int j = 0; j < 1; j++)
+//		{
+//			_lfQueue.Enqueue(i);
+//		}
+//
+//		for (int j = 0; j < 1; j++)
+//		{
+//			_lfQueue.Dequeue(arr[j]);
+//			_check[arr[j]]++;
+//			//printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
+//		}
+//	}
+//
+//	return 0;
+//}

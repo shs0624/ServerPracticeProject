@@ -9,8 +9,10 @@
 #include "Debug.h"
 #include "CLanServer.h"
 #include "ProcademyProfiler.h"
+#include "TLSMemoryPool.h"
 
 procademy::CCrashDump cCrashDump;
+//TLSMemoryPoolManager<CPacket> _TLSPool(100, 3, 5);
 
 CRITICAL_SECTION _echoBufferLock;
 CRITICAL_SECTION _indexStackLock;
@@ -29,7 +31,6 @@ DWORD _threadID = 0;
 HANDLE _tpsThreadHandle;
 
 CRingBuffer* _echoBuffer;
-
 
 unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
@@ -486,6 +487,8 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacke
 
 	//EnterCriticalSection(&ptr->sendLock);
 	ptr->sendBuf->Enqueue(cPacket);
+	cPacket.IncRefCount();
+
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
 		if (!SetWSASend(ptr))
@@ -564,6 +567,11 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 		sendWsa[i].buf = (*cpacket)->GetBufferPtr();
 		sendWsa[i].len = sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
 		sendCount++;
+	}
+
+	if (sendCount == 0)
+	{
+		return false;
 	}
 
 	retval = WSASend(ptr->sock, sendWsa, sendCount, &sendbytes,

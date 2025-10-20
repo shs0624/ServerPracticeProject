@@ -1,5 +1,5 @@
 #pragma once
-#include "CFreeList_Re.h"
+#include "CFreeList_LockFree.h"
 //#include "MemoryPool.h"
 #define LOGARR_MAX 10000
 

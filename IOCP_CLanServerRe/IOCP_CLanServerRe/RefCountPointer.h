@@ -11,19 +11,19 @@ public:
 
 	}
 
-	~RefCountPointer()
+	/*~RefCountPointer()
 	{
 		if (InterlockedDecrement(_iRefCount) == 0)
 		{
 			delete(_iRefCount);
 			CPacket::_CPacketPool.Free(ptr);
 		}
-	}
+	}*/
 
 	static RefCountPointer<T> MakeSharedPtr()
 	{
 		RefCountPointer<T> result;
-		result._iRefCount = new unsigned int(1);
+		result._iRefCount = new unsigned int(0);
 		result.ptr = CPacket::_CPacketPool.Alloc();
 
 		return result;
@@ -67,7 +67,7 @@ public:
 		return ptr;
 	}
 
-	RefCountPointer<T>& operator= (const RefCountPointer<T>& copy)
+	/*RefCountPointer<T>& operator= (const RefCountPointer<T>& copy)
 	{
 		ptr = copy.ptr;
 		_iRefCount = copy._iRefCount;
@@ -83,7 +83,7 @@ public:
 		_iRefCount = copy._iRefCount;
 
 		InterlockedIncrement((LONG*)_iRefCount);
-	}
+	}*/
 private:
 	T* ptr;
 	unsigned int* _iRefCount;

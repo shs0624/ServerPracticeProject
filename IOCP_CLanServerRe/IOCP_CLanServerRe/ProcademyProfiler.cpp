@@ -132,7 +132,7 @@ public:
 
 		// 스레드의 배열 인덱스를 TLS에서 얻어옴
 		DWORD threadidx = (DWORD)TlsGetValue(_ThreadTlsIdx);
-		if (idx == 0)
+		if (threadidx == 0)
 		{
 			DebugBreak();
 		}

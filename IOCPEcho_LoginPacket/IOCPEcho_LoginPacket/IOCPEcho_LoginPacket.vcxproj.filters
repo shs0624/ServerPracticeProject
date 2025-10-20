@@ -68,5 +68,8 @@
     <ClInclude Include="EchoServer.h">
       <Filter>소스 파일</Filter>
     </ClInclude>
+    <ClInclude Include="TLSMemoryPool.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

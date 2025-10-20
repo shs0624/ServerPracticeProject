@@ -4,6 +4,7 @@
 #define _CPACKET_
 #include <Windows.h>
 #include "CFreeList.h"
+#include "TLSMemoryPool.h"
 
 enum en_PACKET
 {
@@ -309,8 +310,9 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	int	PutData(char* chpSrc, int iSrcSize);
 
-	static procademy::CMemoryPool<CPacket> _CPacketPool;
-	friend class procademy::CMemoryPool<CPacket>;
+	//static procademy::CMemoryPool<CPacket> _CPacketPool;
+	static TLSMemoryPoolManager<CPacket> _CPacketPool;
+	//friend class TLSMemoryPoolManager<CPacket>;
 protected:
 	int _iBufferSize;
 	// 현재 버퍼에 사용중인 사이즈

@@ -77,13 +77,16 @@
     <ClInclude Include="ProcademyProfiler.h">
       <Filter>Debug</Filter>
     </ClInclude>
-    <ClInclude Include="CFreeList_Re.h">
+    <ClInclude Include="CFreeList_LockFree.h">
       <Filter>Lib</Filter>
     </ClInclude>
     <ClInclude Include="LockFreeQueue.h">
       <Filter>Lib</Filter>
     </ClInclude>
     <ClInclude Include="LockFreeStack_Re.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="TLSMemoryPool.h">
       <Filter>Lib</Filter>
     </ClInclude>
   </ItemGroup>

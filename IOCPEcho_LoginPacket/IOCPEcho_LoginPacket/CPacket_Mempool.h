@@ -3,7 +3,8 @@
 #ifndef _CPACKET_
 #define _CPACKET_
 #include <Windows.h>
-#include "CFreeList.h"
+//#include "CFreeList.h"
+#include "TLSMemoryPool.h"
 
 enum en_PACKET
 {
@@ -315,9 +316,10 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	int	PutData(char* chpSrc, int iSrcSize);
 
-	static procademy::CMemoryPool<CPacket> _CPacketPool;
-	friend class procademy::CMemoryPool<CPacket>;
-private:
+	//static procademy::CMemoryPool<CPacket> _CPacketPool;
+	static TLSMemoryPoolManager<CPacket> _CPacketPool;
+	//friend class procademy::CMemoryPool<CPacket>;
+
 	CPacket()
 	{
 
@@ -325,7 +327,7 @@ private:
 
 	virtual ~CPacket()
 	{
-		free(_iBuffer);
+		//free(_iBuffer);
 	}
 protected:
 	int _iBufferSize;

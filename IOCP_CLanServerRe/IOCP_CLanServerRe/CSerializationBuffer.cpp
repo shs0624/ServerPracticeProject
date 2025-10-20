@@ -1,6 +1,7 @@
 #include "CSerializationBuffer.h"
 
-procademy::CMemoryPool<CPacket> CPacket::_CPacketPool(0, true, false);
+//procademy::CMemoryPool<CPacket> CPacket::_CPacketPool(0, true, false);
+TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 3, 5, true, false);
 
 // 헤더를 넣을 직렬화버퍼는 이걸로 초기화
 void CPacket::Initialize(int iBufferSize, int iHeaderSize)
