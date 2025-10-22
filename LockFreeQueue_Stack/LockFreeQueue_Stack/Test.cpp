@@ -53,7 +53,7 @@ int wmain()
 		_lfStack.push(i);
 	}*/
 
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < 10; i++)
 	{
 		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
 		if (_workerThreadHandleArr[i] == NULL)
@@ -67,7 +67,7 @@ int wmain()
 			return 1;
 	}*/
 
-	WaitForMultipleObjects(2, _workerThreadHandleArr, TRUE, INFINITE);
+	WaitForMultipleObjects(10, _workerThreadHandleArr, TRUE, INFINITE);
 		
 	printf("Done!");
 
