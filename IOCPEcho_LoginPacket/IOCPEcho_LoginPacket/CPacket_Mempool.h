@@ -327,7 +327,7 @@ public:
 
 	virtual ~CPacket()
 	{
-		//free(_iBuffer);
+		free(_iBuffer);
 	}
 protected:
 	int _iBufferSize;
