@@ -2,7 +2,7 @@
 #include <Windows.h>
 // 메인 메모리 풀은 청크 단위로 오브젝트들을 관리하는 풀이다. 
 // 락프리 구조로 구현.
-#define LIMITCOUNT 2
+#define ALLOCCOUNT 2
 #define MAXCAPACITY_CHUNK 7
 
 struct stChunk
@@ -250,7 +250,7 @@ public:
 			{
 				stChunk* chunkPtr = _Manager->AllocChunkToTLS();
 
-				((st_BLOCK_NODE<DATA>*)chunkPtr->BottomNode)->nextPtr = _TopNode;
+				(chunkPtr->BottomNode)->nextPtr = _TopNode;
 				_TopNode = (st_BLOCK_NODE<DATA>*)chunkPtr->TopNode;
 
 				_pChunkArr[_iTlsChunkCount++] = chunkPtr;
@@ -264,12 +264,12 @@ public:
 		{
 			// 뺄 청크보다 사이즈가 작으면 애초에 호출되면 안됐다.
 			DWORD nowSize = _dwSize;
-			if (_dwSize < _iTlsChunkSize * LIMITCOUNT)
+			if (_dwSize < _iTlsChunkSize * ALLOCCOUNT)
 				DebugBreak();
 
 			LPVOID bottomNode;
 			LPVOID topNode;
-			for (int allocCnt = 0; allocCnt < LIMITCOUNT; allocCnt++)
+			for (int allocCnt = 0; allocCnt < ALLOCCOUNT; allocCnt++)
 			{
 				topNode = _TopNode;
 				st_BLOCK_NODE<DATA>* pNode = _TopNode;
@@ -278,7 +278,7 @@ public:
 					pNode = pNode->nextPtr;
 				}
 				bottomNode = pNode;
-				_TopNode = ((st_BLOCK_NODE<DATA>*)bottomNode)->nextPtr;
+
 				
 				if (_iTlsChunkCount == 0)
 				{
@@ -326,7 +326,7 @@ public:
 
 			++_dwSize;
 
-			if (_dwSize > _iBaseSize + LIMITCOUNT * _iTlsChunkSize)
+			if (_dwSize > _iBaseSize + ALLOCCOUNT * _iTlsChunkSize)
 			{
 				FreeChunk();
 			}
