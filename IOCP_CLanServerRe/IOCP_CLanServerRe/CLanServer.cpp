@@ -154,7 +154,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	ULONGLONG idx;
 	// 비동기 입출력 시작
 	{
-		//Profiler("FindSessionIdx");
+		Profiler("FindSessionIdx");
 		idx = FindUsableSessionIndex();
 		if (idx == -1)
 		{
@@ -231,7 +231,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
 			{
-				//Profiler("RecvProc");
+				Profiler("RecvProc");
 				if (!thisPtr->RecvProc(ptr, cbTransferred))
 				{
 					if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
@@ -242,7 +242,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 				}
 			}
 			{
-				//Profiler("SetWSARecv");
+				Profiler("SetWSARecv");
 				if (!thisPtr->SetWSARecv(ptr))
 				{
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)

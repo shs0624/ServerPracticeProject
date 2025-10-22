@@ -1,5 +1,6 @@
 #pragma once
 #include "CSerializationBuffer.h"
+#include "ProcademyProfiler.h"
 #include <Windows.h>
 
 template <typename T>
@@ -24,7 +25,10 @@ public:
 	{
 		RefCountPointer<T> result;
 		result._iRefCount = new unsigned int(0);
-		result.ptr = CPacket::_CPacketPool.Alloc();
+		{
+			Profiler("Alloc");
+			result.ptr = CPacket::_CPacketPool.Alloc();
+		}
 
 		return result;
 	}
@@ -97,6 +101,7 @@ private:
 	{
 		if (InterlockedDecrement((LONG*)_iRefCount) == 0)
 		{
+			Profiler("Free");
 			delete(_iRefCount);
 			CPacket::_CPacketPool.Free(ptr);
 		}
