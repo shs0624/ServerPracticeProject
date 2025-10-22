@@ -1,5 +1,6 @@
 #pragma once
 #include <Windows.h>
+#include "ProcademyProfiler.h"
 // 메인 메모리 풀은 청크 단위로 오브젝트들을 관리하는 풀이다. 
 // 락프리 구조로 구현.
 #define ALLOCCOUNT 2
@@ -37,7 +38,7 @@ public:
 		_bPlacementNew = bPlacementNew;
 		_bCreateNew = bCreateNew;
 
-		_TopUseChunk = NULL;
+		_TopChunk = NULL;
 
 		_pGuardCode = (LPVOID)this;
 
@@ -70,10 +71,12 @@ public:
 		while (1)
 		{
 			// 청크가 없다면 생성
-			if (_TopUseChunk == NULL)
+			if (_TopChunk == NULL)
+			{
 				CreateChunk();
+			}
 
-			st_BLOCK_NODE<DATA>* oldTopChunk = _TopUseChunk;
+			st_BLOCK_NODE<DATA>* oldTopChunk = _TopChunk;
 
 			st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)oldTopChunk);
 			st_BLOCK_NODE<DATA>* newTopChunk = (st_BLOCK_NODE<DATA>*)chunkPtr->guardCode;
@@ -82,7 +85,7 @@ public:
 			chunkPtr->guardCode = _pGuardCode;
 #endif
 
-			if (InterlockedCompareExchange64((__int64*)&_TopUseChunk, (__int64)newTopChunk, (__int64)oldTopChunk) == (__int64)oldTopChunk)
+			if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newTopChunk, (__int64)oldTopChunk) == (__int64)oldTopChunk)
 			{
 				/*DWORD localCnt = InterlockedIncrement(&_logIdx);
 				_LogArr[localCnt].ptr = NodePtr;
@@ -113,12 +116,12 @@ public:
 
 		while (1)
 		{
-			st_BLOCK_NODE<DATA>* oldTopChunk = _TopUseChunk;
+			st_BLOCK_NODE<DATA>* oldTopChunk = _TopChunk;
 			chunkPtr->guardCode = (LPVOID)oldTopChunk;
 
 			st_BLOCK_NODE<DATA>* newTop = (st_BLOCK_NODE<DATA>*)((ULONGLONG)chunkPtr | localIdx);
 
-			if (InterlockedCompareExchange64((__int64*)&_TopUseChunk, (__int64)newTop, (__int64)oldTopChunk) == (__int64)oldTopChunk)
+			if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newTop, (__int64)oldTopChunk) == (__int64)oldTopChunk)
 			{
 				/*DWORD localCnt = InterlockedIncrement(&_logIdx);
 				_LogArr[localCnt].ptr = newNode;
@@ -212,10 +215,10 @@ public:
 
 			while (1)
 			{
-				st_BLOCK_NODE<DATA>* oldChunkTop = _TopUseChunk;
+				st_BLOCK_NODE<DATA>* oldChunkTop = _TopChunk;
 				st_BLOCK_NODE<DATA>* newChunk = (st_BLOCK_NODE<DATA>*)((ULONGLONG)pChunkNode | localIdx);
 
-				if (InterlockedCompareExchange64((__int64*)&_TopUseChunk, (__int64)newChunk, (__int64)oldChunkTop) == (__int64)oldChunkTop)
+				if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newChunk, (__int64)oldChunkTop) == (__int64)oldChunkTop)
 				{
 					// 청크의 다음 노드 주소는 guardCode에 넣자. 어차피 청크 안에서의 guard처리는 안할거다.
 					pChunkNode->guardCode = oldChunkTop;
@@ -256,14 +259,11 @@ public:
 				st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)chunkTop);
 				st_BLOCK_NODE<DATA>* bottomNode = chunkPtr;
 
-				st_BLOCK_NODE<DATA>* arr[1000];
 				// 그 노드를 타고 들어가서 최하단 노드를 찾기
 				for (int j = 0; j < _iTlsChunkSize - 1; j++)
 				{
-					arr[j] = bottomNode;
 					bottomNode = bottomNode->nextPtr;
 				}
-				// 여기서 오류나는데, 청크의 첫번째가 next가 NULL인게 문제가 되나? 확인해보니 첫 노드임.
 
 				// bottomNode는 Top과 연결,Top은 청크로 받은 노드로 변경.
 				bottomNode->nextPtr = _TopNode;
@@ -318,7 +318,7 @@ public:
 
 			++_dwSize;
 
-			if (_dwSize > _iBaseSize + ALLOCCOUNT * _iTlsChunkSize)
+			if (_dwSize >  _iBaseSize * 2)
 			{
 				FreeChunk();
 			}
@@ -384,8 +384,7 @@ public:
 	// 해당 스레드의 메모리풀이 몇번 TLS 인덱스에 박혀있는지 -> 각각 스레드의 _TlsIdx에 메모리풀 주소 저장
 	DWORD _TlsIdx = -1;
 private:
-	//st_BLOCK_NODE* _TopNode;
-	st_BLOCK_NODE<DATA>* _TopUseChunk;
+	st_BLOCK_NODE<DATA>* _TopChunk;
 
 	// 스레드 개수
 	DWORD _ThreadCount;
