@@ -5,6 +5,8 @@
 #define ALLOCCOUNT 2
 #define MAXCAPACITY_CHUNK 7
 
+//#define DEBUG_TLSMEMORYPOOL
+
 template <typename DATA>
 class TLSMemoryPoolManager
 {
@@ -45,8 +47,10 @@ public:
 	// 스레드 별 스택 생성
 	void Thread_Init()
 	{
+#ifdef DEBUG_TLSMEMORYPOOL
 		if (_TlsIdx == 0)
 			DebugBreak();
+#endif
 
 		// 스레드의 메모리풀 주소 얻어오기
 		TLSMemoryPool* pMemoryPool = new TLSMemoryPool(_iChunkPerThread, MAXCAPACITY_CHUNK, this);
@@ -74,8 +78,8 @@ public:
 			st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)oldTopChunk);
 			st_BLOCK_NODE<DATA>* newTopChunk = (st_BLOCK_NODE<DATA>*)chunkPtr->guardCode;
 
-#ifdef __GUARDTEST__
-			//chunkPtr->nextPtr = (st_BLOCK_NODE*)m_guardCode;
+#ifdef DEBUG_TLSMEMORYPOOL
+			chunkPtr->guardCode = _pGuardCode;
 #endif
 
 			if (InterlockedCompareExchange64((__int64*)&_TopUseChunk, (__int64)newTopChunk, (__int64)oldTopChunk) == (__int64)oldTopChunk)
@@ -96,12 +100,11 @@ public:
 	// 청크 해제 TLS -> 메인
 	void FreeChunkToPool(st_BLOCK_NODE<DATA>* chunk)
 	{
-		//st_BLOCK_NODE<DATA>* chunkPtr = chunk//(st_BLOCK_NODE<DATA>*)((char*)chunk - sizeof(void*));
 		st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)chunk);
 		ULONGLONG localIdx = InterlockedIncrement(&_ulIDCnt);
 		localIdx = localIdx << 47;
 
-#ifdef __GUARDTEST__
+#ifdef DEBUG_TLSMEMORYPOOL
 		if (chunkPtr->guardCode != _pGuardCode)
 		{
 			DebugBreak();
@@ -131,8 +134,10 @@ public:
 	// TLS 스택에서 할당
 	DATA* Alloc()
 	{
+#ifdef DEBUG_TLSMEMORYPOOL
 		if (_TlsIdx == 0)
 			DebugBreak();
+#endif
 
 		// 스레드의 메모리풀 주소 얻어오기
 		TLSMemoryPool* pMemoryPool = (TLSMemoryPool*)TlsGetValue(_TlsIdx);
@@ -156,8 +161,10 @@ public:
 	// 스레드 스택에 반환
 	void Free(DATA* pData)
 	{
+#ifdef DEBUG_TLSMEMORYPOOL
 		if (_TlsIdx == 0)
 			DebugBreak();
+#endif
 
 		// 스레드의 메모리풀 주소 얻어오기
 		TLSMemoryPool* pMemoryPool = (TLSMemoryPool*)TlsGetValue(_TlsIdx);
@@ -234,9 +241,6 @@ public:
 			_iBaseChunk = baseChunk;
 			_iBaseSize = baseChunk * _iTlsChunkSize;
 			//_iMaxSize = maxChunk * _iChunkSize;
-
-			// 애초에 처음 할당받는 basechunk + ALLOCCOUNT 보다 많아지면 반환할거야.
-			//_pChunkArr = malloc(sizeof(stChunk) * )
 
 			_guardCode = manager;
 			_Manager = manager;

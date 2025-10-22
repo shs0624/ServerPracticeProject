@@ -2,7 +2,7 @@
 #include <iostream>
 
 //procademy::CMemoryPool<CPacket> CPacket::_CPacketPool(0, true, false);
-TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 3, 10, true, false);
+TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(1000, 5, 10, true, false);
 
 // Alloc 후 호출 필수
 void CPacket::Initialize(int iBufferSize, int iHeaderSize)
