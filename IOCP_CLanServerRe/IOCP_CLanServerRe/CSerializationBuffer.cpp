@@ -1,16 +1,16 @@
 #include "CSerializationBuffer.h"
 
 //procademy::CMemoryPool<CPacket> CPacket::_CPacketPool(0, true, false);
-TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(1000, 5, 10, true, false);
+TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 5, 5, true, false);
 
-// 헤더를 넣을 직렬화버퍼는 이걸로 초기화
-void CPacket::Initialize(int iBufferSize, int iHeaderSize)
+// 직렬화버퍼 초기화. 호출 필수적. 헤더를 넣었다면 헤더 사이즈도 설정
+void CPacket::Initialize(int iBufferSize, int iHeaderSize = 0)
 {
 	_iBufferSize = iBufferSize;
 	_head = iHeaderSize;
 	_tail = iHeaderSize;
 	_iDataSize = 0;
-	//_iBuffer = (char*)malloc(_iBufferSize);
+	_iBuffer = (char*)malloc(_iBufferSize);
 	if (_iBuffer == nullptr)
 	{
 		DebugBreak();
@@ -18,33 +18,12 @@ void CPacket::Initialize(int iBufferSize, int iHeaderSize)
 	}
 }
 
+#pragma warning(disable:26495)
 CPacket::CPacket()
 {
-	_iBufferSize = eBUFFER_DFAULT;
-	_head = 0;
-	_tail = 0;
-	_iDataSize = 0;
-	_iBuffer = (char*)malloc(_iBufferSize);
-	if (_iBuffer == nullptr)
-	{
-		DebugBreak();
-		return;
-	}
+	
 }
-
-CPacket::CPacket(int iBufferSize)
-{
-	_iBufferSize = iBufferSize;
-	_head = 0;
-	_tail = 0;
-	_iDataSize = 0;
-	_iBuffer = (char*)malloc(_iBufferSize);
-	if (_iBuffer == nullptr)
-	{
-		DebugBreak();
-		return;
-	}
-}
+#pragma warning(default:26495)
 
 int CPacket::GetData(char* chpDest, int iSize)
 {
@@ -92,6 +71,7 @@ void CPacket::Clear(void)
 CPacket::~CPacket()
 {
 	free(_iBuffer);
+	_iBuffer = nullptr;
 }
 
 void CPacket::PushHeader(char* header, int headerSize)

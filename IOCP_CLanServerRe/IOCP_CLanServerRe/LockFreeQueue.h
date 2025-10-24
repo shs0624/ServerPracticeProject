@@ -1,5 +1,5 @@
 #pragma once
-#include "CFreeList_LockFree.h"
+#include "TLSMemoryPool.h"
 //#include "MemoryPool.h"
 #define LOGARR_MAX 10000
 
@@ -43,7 +43,10 @@ private:
     st_Node* _allocArr[LOGARR_MAX];
     //procademy::CMemoryPool<st_Node>* _NodePool;
     procademy::CMemoryPool<st_Node>* _NodePool;
+    //TLSMemoryPoolManager<st_Node>* _NodePool;
+
 public:
+    //LockFreeQueue() :_NodePool(new TLSMemoryPoolManager<st_Node>(500, 5, 10))
     LockFreeQueue() : _NodePool(new procademy::CMemoryPool<st_Node>(5000))
     {
         _size = 0;

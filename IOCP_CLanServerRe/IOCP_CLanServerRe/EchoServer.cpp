@@ -26,11 +26,11 @@ int main()
 
 void EchoServer::OnAccept(ULONGLONG SessionID)
 {
-	CPacket* cPacket = new CPacket(PROTOCOL_MAX_SIZE);
-	(cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
+	RefCountPointer<CPacket> cPacket = RefCountPointer<CPacket>::MakeSharedPtr();
+	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
 
-	LONGLONG login = 0x7fffffffffffffff;
-	(*cPacket) << (LONGLONG)login;
+	__int64 login = 0x7fffffffffffffff;
+	*(*cPacket) << login;
 
 	SendLoginPacket(SessionID, cPacket);
 }

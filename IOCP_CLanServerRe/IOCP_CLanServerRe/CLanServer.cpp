@@ -10,6 +10,7 @@
 #include "CLanServer.h"
 #include "ProcademyProfiler.h"
 #include "TLSMemoryPool.h"
+#define IOCP_THREADCOUNT 5
 
 procademy::CCrashDump cCrashDump;
 //TLSMemoryPoolManager<CPacket> _TLSPool(100, 3, 5);
@@ -154,7 +155,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	ULONGLONG idx;
 	// 비동기 입출력 시작
 	{
-		Profiler("FindSessionIdx");
+		//Profiler("FindSessionIdx");
 		idx = FindUsableSessionIndex();
 		if (idx == -1)
 		{
@@ -231,7 +232,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
 			{
-				Profiler("RecvProc");
+				//Profiler("RecvProc");
 				if (!thisPtr->RecvProc(ptr, cbTransferred))
 				{
 					if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
@@ -242,7 +243,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 				}
 			}
 			{
-				Profiler("SetWSARecv");
+				//Profiler("SetWSARecv");
 				if (!thisPtr->SetWSARecv(ptr))
 				{
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
@@ -373,7 +374,15 @@ bool CLanServer::Init(int maxConnection)
 	_echoBuffer = new CRingBuffer(100000);
 	InitializeSessions(maxConnection);
 
-	_NetIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	//CPU 개수 확인
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+
+	int concurrentThread = si.dwNumberOfProcessors - 4;
+	if (concurrentThread <= 0)
+		concurrentThread = si.dwNumberOfProcessors - 1;
+
+	_NetIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrentThread);
 	if (_NetIOCPHandle == NULL) return false;
 
 	_EchoIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
@@ -388,11 +397,7 @@ bool CLanServer::Init(int maxConnection)
 	if (_acceptThreadHandle == NULL)
 		return false;
 
-	//CPU 개수 확인
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
-
-	for (int i = 0; i < (int)si.dwNumberOfProcessors * 2 - 1; i++)
+	for (int i = 0; i < IOCP_THREADCOUNT; i++)
 	{
 		_NetIOCPWorkerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, IOCPWorkerThread, this, 0, &_NetIOCPWorkerThreadID[i]);
 		if (_NetIOCPWorkerThreadHandleArr[i] == NULL)
@@ -406,7 +411,8 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 {
 	st_PACKET_HEADER header;
 	st_NetHeader netHeader;
-	CPacket csPacket(PROTOCOL_MAX_SIZE);
+	CPacket csPacket;
+	csPacket.Initialize(PROTOCOL_MAX_SIZE, 0);
 
 	ptr->recvBuf->MoveRear(cbTransferred);
 
@@ -592,7 +598,7 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	return true;
 }
 
-bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, CPacket* cPacket)
+bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer<CPacket> cPacket)
 {
 	DWORD sendBytes, retval;
 	st_Session* pSession = NULL;
@@ -602,27 +608,29 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, CPacket* cPacket)
 		return false;
 	}
 
-	short shSize = (cPacket)->GetDataSize();
+	short shSize = (*cPacket)->GetDataSize();
 	st_NetHeader header;
 	header.shLen = shSize;
 
 	//EnterCriticalSection(&pSession->crtLock);
-	(cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
+	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
 
 	WSABUF sendWsa;
-	sendWsa.buf = cPacket->GetBufferPtr();
-	sendWsa.len = cPacket->GetDataSize();
+	sendWsa.buf = (*cPacket)->GetBufferPtr();
+	sendWsa.len = (*cPacket)->GetDataSize();
 
 	int sendRet = WSASend(pSession->sock, &sendWsa, 1, &sendBytes, 0, &(pSession->sendOverlapped), NULL);
 	if (sendRet == SOCKET_ERROR)
 	{
 		int err = WSAGetLastError();
-		if (err == WSAEWOULDBLOCK)
+		if (err != WSA_IO_PENDING)
 		{
-			return false;
+			printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
+			DebugBreak();
+			return true;
 		}
 
-		printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
+		printf("IOPending : %d\n", WSAGetLastError());
 		return false;
 	}
 	//LeaveCriticalSection(&pSession->crtLock);

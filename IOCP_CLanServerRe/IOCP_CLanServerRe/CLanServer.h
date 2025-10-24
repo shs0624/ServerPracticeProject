@@ -34,11 +34,8 @@ struct st_Session
 	OVERLAPPED recvOverlapped;
 	ULONGLONG ulSessionID;
 	SOCKET sock;
-	//CRingBuffer* sendBuf;
-	//std::deque<RefCountPointer<CPacket>> sendBuf;
 	LockFreeQueue<RefCountPointer<CPacket>>* sendBuf;
 	CRingBuffer* recvBuf;
-	//std::deque<LPVOID> recvBuf;
 
 	RefCountPointer<CPacket> cPacketArr[100];
 
@@ -110,7 +107,7 @@ protected:
 	bool AcceptProc(CLanServer* thisPtr);
 	bool SetWSARecv(st_Session* ptr);
 	bool SetWSASend(st_Session* ptr);
-	bool SendLoginPacket(ULONGLONG ulSessionID, CPacket* cPacket);
+	bool SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer<CPacket> cPacket);
 	bool RecvProc(st_Session* ptr, DWORD cbTransferred);
 	void ReleaseSession(ULONGLONG ulSessionID);
 	void ResetTPS();

@@ -5,8 +5,14 @@
 // 락프리 구조로 구현.
 #define ALLOCCOUNT 2
 #define MAXCAPACITY_CHUNK 7
-
+#define LOGSIZE 10000
 //#define DEBUG_TLSMEMORYPOOL
+
+enum LOG_WORKTYPE
+{
+	ALLOC,
+	FREE
+};
 
 template <typename DATA>
 class TLSMemoryPoolManager
@@ -17,6 +23,12 @@ class TLSMemoryPoolManager
 		LPVOID guardCode;
 		T allocData;
 		st_BLOCK_NODE<T>* nextPtr;
+	};
+
+	struct st_ALLOCLOG
+	{
+		LOG_WORKTYPE type;
+		st_BLOCK_NODE<DATA>* ptr;
 	};
 
 	friend class TLSMemoryPool;
@@ -87,10 +99,11 @@ public:
 
 			if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newTopChunk, (__int64)oldTopChunk) == (__int64)oldTopChunk)
 			{
-				/*DWORD localCnt = InterlockedIncrement(&_logIdx);
-				_LogArr[localCnt].ptr = NodePtr;
-				_LogArr[localCnt].type = ALLOC;*/
-
+#ifdef DEBUG_TLSMEMORYPOOL
+				DWORD localCnt = InterlockedIncrement(&_logIdx) % LOGSIZE;
+				_LogArr[localCnt].ptr = oldTopChunk;
+				_LogArr[localCnt].type = ALLOC;
+#endif
 				InterlockedIncrement(&_iUseChunk);
 				InterlockedDecrement(&_iLeftChunk);
 
@@ -190,22 +203,22 @@ public:
 	{
 		// TLS풀에 전달할 노드용 메모리
 		st_BLOCK_NODE<DATA>* pNodeStart = (st_BLOCK_NODE<DATA>*)malloc(sizeof(st_BLOCK_NODE<DATA>) * _iChunkSize * _iCreateChunkCount);
-		st_BLOCK_NODE<DATA>* prevNode = NULL;
 		st_BLOCK_NODE<DATA>* pChunkNode = NULL;
+		st_BLOCK_NODE<DATA>* prevNode = NULL;
 		for (int chunkCount = 0; chunkCount < _iCreateChunkCount; chunkCount++)
 		{
+			prevNode = NULL;
+
 			for (int i = 0; i < _iChunkSize; i++)
 			{
 				pChunkNode = pNodeStart + i;
-
-				if (_bCreateNew)
-				{
-					new(&(pChunkNode->allocData))DATA;
-				}
-
 				pChunkNode->guardCode = _pGuardCode;
 				pChunkNode->nextPtr = prevNode;
-				memset(&pChunkNode->allocData, 0, sizeof(DATA));
+
+				if (_bCreateNew)
+					new(&(pChunkNode->allocData))DATA;
+				else
+					memset(&pChunkNode->allocData, 0, sizeof(DATA));
 
 				prevNode = pChunkNode;
 			}
@@ -224,6 +237,8 @@ public:
 					pChunkNode->guardCode = oldChunkTop;
 
 					pNodeStart = pNodeStart + _iChunkSize;
+					
+					InterlockedIncrement(&_iLeftChunk);
 					break;
 				}
 			}
@@ -364,10 +379,9 @@ public:
 			return false;
 		}*/
 	private:
+		
 		DWORD _dwSize = 0;
 		unsigned long _logIdx = 0;
-
-		//pair<workType, void*> _workArr[LOGARR_MAX];
 
 		unsigned int _iBaseChunk;
 		unsigned int _iBaseSize;
@@ -401,6 +415,9 @@ private:
 	// 현재 사용량, 남은 양, 용량
 	unsigned int _iUseChunk;
 	unsigned int _iLeftChunk;
+
+	DWORD _logIdx;
+	st_ALLOCLOG _LogArr[LOGSIZE];
 
 	bool _bPlacementNew;
 	bool _bCreateNew;

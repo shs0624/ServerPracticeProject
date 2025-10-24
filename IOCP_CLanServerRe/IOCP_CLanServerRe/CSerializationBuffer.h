@@ -8,14 +8,14 @@
 
 enum en_PACKET
 {
-	eBUFFER_DFAULT = 1400
+	eBUFFER_DFAULT = 24
 };
 
 class CPacket
 {
 public:
 	CPacket();
-	CPacket(int iBufferSize);
+	//CPacket(int iBufferSize);
 
 	virtual ~CPacket();
 
