@@ -282,6 +282,8 @@ public:
 				_TopNode = chunkTop;
 
 				_dwSize += _iTlsChunkSize;
+				if (_dwSize > 1500)
+					DebugBreak();
 			}
 		}
 
@@ -316,10 +318,8 @@ public:
 				_Manager->FreeChunkToPool(returnChunk);
 				_dwSize -= _iTlsChunkSize;
 
-#ifdef DEBUG_TLSMEMORYPOOL
 				if (_dwSize < 0)
 					DebugBreak();
-#endif
 			}
 		}
 
@@ -343,6 +343,8 @@ public:
 
 			if (_dwSize > _iBaseSize * 2)
 			{
+				if (_dwSize > 10000)
+					DebugBreak();
 				FreeChunk();
 			}
 
@@ -354,8 +356,6 @@ public:
 			// 그냥 부족할 때 할당
 			if (_TopNode == NULL)
 			{
-			/*	if (_dwSize != 0)
-					DebugBreak();*/
 				AllocChunkFromPool();
 			}
 
