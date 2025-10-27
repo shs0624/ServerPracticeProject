@@ -125,11 +125,13 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <StackReserveSize>10000000</StackReserveSize>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="LockFreeStack.h" />
     <ClCompile Include="Test.cpp" />
+    <ClCompile Include="Test2.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CFreeList.h" />

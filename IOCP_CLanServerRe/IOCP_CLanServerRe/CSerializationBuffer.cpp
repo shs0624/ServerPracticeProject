@@ -1,7 +1,11 @@
 #include "CSerializationBuffer.h"
 
-//procademy::CMemoryPool<CPacket> CPacket::_CPacketPool(0, true, false);
+//procademy::CMemoryPool_LockFree<CPacket> CPacket::_CPacketPool(0, true, false);
 TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 5, 5, true, false);
+DWORD CPacket::_iLogFreeIdx;
+LPVOID CPacket::_freeLog[CPACKET_LOGSIZE];
+DWORD CPacket::_iLogAllocIdx;
+LPVOID CPacket::_allocLog[CPACKET_LOGSIZE];
 
 // 직렬화버퍼 초기화. 호출 필수적. 헤더를 넣었다면 헤더 사이즈도 설정
 void CPacket::Initialize(int iBufferSize, int iHeaderSize = 0)
@@ -16,6 +20,9 @@ void CPacket::Initialize(int iBufferSize, int iHeaderSize = 0)
 		DebugBreak();
 		return;
 	}
+
+	int idx = InterlockedIncrement(&_iLogAllocIdx) % CPACKET_LOGSIZE;
+	_allocLog[idx] = (LPVOID)this;
 }
 
 #pragma warning(disable:26495)
@@ -70,6 +77,9 @@ void CPacket::Clear(void)
 
 CPacket::~CPacket()
 {
+	int idx = InterlockedIncrement(&_iLogFreeIdx) % CPACKET_LOGSIZE;
+	_freeLog[idx] = (LPVOID)this;
+
 	free(_iBuffer);
 	_iBuffer = nullptr;
 }

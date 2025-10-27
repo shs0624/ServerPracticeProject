@@ -1,6 +1,6 @@
 #pragma once
-#include "TLSMemoryPool.h"
-//#include "MemoryPool.h"
+//#include "TLSMemoryPool.h"
+#include "CFreeList_LockFree.h"
 #define LOGARR_MAX 10000
 
 enum workType_Q
@@ -39,15 +39,14 @@ private:
     st_Node* _tail;        // 마지막노드를 포인트한다.
 
     st_LOG _workArr[LOGARR_MAX];
-    st_LOG _tailLogArr[LOGARR_MAX];
     st_Node* _allocArr[LOGARR_MAX];
+    procademy::CMemoryPool_LockFree<st_Node>* _NodePool;
     //procademy::CMemoryPool<st_Node>* _NodePool;
-    procademy::CMemoryPool<st_Node>* _NodePool;
     //TLSMemoryPoolManager<st_Node>* _NodePool;
 
 public:
     //LockFreeQueue() :_NodePool(new TLSMemoryPoolManager<st_Node>(500, 5, 10))
-    LockFreeQueue() : _NodePool(new procademy::CMemoryPool<st_Node>(5000))
+    LockFreeQueue() : _NodePool(new procademy::CMemoryPool_LockFree<st_Node>(5000))
     {
         _size = 0;
         _head = _NodePool->Alloc();

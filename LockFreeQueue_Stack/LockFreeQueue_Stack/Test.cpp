@@ -10,8 +10,15 @@
 #include "TLSMemoryPool.h"
 using namespace std;
 
+struct stNode
+{
+	int a;
+	ULONGLONG b;
+	char c;
+};
+
 //procademy::CMemoryPool<int> _testPool(300000);
-TLSMemoryPoolManager<int> _testPool(1000, 10, 2, false, false);
+TLSMemoryPoolManager<stNode> _testPool(10, 2, 5, false, false);
 //queue<void*> _deletePrintQ;
 
 LockFreeStack<int> _lfStack;
@@ -38,7 +45,6 @@ int _check[10000];
 
 CRITICAL_SECTION _printCS;
 
-
 int wmain()
 {
 	InitializeCriticalSection(&_printCS);
@@ -53,7 +59,7 @@ int wmain()
 		_lfStack.push(i);
 	}*/
 
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 5; i++)
 	{
 		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
 		if (_workerThreadHandleArr[i] == NULL)
@@ -67,7 +73,7 @@ int wmain()
 			return 1;
 	}*/
 
-	WaitForMultipleObjects(10, _workerThreadHandleArr, TRUE, INFINITE);
+	WaitForMultipleObjects(5, _workerThreadHandleArr, TRUE, INFINITE);
 		
 	printf("Done!");
 
@@ -133,19 +139,33 @@ unsigned int WINAPI PrintThread(LPVOID arg)
 // 메모리풀 테스트용
 unsigned int WINAPI WorkerThread(LPVOID arg)
 {
-	int* arr[10000];
-	int cnt = 0;
-
-	for (int i = 0; i < 10000; i++)
+	int* arr[100];
+	while (1)
 	{
-		arr[i] = _testPool.Alloc();
-		*arr[i] = i;
-	}
+		int cnt = 0;
 
-	for (int i = 0; i < 10000; i++)
-	{
-		printf("ID : %d | free[i] : %d\n", GetCurrentThreadId(), i, *arr[i]);
-		_testPool.Free(arr[i]);
+		stNode* node = _testPool.Alloc();
+
+		node->a = 0;
+		node->b = (ULONGLONG) & node;
+		node->c = 0;
+
+		_testPool.Free(node);
+
+		//for (int i = 0; i < 100; i++)
+		//{
+		//	arr[i] = _testPool.Alloc();
+		//	*arr[i] = i;
+		//}
+
+		//for (int i = 0; i < 100; i++)
+		//{
+		//	//printf("ID : %d | free[i] : %d\n", GetCurrentThreadId(), i, *arr[i]);
+		//	if (*arr[i] < 0 || *arr[i] >= 100)
+		//		DebugBreak();
+
+		//	_testPool.Free(arr[i]);
+		//}
 	}
 
 	return 0;
@@ -157,18 +177,23 @@ unsigned int WINAPI WorkerThread(LPVOID arg)
 //	int arr[3];
 //	int cnt = 0;
 //
-//	for (int i = 0; i < 10000; i++)
+//	while (1)
 //	{
-//		for (int j = 0; j < 1; j++)
+//		for (int i = 0; i < 10000; i++)
 //		{
-//			_lfQueue.Enqueue(i);
-//		}
+//			for (int j = 0; j < 1; j++)
+//			{
+//				_lfQueue.Enqueue(i);
+//			}
 //
-//		for (int j = 0; j < 1; j++)
-//		{
-//			_lfQueue.Dequeue(arr[j]);
-//			_check[arr[j]]++;
-//			//printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
+//			for (int j = 0; j < 1; j++)
+//			{
+//				_lfQueue.Dequeue(arr[j]);
+//
+//				if (arr[j] < 0 || arr[j] >= 10000)
+//					DebugBreak();
+//				//printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
+//			}
 //		}
 //	}
 //

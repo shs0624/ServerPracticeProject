@@ -1,10 +1,12 @@
 #pragma once
 
+
 #ifndef _CPACKET_
 #define _CPACKET_
 #include <Windows.h>
-#include "CFreeList.h"
+#include "CFreeList_LockFree.h"
 #include "TLSMemoryPool.h"
+#define CPACKET_LOGSIZE 10000
 
 enum en_PACKET
 {
@@ -309,8 +311,12 @@ public:
 	// Return: (int)복사한 사이즈.
 	//////////////////////////////////////////////////////////////////////////
 	int	PutData(char* chpSrc, int iSrcSize);
-
-	//static procademy::CMemoryPool<CPacket> _CPacketPool;
+	
+	static DWORD _iLogFreeIdx;
+	static LPVOID _freeLog[CPACKET_LOGSIZE];
+	static DWORD _iLogAllocIdx;
+	static LPVOID _allocLog[CPACKET_LOGSIZE];
+	//static procademy::CMemoryPool_LockFree<CPacket> _CPacketPool;
 	static TLSMemoryPoolManager<CPacket> _CPacketPool;
 	//friend class TLSMemoryPoolManager<CPacket>;
 protected:

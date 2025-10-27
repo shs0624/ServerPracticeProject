@@ -1,3 +1,4 @@
+#include "CSerializationBuffer.h"
 #include "EchoServer.h"
 #include "ProcademyProfiler.h"
 #include <conio.h>

@@ -22,16 +22,16 @@
 #include <new.h>
 #include <Windows.h>
 
-enum FreeList_LOG
+enum FreeList_LockFree_LOG
 {
-	ALLOC,
-	FREE
+	ALLOC_LOCKFREEPOOL,
+	FREE_LOCKFREEPOOL
 };
 
 namespace procademy
 {
 	template <class DATA>
-	class CMemoryPool
+	class CMemoryPool_LockFree
 	{
 		struct st_BLOCK_NODE
 		{
@@ -42,7 +42,7 @@ namespace procademy
 
 		struct st_ALLOC_LOG
 		{
-			FreeList_LOG type;
+			FreeList_LockFree_LOG type;
 			st_BLOCK_NODE* ptr;
 		};
 	public:
@@ -54,9 +54,9 @@ namespace procademy
 		//				(bool) malloc 시 생성자 / Free 시 파괴자 호출 여부
 		// Return:
 		//////////////////////////////////////////////////////////////////////////
-		CMemoryPool() {}
+		CMemoryPool_LockFree() {}
 
-		CMemoryPool(int iBlockNum = 0, bool bPlacementNew = false, bool bCreateNew = false)
+		CMemoryPool_LockFree(int iBlockNum = 0, bool bPlacementNew = false, bool bCreateNew = false)
 		{
 			m_iCreateCount = (iBlockNum == 0) ? DEFAULTSIZE : iBlockNum;
 			m_iCapacity = iBlockNum;
@@ -92,7 +92,7 @@ namespace procademy
 			int a = 50;
 		}
 
-		virtual	~CMemoryPool()
+		virtual	~CMemoryPool_LockFree()
 		{
 			while (_pTopNode != nullptr)
 			{
@@ -155,7 +155,7 @@ namespace procademy
 
 					DWORD localCnt = InterlockedIncrement(&_logIdx);
 					_LogArr[localCnt].ptr = NodePtr;
-					_LogArr[localCnt].type = ALLOC;
+					_LogArr[localCnt].type = ALLOC_LOCKFREEPOOL;
 
 					InterlockedIncrement(&m_iUseCount);
 					return data;
@@ -199,7 +199,7 @@ namespace procademy
 
 					DWORD localCnt = InterlockedIncrement(&_logIdx);
 					_LogArr[localCnt].ptr = newNode;
-					_LogArr[localCnt].type = FREE;
+					_LogArr[localCnt].type = FREE_LOCKFREEPOOL;
 
 					InterlockedIncrement(&_IDCnt);
 					InterlockedDecrement(&m_iUseCount);

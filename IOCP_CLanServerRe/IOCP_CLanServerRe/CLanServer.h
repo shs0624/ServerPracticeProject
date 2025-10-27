@@ -37,14 +37,16 @@ struct st_Session
 	LockFreeQueue<RefCountPointer<CPacket>>* sendBuf;
 	CRingBuffer* recvBuf;
 
-	RefCountPointer<CPacket> cPacketArr[100];
+	RefCountPointer<CPacket> cPacketArr[200];
 
 	DWORD dwSendCount;
 	DWORD dwRecvCount;
 	DWORD dwIOCount;
 	BOOL bSendFlag;
 	BOOL bSessionAlive;
-	CRITICAL_SECTION sendLock;
+	LONG _tempWSASendCheck;
+	LONG _tempSendPacketCheck;
+	//CRITICAL_SECTION sendLock;
 };
 
 class CLanServer

@@ -100,7 +100,7 @@ public:
         }
     }
 
-    int Dequeue(T& t)
+    bool Dequeue(T& t)
     {
         DWORD localCnt = InterlockedIncrement(&_dwCount);
 
@@ -117,7 +117,7 @@ public:
                 localData = ((st_Node*)(0x00007fffffffffff & (ULONGLONG)next))->data;
 
             if (next == NULL)
-                continue;
+                return false;
 
             // tail을 밀어줘야 하는지 체크
             st_Node* _t = _tail;
@@ -146,6 +146,6 @@ public:
             }
         }
 
-        return 0;
+        return true;
     }
 };
