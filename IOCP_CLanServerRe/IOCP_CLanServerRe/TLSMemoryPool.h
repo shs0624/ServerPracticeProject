@@ -1,8 +1,8 @@
 #pragma once
 #include <Windows.h>
 #include "ProcademyProfiler.h"
-// ¸ŞÀÎ ¸Ş¸ğ¸® Ç®Àº Ã»Å© ´ÜÀ§·Î ¿ÀºêÁ§Æ®µéÀ» °ü¸®ÇÏ´Â Ç®ÀÌ´Ù. 
-// ¶ôÇÁ¸® ±¸Á¶·Î ±¸Çö.
+// ë©”ì¸ ë©”ëª¨ë¦¬ í’€ì€ ì²­í¬ ë‹¨ìœ„ë¡œ ì˜¤ë¸Œì íŠ¸ë“¤ì„ ê´€ë¦¬í•˜ëŠ” í’€ì´ë‹¤. 
+// ë½í”„ë¦¬ êµ¬ì¡°ë¡œ êµ¬í˜„.
 #define ALLOCCOUNT 2
 #define MAXCAPACITY_CHUNK 7
 #define LOGSIZE 10000
@@ -33,7 +33,7 @@ class TLSMemoryPoolManager
 
 	//friend class TLSMemoryPool;
 public:
-	// ¸Å°³º¯¼ö (1Ã»Å©¿¡ µé¾î°¡´Â ³ëµå °³¼ö, ½º·¹µå¿¡ ÇÒ´çÇÒ ±âº» Ã»Å© °³¼ö, ½º·¹µå °³¼ö, ÇÒ´ç ¹ŞÀ»¶§ »ı¼ºÀÚ È£Ãâ ¿©ºÎ, »ı¼º ¶§ »ı¼ºÀÚ È£Ãâ ¿©ºÎ)
+	// ë§¤ê°œë³€ìˆ˜ (1ì²­í¬ì— ë“¤ì–´ê°€ëŠ” ë…¸ë“œ ê°œìˆ˜, ìŠ¤ë ˆë“œì— í• ë‹¹í•  ê¸°ë³¸ ì²­í¬ ê°œìˆ˜, ìŠ¤ë ˆë“œ ê°œìˆ˜, í• ë‹¹ ë°›ì„ë•Œ ìƒì„±ì í˜¸ì¶œ ì—¬ë¶€, ìƒì„± ë•Œ ìƒì„±ì í˜¸ì¶œ ì—¬ë¶€)
 	TLSMemoryPoolManager(unsigned int iChunkSize = 0, unsigned int iChunkPerThread = 0, unsigned int iThreadCount = 0,
 		bool bPlacementNew = false, bool bCreateNew = false)
 	{
@@ -43,7 +43,7 @@ public:
 		_iChunkSize = iChunkSize;
 		_iChunkPerThread = iChunkPerThread;
 
-		// ÃÑ »ı¼º Ã»Å©´Â ÀüÃ¼ ½º·¹µåÀÇ ¿ä±¸ Ã»Å© * 2¸¸Å­
+		// ì´ ìƒì„± ì²­í¬ëŠ” ì „ì²´ ìŠ¤ë ˆë“œì˜ ìš”êµ¬ ì²­í¬ * 2ë§Œí¼
 		_iCreateChunkCount = iThreadCount * iChunkPerThread * 2;
 		_iLeftChunk = _iCreateChunkCount;
 
@@ -57,7 +57,7 @@ public:
 		CreateChunk();
 	}
 
-	// ½º·¹µå º° ½ºÅÃ »ı¼º
+	// ìŠ¤ë ˆë“œ ë³„ ìŠ¤íƒ ìƒì„±
 	void Thread_Init()
 	{
 #ifdef DEBUG_TLSMEMORYPOOL
@@ -65,24 +65,26 @@ public:
 			DebugBreak();
 #endif
 
-		// ½º·¹µåÀÇ ¸Ş¸ğ¸®Ç® ÁÖ¼Ò ¾ò¾î¿À±â
+		// ìŠ¤ë ˆë“œì˜ ë©”ëª¨ë¦¬í’€ ì£¼ì†Œ ì–»ì–´ì˜¤ê¸°
 		TLSMemoryPool* pMemoryPool = new TLSMemoryPool(_iChunkPerThread, MAXCAPACITY_CHUNK, this);
 		TlsSetValue(_TlsIdx, (LPVOID)pMemoryPool);
 
-		// ¿©±â¿¡ ³»°¡ »ı¼ºÇØ³õÀº ³ëµåµé ´ÜÃ¼·Î ÀÌµ¿
+		// ì—¬ê¸°ì— ë‚´ê°€ ìƒì„±í•´ë†“ì€ ë…¸ë“œë“¤ ë‹¨ì²´ë¡œ ì´ë™
 		pMemoryPool->AllocChunkFromPool();
+
+		InterlockedIncrement(&_iTLSPoolCount);
 	}
 
-	// Á¾·áÇÒ ¶§ µ¿ÀûÇÒ´ç ÇØÁ¦¿ëµµ
+	// ì¢…ë£Œí•  ë•Œ ë™ì í• ë‹¹ í•´ì œìš©ë„
 	void Thread_CleanUp();
 
-	// Ã»Å© ÇÒ´ç ¸ŞÀÎ -> TLS
+	// ì²­í¬ í• ë‹¹ ë©”ì¸ -> TLS
 	st_BLOCK_NODE<DATA>* AllocChunkToTLS()
 	{
-		// È£ÃâÇßÀ¸´Ï±î, µ¥ÀÌÅÍ¸¦ ¹İÈ¯ÇÒ ¶§±îÁö ·çÇÁ
+		// í˜¸ì¶œí–ˆìœ¼ë‹ˆê¹Œ, ë°ì´í„°ë¥¼ ë°˜í™˜í•  ë•Œê¹Œì§€ ë£¨í”„
 		while (1)
 		{
-			// Ã»Å©°¡ ¾ø´Ù¸é »ı¼º
+			// ì²­í¬ê°€ ì—†ë‹¤ë©´ ìƒì„±
 			if (_TopChunk == NULL)
 			{
 				CreateChunk();
@@ -111,7 +113,7 @@ public:
 		}
 	}
 
-	// Ã»Å© ÇØÁ¦ TLS -> ¸ŞÀÎ
+	// ì²­í¬ í•´ì œ TLS -> ë©”ì¸
 	void FreeChunkToPool(st_BLOCK_NODE<DATA>* chunk)
 	{
 		//st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)chunk);
@@ -128,12 +130,12 @@ public:
 		while (1)
 		{
 			st_BLOCK_NODE<DATA>* oldTopChunk = _TopChunk;
-			chunk->guardCode = (LPVOID)oldTopChunk;
-
 			st_BLOCK_NODE<DATA>* newTop = (st_BLOCK_NODE<DATA>*)((ULONGLONG)chunk | localIdx);
 
 			if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newTop, (__int64)oldTopChunk) == (__int64)oldTopChunk)
 			{
+				chunk->guardCode = (LPVOID)oldTopChunk;
+
 #ifdef DEBUG_TLSMEMORYPOOL
 				DWORD localCnt = InterlockedIncrement(&_logIdx) % LOGSIZE;
 				_LogArr[localCnt].ptr = newTop;
@@ -147,7 +149,7 @@ public:
 		}
 	}
 
-	// TLS ½ºÅÃ¿¡¼­ ÇÒ´ç
+	// TLS ìŠ¤íƒì—ì„œ í• ë‹¹
 	DATA* Alloc()
 	{
 #ifdef DEBUG_TLSMEMORYPOOL
@@ -155,7 +157,7 @@ public:
 			DebugBreak();
 #endif
 
-		// ½º·¹µåÀÇ ¸Ş¸ğ¸®Ç® ÁÖ¼Ò ¾ò¾î¿À±â
+		// ìŠ¤ë ˆë“œì˜ ë©”ëª¨ë¦¬í’€ ì£¼ì†Œ ì–»ì–´ì˜¤ê¸°
 		TLSMemoryPool* pMemoryPool = (TLSMemoryPool*)TlsGetValue(_TlsIdx);
 		if (pMemoryPool == NULL)
 		{
@@ -176,7 +178,7 @@ public:
 		return data;
 	}
 
-	// ½º·¹µå ½ºÅÃ¿¡ ¹İÈ¯
+	// ìŠ¤ë ˆë“œ ìŠ¤íƒì— ë°˜í™˜
 	void Free(DATA* pData)
 	{
 #ifdef DEBUG_TLSMEMORYPOOL
@@ -184,7 +186,7 @@ public:
 			DebugBreak();
 #endif
 
-		// ½º·¹µåÀÇ ¸Ş¸ğ¸®Ç® ÁÖ¼Ò ¾ò¾î¿À±â
+		// ìŠ¤ë ˆë“œì˜ ë©”ëª¨ë¦¬í’€ ì£¼ì†Œ ì–»ì–´ì˜¤ê¸°
 		TLSMemoryPool* pMemoryPool = (TLSMemoryPool*)TlsGetValue(_TlsIdx);
 		if (pMemoryPool == NULL)
 		{
@@ -205,14 +207,16 @@ public:
 
 	void CreateChunk()
 	{
-		// TLSÇ®¿¡ Àü´ŞÇÒ ³ëµå¿ë ¸Ş¸ğ¸®
+		// TLSí’€ì— ì „ë‹¬í•  ë…¸ë“œìš© ë©”ëª¨ë¦¬
 		st_BLOCK_NODE<DATA>* pNodeStart = (st_BLOCK_NODE<DATA>*)malloc(sizeof(st_BLOCK_NODE<DATA>) * _iChunkSize * _iCreateChunkCount);
 		st_BLOCK_NODE<DATA>* pChunkNode = NULL;
 		st_BLOCK_NODE<DATA>* prevNode = NULL;
+		st_BLOCK_NODE<DATA>* nextNode = NULL;
 		for (int chunkCount = 0; chunkCount < _iCreateChunkCount; chunkCount++)
 		{
-			//prevNode = NULL;
+			prevNode = NULL;
 
+			//for (int i = _iChunkSize - 1; i >= 0; i--)
 			for (int i = 0; i < _iChunkSize; i++)
 			{
 				pChunkNode = pNodeStart + i;
@@ -233,7 +237,7 @@ public:
 				st_BLOCK_NODE<DATA>* oldChunkTop = _TopChunk;
 				st_BLOCK_NODE<DATA>* newChunk = (st_BLOCK_NODE<DATA>*)((ULONGLONG)pChunkNode | localIdx);
 
-				// Ã»Å©ÀÇ ´ÙÀ½ ³ëµå ÁÖ¼Ò´Â guardCode¿¡ ³ÖÀÚ. ¾îÂ÷ÇÇ Ã»Å© ¾È¿¡¼­ÀÇ guardÃ³¸®´Â ¾ÈÇÒ°Å´Ù.
+				// ì²­í¬ì˜ ë‹¤ìŒ ë…¸ë“œ ì£¼ì†ŒëŠ” guardCodeì— ë„£ì. ì–´ì°¨í”¼ ì²­í¬ ì•ˆì—ì„œì˜ guardì²˜ë¦¬ëŠ” ì•ˆí• ê±°ë‹¤.
 				pChunkNode->guardCode = (LPVOID)oldChunkTop;
 
 				if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newChunk, (__int64)oldChunkTop) == (__int64)oldChunkTop)
@@ -247,8 +251,8 @@ public:
 		}
 	}
 
-	// ¾ê°¡ ½º·¹µå º°·Î »ı¼ºÇØ¼­ TLS¿¡ ÀúÀåÇÏ´Â Å¬·¡½º
-	// ¿©·¯ ½º·¹µå°¡ »ç¿ëÇÒ ÀÏÀÌ ¾øÀ¸´Ï, ±×³É ½ºÅÃ ±¸Á¶·Î ±¸Çö
+	// ì–˜ê°€ ìŠ¤ë ˆë“œ ë³„ë¡œ ìƒì„±í•´ì„œ TLSì— ì €ì¥í•˜ëŠ” í´ë˜ìŠ¤
+	// ì—¬ëŸ¬ ìŠ¤ë ˆë“œê°€ ì‚¬ìš©í•  ì¼ì´ ì—†ìœ¼ë‹ˆ, ê·¸ëƒ¥ ìŠ¤íƒ êµ¬ì¡°ë¡œ êµ¬í˜„
 	class TLSMemoryPool
 	{
 	public:
@@ -266,22 +270,35 @@ public:
 			_Manager = manager;
 		}
 
-		// ¸ŞÀÎ Ç®¿¡¼­ Ã»Å©¸¦ ÇÒ´ç¹Ş¾Æ TLS ½ºÅÃÀÇ ³ëµåµé°ú ¿¬°áÇØÁÖ°í, Ã»Å© ¹è¿­¿¡ ÀúÀå
+		// ë©”ì¸ í’€ì—ì„œ ì²­í¬ë¥¼ í• ë‹¹ë°›ì•„ TLS ìŠ¤íƒì˜ ë…¸ë“œë“¤ê³¼ ì—°ê²°í•´ì£¼ê³ , ì²­í¬ ë°°ì—´ì— ì €ì¥
 		void AllocChunkFromPool()
 		{
 			for (int i = 0; i < _iBaseChunk; i++)
 			{
-				// Chunk Data³ëµå¸¦ ¹Ş´Â´Ù.chunk¸¸ ÀÎµ¦½º¸¦ »ç¿ëÇÏ´Ï ºñÆ®¿¬»ê ÇÊ¿ä
+				// Chunk Dataë…¸ë“œë¥¼ ë°›ëŠ”ë‹¤.chunkë§Œ ì¸ë±ìŠ¤ë¥¼ ì‚¬ìš©í•˜ë‹ˆ ë¹„íŠ¸ì—°ì‚° í•„ìš”
 				st_BLOCK_NODE<DATA>* chunkTop = _Manager->AllocChunkToTLS();
 				st_BLOCK_NODE<DATA>* bottomNode = chunkTop;
 
-				// ±× ³ëµå¸¦ Å¸°í µé¾î°¡¼­ ÃÖÇÏ´Ü ³ëµå¸¦ Ã£±â
+				// ë””ë²„ê¹…
+				int nodeCount = 0;
+				st_BLOCK_NODE<DATA>* temp = chunkTop;
+				while (temp != NULL && nodeCount < _iTlsChunkSize + 10)
+				{
+					nodeCount++;
+					temp = temp->nextPtr;
+				}
+				if (nodeCount < _iTlsChunkSize)
+				{
+					DebugBreak();  // ì²­í¬ ë…¸ë“œê°€ ë¶€ì¡±!
+				}
+
+				// ê·¸ ë…¸ë“œë¥¼ íƒ€ê³  ë“¤ì–´ê°€ì„œ ìµœí•˜ë‹¨ ë…¸ë“œë¥¼ ì°¾ê¸°
 				for (int j = 0; j < _iTlsChunkSize - 1; j++)
 				{
 					bottomNode = bottomNode->nextPtr;
 				}
 
-				// bottomNode´Â Top°ú ¿¬°á,TopÀº Ã»Å©·Î ¹ŞÀº ³ëµå·Î º¯°æ.
+				// bottomNodeëŠ” Topê³¼ ì—°ê²°,Topì€ ì²­í¬ë¡œ ë°›ì€ ë…¸ë“œë¡œ ë³€ê²½.
 				bottomNode->nextPtr = _TopNode;
 				_TopNode = chunkTop;
 
@@ -292,10 +309,10 @@ public:
 			}
 		}
 
-		// ÀÏ´Ü ÇÏ³ª¾¿ ¼øÈ¸ÇÏ¸ç Ä«¿îÆÃÇØÁÖ°í, Ã»Å©¿¡¼­ ²¨³»¼­ ¹İÈ¯ÇÏ±â. ±×¸²Àº ±×·È´Ù.
+		// ì¼ë‹¨ í•˜ë‚˜ì”© ìˆœíšŒí•˜ë©° ì¹´ìš´íŒ…í•´ì£¼ê³ , ì²­í¬ì—ì„œ êº¼ë‚´ì„œ ë°˜í™˜í•˜ê¸°. ê·¸ë¦¼ì€ ê·¸ë ¸ë‹¤.
 		void FreeChunk()
 		{
-			// »¬ Ã»Å©º¸´Ù »çÀÌÁî°¡ ÀÛÀ¸¸é ¾ÖÃÊ¿¡ È£ÃâµÇ¸é ¾ÈµÆ´Ù.
+			// ëº„ ì²­í¬ë³´ë‹¤ ì‚¬ì´ì¦ˆê°€ ì‘ìœ¼ë©´ ì• ì´ˆì— í˜¸ì¶œë˜ë©´ ì•ˆëë‹¤.
 			DWORD nowSize = _dwSize;
 
 #ifdef DEBUG_TLSMEMORYPOOL
@@ -303,10 +320,10 @@ public:
 				DebugBreak();
 #endif
 
-			// ¹İÈ¯ÇÒ Ã»Å© ¸¸Å­ ¹İº¹
+			// ë°˜í™˜í•  ì²­í¬ ë§Œí¼ ë°˜ë³µ
 			for (int allocCnt = 0; allocCnt < ALLOCCOUNT; allocCnt++)
 			{
-				// ÇöÀç ³ëµå¿¡¼­ Size¸¸Å­ Å½»öÇÏ¸ç ±× ´ÙÀ½ ³ëµå¸¦ TopÀ¸·Î ¼³Á¤
+				// í˜„ì¬ ë…¸ë“œì—ì„œ Sizeë§Œí¼ íƒìƒ‰í•˜ë©° ê·¸ ë‹¤ìŒ ë…¸ë“œë¥¼ Topìœ¼ë¡œ ì„¤ì •
 				st_BLOCK_NODE<DATA>* returnChunk = _TopNode;
 				st_BLOCK_NODE<DATA>* newTopNode = _TopNode;
 				for (int i = 0; i < _iTlsChunkSize; i++)
@@ -319,7 +336,7 @@ public:
 				}
 				_TopNode = newTopNode;
 
-				// Ã»Å© µ¥ÀÌÅÍ¸¦ ¹İÈ¯
+				// ì²­í¬ ë°ì´í„°ë¥¼ ë°˜í™˜
 				_Manager->FreeChunkToPool(returnChunk);
 				//_dwSize -= _iTlsChunkSize;
 				InterlockedAdd((LONG*) & _dwSize, -_iTlsChunkSize);
@@ -331,8 +348,8 @@ public:
 
 		bool Free(DATA* pData)
 		{
-			st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - sizeof(void*));
-
+			//st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - sizeof(void*));
+			st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - offsetof(st_BLOCK_NODE<DATA>, allocData));
 #ifdef DEBUG_TLSMEMORYPOOL
 			if (nodePtr->guardCode != _guardCode)
 				DebugBreak();
@@ -360,7 +377,7 @@ public:
 
 		DATA* Alloc()
 		{
-			// ±×³É ºÎÁ·ÇÒ ¶§ ÇÒ´ç
+			// ê·¸ëƒ¥ ë¶€ì¡±í•  ë•Œ í• ë‹¹
 			//if (_TopNode == NULL)
 			if (_dwSize <= 0)
 			{
@@ -422,24 +439,26 @@ public:
 		TLSMemoryPoolManager* _Manager;
 	};
 
-	// ÇØ´ç ½º·¹µåÀÇ ¸Ş¸ğ¸®Ç®ÀÌ ¸î¹ø TLS ÀÎµ¦½º¿¡ ¹ÚÇôÀÖ´ÂÁö -> °¢°¢ ½º·¹µåÀÇ _TlsIdx¿¡ ¸Ş¸ğ¸®Ç® ÁÖ¼Ò ÀúÀå
+	// í•´ë‹¹ ìŠ¤ë ˆë“œì˜ ë©”ëª¨ë¦¬í’€ì´ ëª‡ë²ˆ TLS ì¸ë±ìŠ¤ì— ë°•í˜€ìˆëŠ”ì§€ -> ê°ê° ìŠ¤ë ˆë“œì˜ _TlsIdxì— ë©”ëª¨ë¦¬í’€ ì£¼ì†Œ ì €ì¥
 	DWORD _TlsIdx = -1;
 private:
 	st_BLOCK_NODE<DATA>* _TopChunk;
 
-	// ½º·¹µå °³¼ö
+	// ìŠ¤ë ˆë“œ ê°œìˆ˜
 	DWORD _ThreadCount;
 
-	// Ã»Å© »çÀÌÁî, »ı¼º Ã»Å© °³¼ö
+	// ì²­í¬ ì‚¬ì´ì¦ˆ, ìƒì„± ì²­í¬ ê°œìˆ˜
 	unsigned int _iChunkSize;
 	unsigned int _iCreateChunkCount;
 	unsigned int _iThreadCount;
 	unsigned int _iChunkPerThread;
 
-	// 17ºñÆ® Ä«¿îÅÍ
+	// 17ë¹„íŠ¸ ì¹´ìš´í„°
 	ULONGLONG _ulIDCnt;
 
-	// ÇöÀç »ç¿ë·®, ³²Àº ¾ç, ¿ë·®
+	unsigned int _iTLSPoolCount;
+
+	// í˜„ì¬ ì‚¬ìš©ëŸ‰, ë‚¨ì€ ì–‘, ìš©ëŸ‰
 	unsigned int _iUseChunk;
 	unsigned int _iLeftChunk;
 
