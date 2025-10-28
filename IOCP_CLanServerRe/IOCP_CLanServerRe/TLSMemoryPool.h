@@ -171,6 +171,8 @@ public:
 			data = new(data) DATA;
 		}
 
+		InterlockedIncrement(&_dwAllocCount);
+
 		return data;
 	}
 
@@ -197,6 +199,8 @@ public:
 		}
 
 		pMemoryPool->Free(pData);
+
+		InterlockedIncrement(&_dwFreeCount);
 	}
 
 	void CreateChunk()
@@ -281,7 +285,8 @@ public:
 				bottomNode->nextPtr = _TopNode;
 				_TopNode = chunkTop;
 
-				_dwSize += _iTlsChunkSize;
+				//_dwSize += _iTlsChunkSize;
+				InterlockedAdd((LONG*)&_dwSize, _iTlsChunkSize);
 				if (_dwSize > 1500)
 					DebugBreak();
 			}
@@ -316,7 +321,8 @@ public:
 
 				// 청크 데이터를 반환
 				_Manager->FreeChunkToPool(returnChunk);
-				_dwSize -= _iTlsChunkSize;
+				//_dwSize -= _iTlsChunkSize;
+				InterlockedAdd((LONG*) & _dwSize, -_iTlsChunkSize);
 
 				if (_dwSize < 0)
 					DebugBreak();
@@ -339,9 +345,10 @@ public:
 			nodePtr->nextPtr = _TopNode;
 			_TopNode = nodePtr;
 
-			++_dwSize;
+			//++_dwSize;
+			InterlockedIncrement(&_dwSize);
 
-			if (_dwSize > _iBaseSize * 2)
+			if (_dwSize >= _iBaseSize * 2)
 			{
 				if (_dwSize > 10000)
 					DebugBreak();
@@ -354,7 +361,8 @@ public:
 		DATA* Alloc()
 		{
 			// 그냥 부족할 때 할당
-			if (_TopNode == NULL)
+			//if (_TopNode == NULL)
+			if (_dwSize <= 0)
 			{
 				AllocChunkFromPool();
 			}
@@ -372,7 +380,8 @@ public:
 			_TopNode = _TopNode->nextPtr;
 			//_workArr[_logIdx++] = { POP, oldTop };
 
-			--_dwSize;
+			//--_dwSize;
+			InterlockedDecrement(&_dwSize);
 
 			return &(oldTop->allocData);
 		}
@@ -406,7 +415,7 @@ public:
 		unsigned int _iMaxSize;
 
 		int _iTlsChunkCount;
-		unsigned int _iTlsChunkSize;
+		int _iTlsChunkSize;
 		LPVOID _guardCode;
 
 		st_BLOCK_NODE<DATA>* _TopNode;
@@ -436,6 +445,9 @@ private:
 
 	DWORD _logIdx;
 	st_ALLOCLOG _LogArr[LOGSIZE];
+
+	DWORD _dwFreeCount;
+	DWORD _dwAllocCount;
 
 	bool _bPlacementNew;
 	bool _bCreateNew;

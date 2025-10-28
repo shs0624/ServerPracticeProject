@@ -3,7 +3,6 @@
 #include "ProcademyProfiler.h"
 #include <Windows.h>
 
-template <typename T>
 class RefCountPointer
 {
 public:
@@ -17,14 +16,14 @@ public:
 		if (InterlockedDecrement(_iRefCount) == 0)
 		{
 			delete(_iRefCount);
-			CPacket::_CPacketPool.Free(ptr);
+			CPacket::_CPacketPool.Free(ptr); 
 		}
 	}*/
 
-	static RefCountPointer<T> MakeSharedPtr()
+	static RefCountPointer MakeSharedPtr()
 	{
-		RefCountPointer<T> result;
-		result._iRefCount = new unsigned int(0);
+		RefCountPointer result;
+		result._iRefCount = new long(1);
 		{
 			//Profiler("Alloc");
 			result.ptr = CPacket::_CPacketPool.Alloc();
@@ -65,7 +64,7 @@ public:
 	}
 	*/
 
-	T* operator*()
+	CPacket* operator*()
 	{
 		//현재 노드의 데이터를 뽑음
 		return ptr;
@@ -89,8 +88,8 @@ public:
 		InterlockedIncrement((LONG*)_iRefCount);
 	}*/
 private:
-	T* ptr;
-	unsigned int* _iRefCount;
+	CPacket* ptr;
+	long* _iRefCount;
 
 	void IncRefCount()
 	{
@@ -99,6 +98,9 @@ private:
 
 	void DecRefCount()
 	{
+		if (*_iRefCount < 0)
+			DebugBreak();
+
 		if (InterlockedDecrement((LONG*)_iRefCount) == 0)
 		{
 			//Profiler("Free");

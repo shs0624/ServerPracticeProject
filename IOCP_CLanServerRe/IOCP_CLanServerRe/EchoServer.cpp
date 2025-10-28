@@ -27,7 +27,7 @@ int main()
 
 void EchoServer::OnAccept(ULONGLONG SessionID)
 {
-	RefCountPointer<CPacket> cPacket = RefCountPointer<CPacket>::MakeSharedPtr();
+	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
 	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
 
 	__int64 login = 0x7fffffffffffffff;

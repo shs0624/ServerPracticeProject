@@ -266,9 +266,10 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 				ptr->cPacketArr[i].DecRefCount();
 			}
 
-			ptr->dwSendCount -= cnt;
-			if (ptr->dwSendCount < 0)
-				DebugBreak();
+			ptr->dwSendCount = 0;
+			/*ptr->dwSendCount -= cnt;
+			if (ptr->dwSendCount != 0)
+				DebugBreak();*/
 
 			int size = ptr->sendBuf->Size();
 			if (size > 0)
@@ -332,7 +333,7 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 			continue;
 		}
 
-		RefCountPointer<CPacket> csPacket = RefCountPointer<CPacket>::MakeSharedPtr();
+		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
 		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
 
 		EnterCriticalSection(&_echoBufferLock);
@@ -351,16 +352,19 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 		thisPtr->FindSession(header.ulSessionID, &ptr);
 		if (ptr == NULL)
 		{
+			csPacket.DecRefCount();
 			continue;
 		}
 
 		if (!ptr->bSessionAlive)
 		{
+			csPacket.DecRefCount();
 			continue;
 		}
 
 		// 세션은 찾았으니, 걔한테 SendPacket
-		thisPtr->SendPacket(header.ulSessionID, csPacket);
+		if (!thisPtr->SendPacket(header.ulSessionID, csPacket))
+			csPacket.DecRefCount();
 	}
 }
 
@@ -372,8 +376,9 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 	for (ULONGLONG i = 0; i < maxConnection; i++)
 	{
 		_sessionArr[i].bSessionAlive = false;
-		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer<CPacket>>();
+		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
+		//_sessionArr[i].cPacketBuf.;
 		//InitializeCriticalSection(&_sessionArr[i].sendLock);
 
 		_emptyIndexStack.push(i);
@@ -427,9 +432,8 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 {
 	st_PACKET_HEADER header;
 	st_NetHeader netHeader;
-	RefCountPointer<CPacket> csPacket = RefCountPointer<CPacket>::MakeSharedPtr();
+	RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
 	(*csPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
-	csPacket.IncRefCount();
 
 	ptr->recvBuf->MoveRear(cbTransferred);
 
@@ -480,7 +484,9 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 
 		InterlockedIncrement((LONG*)&_iRecvMessageTPS);
 	}
+
 	csPacket.DecRefCount();
+	return true;
 }
 
 bool CLanServer::Disconnect(ULONGLONG sessionID)
@@ -495,13 +501,12 @@ bool CLanServer::Disconnect(ULONGLONG sessionID)
 	return true;
 }
 
-bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacket)
+bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 {
 	st_Session* ptr;
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 	{
-		cPacket.DecRefCount();
 		return false;
 	}
 
@@ -513,7 +518,6 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacke
 
 	//EnterCriticalSection(&ptr->sendLock);
 	ptr->sendBuf->Enqueue(cPacket);
-	cPacket.IncRefCount();
 
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
@@ -539,7 +543,6 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacke
 				DebugBreak();
 #endif
 
-			cPacket.DecRefCount();
 			return false;
 		}
 
@@ -551,6 +554,7 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacke
 	}
 	//LeaveCriticalSection(&ptr->sendLock);
 	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
+
 	return true;
 }
 
@@ -603,14 +607,17 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
 	WSABUF sendWsa[200];
 
+	RefCountPointer cpacket;
 	int loopCnt = ptr->sendBuf->Size();
 	for (int i = 0; i < loopCnt; i++)
 	{
-		(ptr->sendBuf->Dequeue(ptr->cPacketArr[i]));
-		RefCountPointer<CPacket> cpacket = ptr->cPacketArr[i];
+		(ptr->sendBuf->Dequeue(cpacket));
+		ptr->cPacketArr[i] = cpacket;
+		//(ptr->sendBuf->Dequeue(&ptr->cPacketArr[i]));
+		//RefCountPointer cpacket = ptr->cPacketArr[i];
 
 		sendWsa[i].buf = (*cpacket)->GetBufferPtr();
-		sendWsa[i].len = sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
+		sendWsa[i].len = (*cpacket)->GetDataSize();//sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
 		sendCount++;
 	}
 
@@ -637,7 +644,7 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	return true;
 }
 
-bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer<CPacket> cPacket)
+bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer cPacket)
 {
 	DWORD sendBytes, retval;
 	st_Session* pSession = NULL;

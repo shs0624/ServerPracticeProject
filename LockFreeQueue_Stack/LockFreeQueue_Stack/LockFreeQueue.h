@@ -52,6 +52,16 @@ public:
         _tail = _head;
     }
 
+    void Clear()
+    {
+        _size = 0;
+        while (_head->next != NULL)
+        {
+            Pop_Front();
+        }
+        _tail = _head;
+    }
+
     void Enqueue(T t)
     {
         st_Node* node = _NodePool->Alloc();
@@ -147,5 +157,21 @@ public:
         }
 
         return true;
+    }
+    
+    bool Empty()
+    {
+        if (_size == 0)
+            return TRUE;
+        else
+            return FALSE;
+    }
+
+    // 값을 뽑을 필요없이 그냥 뺄 때
+    void Pop_Front()
+    {
+        T t;
+
+        Dequeue(t);
     }
 };

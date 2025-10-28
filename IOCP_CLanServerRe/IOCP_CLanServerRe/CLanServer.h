@@ -4,7 +4,6 @@
 #include "CRingBuffer.h"
 #include "LockFreeQueue.h"
 #include "TestStack.h"
-#include <deque>
 #define PROTOCOL_MAX_SIZE 16
 #define SERVERPORT	6000
 #define PROTOCOL_SIZE 10
@@ -34,10 +33,10 @@ struct st_Session
 	OVERLAPPED recvOverlapped;
 	ULONGLONG ulSessionID;
 	SOCKET sock;
-	LockFreeQueue<RefCountPointer<CPacket>>* sendBuf;
+	LockFreeQueue<RefCountPointer>* sendBuf;
 	CRingBuffer* recvBuf;
-
-	RefCountPointer<CPacket> cPacketArr[200];
+	//CRingBuffer* cPacketBuf;
+	RefCountPointer cPacketArr[200];
 
 	DWORD dwSendCount;
 	DWORD dwRecvCount;
@@ -58,7 +57,7 @@ public:
 	virtual void QuitServer();
 
 	bool Disconnect(ULONGLONG sessionID);
-	bool SendPacket(ULONGLONG sessionID, RefCountPointer<CPacket> cPacket);
+	bool SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket);
 
 	int getAcceptTPS() { return _iAcceptTPS; }
 	int getRecvMessageTPS() { return _iRecvMessageTPS; }
@@ -109,7 +108,7 @@ protected:
 	bool AcceptProc(CLanServer* thisPtr);
 	bool SetWSARecv(st_Session* ptr);
 	bool SetWSASend(st_Session* ptr);
-	bool SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer<CPacket> cPacket);
+	bool SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer cPacket);
 	bool RecvProc(st_Session* ptr, DWORD cbTransferred);
 	void ReleaseSession(ULONGLONG ulSessionID);
 	void ResetTPS();

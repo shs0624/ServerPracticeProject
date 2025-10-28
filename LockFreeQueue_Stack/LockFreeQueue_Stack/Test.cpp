@@ -1,201 +1,201 @@
-#pragma comment(lib,"ws2_32")
-#include <iostream>
-#include <process.h>
-#include <winsock2.h>
-#include <Windows.h>
-#include <queue>
-#include "LockFreeStack_Re.h"
-#include "LockFreeQueue.h"
-//#include "CFreeList_Re.h"
-#include "TLSMemoryPool.h"
-using namespace std;
-
-struct stNode
-{
-	int a;
-	ULONGLONG b;
-	char c;
-};
-
-//procademy::CMemoryPool<int> _testPool(300000);
-TLSMemoryPoolManager<stNode> _testPool(10, 2, 5, false, false);
-//queue<void*> _deletePrintQ;
-
-LockFreeStack<int> _lfStack;
-LockFreeQueue<int> _lfQueue;
-
-HANDLE _pushThreadHandleArr[10];
-HANDLE _popThreadHandleArr[10];
-HANDLE _workerThreadHandleArr[20];
-HANDLE _printThreadHandle;
-
-unsigned int _pushThreadID[10];
-unsigned int _popThreadID[10];
-unsigned int _workerThreadID[20];
-unsigned int _printThreadID;
-
-unsigned int WINAPI PrintThread(LPVOID arg);
-unsigned int WINAPI PushThread(LPVOID arg);
-unsigned int WINAPI PopThread(LPVOID arg);
-unsigned int WINAPI WorkerThread(LPVOID arg);
-
-bool _pushEnd = false;
-bool _popEnd = false;
-int _check[10000];
-
-CRITICAL_SECTION _printCS;
-
-int wmain()
-{
-	InitializeCriticalSection(&_printCS);
-
-	/*_printThreadHandle = (HANDLE)_beginthreadex(NULL, 0, PrintThread, 0, 0, &_printThreadID);
-	if (_printThreadHandle == NULL)
-		return 1;*/
-
-	// 메모리 문제 확인용
-	/*for (int i = 0; i < 1000000 * 20; i++)
-	{
-		_lfStack.push(i);
-	}*/
-
-	for (int i = 0; i < 5; i++)
-	{
-		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
-		if (_workerThreadHandleArr[i] == NULL)
-			return 1;
-	}
-
-	/*for (int i = 0; i < 20; i++)
-	{
-		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
-		if (_workerThreadHandleArr[i] == NULL)
-			return 1;
-	}*/
-
-	WaitForMultipleObjects(5, _workerThreadHandleArr, TRUE, INFINITE);
-		
-	printf("Done!");
-
-	return 0;
-}
-
-unsigned int WINAPI PrintThread(LPVOID arg)
-{
-	/*int cnt = 0;
-	while (1)
-	{
-		if (_lfStack.Log(cnt))
-			cnt++;
-	}*/
-}
-
-// ABA 문제 확인용
-//unsigned int WINAPI WorkerThread(LPVOID arg)
+//#pragma comment(lib,"ws2_32")
+//#include <iostream>
+//#include <process.h>
+//#include <winsock2.h>
+//#include <Windows.h>
+//#include <queue>
+//#include "LockFreeStack_Re.h"
+//#include "LockFreeQueue.h"
+////#include "CFreeList_Re.h"
+//#include "TLSMemoryPool.h"
+//using namespace std;
+//
+//struct stNode
 //{
-//	int idx = 0;
-//	int output;
-//	void* ptr;
+//	int a;
+//	ULONGLONG b;
+//	char c;
+//};
 //
-//	while (idx < 1000000)
+////procademy::CMemoryPool<int> _testPool(300000);
+//TLSMemoryPoolManager<stNode> _testPool(10, 2, 5, false, false);
+////queue<void*> _deletePrintQ;
+//
+//LockFreeStack<int> _lfStack;
+//LockFreeQueue<int> _lfQueue;
+//
+//HANDLE _pushThreadHandleArr[10];
+//HANDLE _popThreadHandleArr[10];
+//HANDLE _workerThreadHandleArr[20];
+//HANDLE _printThreadHandle;
+//
+//unsigned int _pushThreadID[10];
+//unsigned int _popThreadID[10];
+//unsigned int _workerThreadID[20];
+//unsigned int _printThreadID;
+//
+//unsigned int WINAPI PrintThread(LPVOID arg);
+//unsigned int WINAPI PushThread(LPVOID arg);
+//unsigned int WINAPI PopThread(LPVOID arg);
+//unsigned int WINAPI WorkerThread(LPVOID arg);
+//
+//bool _pushEnd = false;
+//bool _popEnd = false;
+//int _check[10000];
+//
+//CRITICAL_SECTION _printCS;
+//
+//int wmain()
+//{
+//	InitializeCriticalSection(&_printCS);
+//
+//	/*_printThreadHandle = (HANDLE)_beginthreadex(NULL, 0, PrintThread, 0, 0, &_printThreadID);
+//	if (_printThreadHandle == NULL)
+//		return 1;*/
+//
+//	// 메모리 문제 확인용
+//	/*for (int i = 0; i < 1000000 * 20; i++)
 //	{
-//		//printf("push : %d\n", idx);
-//		//_PrintQ.push(make_pair(PUSH, idx));
-//		_lfStack.push(idx++);
-//		//_lfStack.push(idx++);
+//		_lfStack.push(i);
+//	}*/
 //
-//		_lfStack.pop(&output, &ptr);
-//		//_PrintQ.push(make_pair(POP, output));
-//		//printf("pop : %p\n", ptr);
+//	for (int i = 0; i < 5; i++)
+//	{
+//		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
+//		if (_workerThreadHandleArr[i] == NULL)
+//			return 1;
 //	}
+//
+//	/*for (int i = 0; i < 20; i++)
+//	{
+//		_workerThreadHandleArr[i] = (HANDLE)_beginthreadex(NULL, 0, WorkerThread, 0, 0, &_workerThreadID[i]);
+//		if (_workerThreadHandleArr[i] == NULL)
+//			return 1;
+//	}*/
+//
+//	WaitForMultipleObjects(5, _workerThreadHandleArr, TRUE, INFINITE);
+//		
+//	printf("Done!");
 //
 //	return 0;
 //}
-
-// 메모리 문제 확인용
-//unsigned int WINAPI WorkerThread(LPVOID arg)
+//
+//unsigned int WINAPI PrintThread(LPVOID arg)
 //{
-//	int idx = 0;
-//	int output;
-//	void* ptr;
-//
-//	//while (idx < 1000000)
-//	//{
-//	//	//printf("push : %d\n", idx);
-//	//	//_PrintQ.push(make_pair(PUSH, idx));
-//	//	_lfStack.push(idx++);
-//	//}
-//
-//	for (int i = 0; i < 1000000; i++)
-//	{
-//		_lfStack.pop(&output, &ptr);
-//		//_PrintQ.push(make_pair(POP, output));
-//		//printf("pop : %p\n", ptr);
-//	}
-//
-//	return 0;
-//}
-
-// 메모리풀 테스트용
-unsigned int WINAPI WorkerThread(LPVOID arg)
-{
-	int* arr[100];
-	while (1)
-	{
-		int cnt = 0;
-
-		stNode* node = _testPool.Alloc();
-
-		node->a = 0;
-		node->b = (ULONGLONG) & node;
-		node->c = 0;
-
-		_testPool.Free(node);
-
-		//for (int i = 0; i < 100; i++)
-		//{
-		//	arr[i] = _testPool.Alloc();
-		//	*arr[i] = i;
-		//}
-
-		//for (int i = 0; i < 100; i++)
-		//{
-		//	//printf("ID : %d | free[i] : %d\n", GetCurrentThreadId(), i, *arr[i]);
-		//	if (*arr[i] < 0 || *arr[i] >= 100)
-		//		DebugBreak();
-
-		//	_testPool.Free(arr[i]);
-		//}
-	}
-
-	return 0;
-}
-
-// 락프리큐 테스트용
-//unsigned int WINAPI WorkerThread(LPVOID arg)
-//{
-//	int arr[3];
-//	int cnt = 0;
-//
+//	/*int cnt = 0;
 //	while (1)
 //	{
-//		for (int i = 0; i < 10000; i++)
-//		{
-//			for (int j = 0; j < 1; j++)
-//			{
-//				_lfQueue.Enqueue(i);
-//			}
+//		if (_lfStack.Log(cnt))
+//			cnt++;
+//	}*/
+//}
 //
-//			for (int j = 0; j < 1; j++)
-//			{
-//				_lfQueue.Dequeue(arr[j]);
+//// ABA 문제 확인용
+////unsigned int WINAPI WorkerThread(LPVOID arg)
+////{
+////	int idx = 0;
+////	int output;
+////	void* ptr;
+////
+////	while (idx < 1000000)
+////	{
+////		//printf("push : %d\n", idx);
+////		//_PrintQ.push(make_pair(PUSH, idx));
+////		_lfStack.push(idx++);
+////		//_lfStack.push(idx++);
+////
+////		_lfStack.pop(&output, &ptr);
+////		//_PrintQ.push(make_pair(POP, output));
+////		//printf("pop : %p\n", ptr);
+////	}
+////
+////	return 0;
+////}
 //
-//				if (arr[j] < 0 || arr[j] >= 10000)
-//					DebugBreak();
-//				//printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
-//			}
-//		}
+//// 메모리 문제 확인용
+////unsigned int WINAPI WorkerThread(LPVOID arg)
+////{
+////	int idx = 0;
+////	int output;
+////	void* ptr;
+////
+////	//while (idx < 1000000)
+////	//{
+////	//	//printf("push : %d\n", idx);
+////	//	//_PrintQ.push(make_pair(PUSH, idx));
+////	//	_lfStack.push(idx++);
+////	//}
+////
+////	for (int i = 0; i < 1000000; i++)
+////	{
+////		_lfStack.pop(&output, &ptr);
+////		//_PrintQ.push(make_pair(POP, output));
+////		//printf("pop : %p\n", ptr);
+////	}
+////
+////	return 0;
+////}
+//
+//// 메모리풀 테스트용
+//unsigned int WINAPI WorkerThread(LPVOID arg)
+//{
+//	int* arr[100];
+//	while (1)
+//	{
+//		int cnt = 0;
+//
+//		stNode* node = _testPool.Alloc();
+//
+//		node->a = 0;
+//		node->b = (ULONGLONG) & node;
+//		node->c = 0;
+//
+//		_testPool.Free(node);
+//
+//		//for (int i = 0; i < 100; i++)
+//		//{
+//		//	arr[i] = _testPool.Alloc();
+//		//	*arr[i] = i;
+//		//}
+//
+//		//for (int i = 0; i < 100; i++)
+//		//{
+//		//	//printf("ID : %d | free[i] : %d\n", GetCurrentThreadId(), i, *arr[i]);
+//		//	if (*arr[i] < 0 || *arr[i] >= 100)
+//		//		DebugBreak();
+//
+//		//	_testPool.Free(arr[i]);
+//		//}
 //	}
 //
 //	return 0;
 //}
+//
+//// 락프리큐 테스트용
+////unsigned int WINAPI WorkerThread(LPVOID arg)
+////{
+////	int arr[3];
+////	int cnt = 0;
+////
+////	while (1)
+////	{
+////		for (int i = 0; i < 10000; i++)
+////		{
+////			for (int j = 0; j < 1; j++)
+////			{
+////				_lfQueue.Enqueue(i);
+////			}
+////
+////			for (int j = 0; j < 1; j++)
+////			{
+////				_lfQueue.Dequeue(arr[j]);
+////
+////				if (arr[j] < 0 || arr[j] >= 10000)
+////					DebugBreak();
+////				//printf("ThreadID[%d] : %d\n", GetCurrentThreadId(), arr[i]);
+////			}
+////		}
+////	}
+////
+////	return 0;
+////}
