@@ -173,6 +173,11 @@ public:
 			data = new(data) DATA;
 		}
 
+		/*st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)data - offsetof(st_BLOCK_NODE<DATA>, allocData));
+		DWORD localCnt = InterlockedIncrement(&_logIdx) % LOGSIZE;
+		_LogArr[localCnt].ptr = nodePtr;
+		_LogArr[localCnt].type = ALLOC_TLSPOOL;*/
+
 		InterlockedIncrement(&_dwAllocCount);
 
 		return data;
@@ -201,6 +206,11 @@ public:
 		}
 
 		pMemoryPool->Free(pData);
+
+		st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - offsetof(st_BLOCK_NODE<DATA>, allocData));
+		DWORD localCnt = InterlockedIncrement(&_logIdx) % LOGSIZE;
+		_LogArr[localCnt].ptr = nodePtr;
+		_LogArr[localCnt].type = FREE_TLSPOOL;
 
 		InterlockedIncrement(&_dwFreeCount);
 	}
@@ -322,7 +332,7 @@ public:
 
 			// 반환할 청크 만큼 반복
 			for (int allocCnt = 0; allocCnt < ALLOCCOUNT; allocCnt++)
-			{
+			{ 
 				// 현재 노드에서 Size만큼 탐색하며 그 다음 노드를 Top으로 설정
 				st_BLOCK_NODE<DATA>* returnChunk = _TopNode;
 				st_BLOCK_NODE<DATA>* newTopNode = _TopNode;
@@ -353,11 +363,10 @@ public:
 #ifdef DEBUG_TLSMEMORYPOOL
 			if (nodePtr->guardCode != _guardCode)
 				DebugBreak();
-
+#endif
 			DWORD localCnt = InterlockedIncrement(&_dwTLSLogIdx) % LOGSIZE;
 			_TLSLogArr[localCnt].ptr = nodePtr;
 			_TLSLogArr[localCnt].type = FREE_TLSPOOL;
-#endif
 
 			nodePtr->nextPtr = _TopNode;
 			_TopNode = nodePtr;
