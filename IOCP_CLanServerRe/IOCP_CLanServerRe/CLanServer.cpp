@@ -259,7 +259,6 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		}
 		else
 		{
-			//EnterCriticalSection(&ptr->sendLock);
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
@@ -267,9 +266,6 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			}
 
 			ptr->dwSendCount = 0;
-			/*ptr->dwSendCount -= cnt;
-			if (ptr->dwSendCount != 0)
-				DebugBreak();*/
 
 			int size = ptr->sendBuf->Size();
 			if (size > 0)
@@ -363,8 +359,8 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 		}
 
 		// 세션은 찾았으니, 걔한테 SendPacket
-		if (!thisPtr->SendPacket(header.ulSessionID, csPacket))
-			csPacket.DecRefCount();
+		thisPtr->SendPacket(header.ulSessionID, csPacket);
+		csPacket.DecRefCount();
 	}
 }
 
@@ -378,8 +374,6 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 		_sessionArr[i].bSessionAlive = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
-		//_sessionArr[i].cPacketBuf.;
-		//InitializeCriticalSection(&_sessionArr[i].sendLock);
 
 		_emptyIndexStack.push(i);
 	}
@@ -481,7 +475,6 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 
 		// Post
 		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, NULL);
-
 		InterlockedIncrement((LONG*)&_iRecvMessageTPS);
 	}
 
@@ -516,7 +509,7 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 	
 	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
 
-	//EnterCriticalSection(&ptr->sendLock);
+	cPacket.IncRefCount();
 	ptr->sendBuf->Enqueue(cPacket);
 
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
@@ -535,7 +528,6 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 				// 연결 끊기
 				ReleaseSession(ptr->ulSessionID);
 			}
-			//LeaveCriticalSection(&ptr->sendLock);
 
 #ifdef SENDDEBUG
 			LONG outCount = InterlockedDecrement(&ptr->_tempSendPacketCheck);
@@ -552,7 +544,6 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 			DebugBreak();
 #endif
 	}
-	//LeaveCriticalSection(&ptr->sendLock);
 	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
 
 	return true;
@@ -609,15 +600,16 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 
 	RefCountPointer cpacket;
 	int loopCnt = ptr->sendBuf->Size();
+	if (loopCnt >= 200)
+		DebugBreak();
+
 	for (int i = 0; i < loopCnt; i++)
 	{
 		(ptr->sendBuf->Dequeue(cpacket));
 		ptr->cPacketArr[i] = cpacket;
-		//(ptr->sendBuf->Dequeue(&ptr->cPacketArr[i]));
-		//RefCountPointer cpacket = ptr->cPacketArr[i];
 
 		sendWsa[i].buf = (*cpacket)->GetBufferPtr();
-		sendWsa[i].len = (*cpacket)->GetDataSize();//sizeof(st_NetHeader) + ((st_NetHeader*)sendWsa[i].buf)->shLen;
+		sendWsa[i].len = (*cpacket)->GetDataSize();
 		sendCount++;
 	}
 
@@ -626,9 +618,9 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 		return false;
 	}
 
+	ptr->dwSendCount = sendCount;
 	retval = WSASend(ptr->sock, sendWsa, sendCount, &sendbytes,
 		0, &(ptr->sendOverlapped), NULL);
-	ptr->dwSendCount = sendCount;
 
 	if (retval == SOCKET_ERROR)
 	{

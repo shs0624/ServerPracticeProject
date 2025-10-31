@@ -173,11 +173,6 @@ public:
 			data = new(data) DATA;
 		}
 
-		/*st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)data - offsetof(st_BLOCK_NODE<DATA>, allocData));
-		DWORD localCnt = InterlockedIncrement(&_logIdx) % LOGSIZE;
-		_LogArr[localCnt].ptr = nodePtr;
-		_LogArr[localCnt].type = ALLOC_TLSPOOL;*/
-
 		InterlockedIncrement(&_dwAllocCount);
 
 		return data;
@@ -207,11 +202,6 @@ public:
 
 		pMemoryPool->Free(pData);
 
-		st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - offsetof(st_BLOCK_NODE<DATA>, allocData));
-		DWORD localCnt = InterlockedIncrement(&_logIdx) % LOGSIZE;
-		_LogArr[localCnt].ptr = nodePtr;
-		_LogArr[localCnt].type = FREE_TLSPOOL;
-
 		InterlockedIncrement(&_dwFreeCount);
 	}
 
@@ -221,7 +211,6 @@ public:
 		st_BLOCK_NODE<DATA>* pNodeStart = (st_BLOCK_NODE<DATA>*)malloc(sizeof(st_BLOCK_NODE<DATA>) * _iChunkSize * _iCreateChunkCount);
 		st_BLOCK_NODE<DATA>* pChunkNode = NULL;
 		st_BLOCK_NODE<DATA>* prevNode = NULL;
-		st_BLOCK_NODE<DATA>* nextNode = NULL;
 		for (int chunkCount = 0; chunkCount < _iCreateChunkCount; chunkCount++)
 		{
 			prevNode = NULL;
@@ -289,19 +278,6 @@ public:
 				st_BLOCK_NODE<DATA>* chunkTop = _Manager->AllocChunkToTLS();
 				st_BLOCK_NODE<DATA>* bottomNode = chunkTop;
 
-				// 디버깅
-				int nodeCount = 0;
-				st_BLOCK_NODE<DATA>* temp = chunkTop;
-				while (temp != NULL && nodeCount < _iTlsChunkSize + 10)
-				{
-					nodeCount++;
-					temp = temp->nextPtr;
-				}
-				if (nodeCount < _iTlsChunkSize)
-				{
-					DebugBreak();  // 청크 노드가 부족!
-				}
-
 				// 그 노드를 타고 들어가서 최하단 노드를 찾기
 				for (int j = 0; j < _iTlsChunkSize - 1; j++)
 				{
@@ -314,8 +290,6 @@ public:
 
 				//_dwSize += _iTlsChunkSize;
 				InterlockedAdd((LONG*)&_dwSize, _iTlsChunkSize);
-				if (_dwSize > 1500)
-					DebugBreak();
 			}
 		}
 
@@ -338,11 +312,7 @@ public:
 				st_BLOCK_NODE<DATA>* newTopNode = _TopNode;
 				for (int i = 0; i < _iTlsChunkSize; i++)
 				{
-					//st_BLOCK_NODE<DATA>* newTopPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)newTopNode);
 					newTopNode = newTopNode->nextPtr;
-
-					if (newTopNode == NULL)
-						DebugBreak();
 				}
 				_TopNode = newTopNode;
 
@@ -350,15 +320,12 @@ public:
 				_Manager->FreeChunkToPool(returnChunk);
 				//_dwSize -= _iTlsChunkSize;
 				InterlockedAdd((LONG*) & _dwSize, -_iTlsChunkSize);
-
-				if (_dwSize < 0)
-					DebugBreak();
 			}
 		}
 
 		bool Free(DATA* pData)
 		{
-			//st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - sizeof(void*));
+			//st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - sizeof(LPVOID));
 			st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - offsetof(st_BLOCK_NODE<DATA>, allocData));
 #ifdef DEBUG_TLSMEMORYPOOL
 			if (nodePtr->guardCode != _guardCode)
@@ -376,8 +343,6 @@ public:
 
 			if (_dwSize >= _iBaseSize * 2)
 			{
-				if (_dwSize > 10000)
-					DebugBreak();
 				FreeChunk();
 			}
 
@@ -403,7 +368,11 @@ public:
 			_TLSLogArr[localCnt].type = ALLOC_TLSPOOL;
 #endif
 
-			_TopNode = _TopNode->nextPtr;
+			DWORD localCnt = InterlockedIncrement(&_dwTLSLogIdx) % LOGSIZE;
+			_TLSLogArr[localCnt].ptr = oldTop;
+			_TLSLogArr[localCnt].type = ALLOC_TLSPOOL;
+
+			_TopNode = _TopNode->nextPtr ;
 			//_workArr[_logIdx++] = { POP, oldTop };
 
 			//--_dwSize;

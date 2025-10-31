@@ -70,7 +70,7 @@ public:
 		return ptr;
 	}
 
-	/*RefCountPointer<T>& operator= (const RefCountPointer<T>& copy)
+	/*RefCountPointer& operator= (const RefCountPointer& copy)
 	{
 		ptr = copy.ptr;
 		_iRefCount = copy._iRefCount;
@@ -80,7 +80,7 @@ public:
 		return *this;
 	}
 
-	RefCountPointer(const RefCountPointer<T>& copy)
+	RefCountPointer(const RefCountPointer& copy)
 	{
 		ptr = copy.ptr;
 		_iRefCount = copy._iRefCount;
@@ -107,6 +107,9 @@ private:
 			delete(_iRefCount);
 			CPacket::_CPacketPool.Free(ptr);
 		}
+
+		/*if (*_iRefCount < 0)
+			DebugBreak();*/
 	}
 
 	friend class CLanServer;
