@@ -5,7 +5,7 @@
 #define _CPACKET_
 #include <Windows.h>
 #include "CFreeList_LockFree.h"
-#include "TLSMemoryPool.h"
+#include "TLS_MemoryPool.h"
 #define CPACKET_LOGSIZE 10000
 
 enum en_PACKET
@@ -57,6 +57,10 @@ public:
 	char* GetTailPtr(void) { return _iBuffer + _tail; }
 
 	char* GetHeadPtr(void) { return _iBuffer + _head; }
+
+	char* GetEncodePtr(void) { return _iBuffer + _iHeaderSize - sizeof(unsigned char); }
+
+	char* GetPayloadPtr(void) { return _iBuffer + _iHeaderSize; }
 
 	//////////////////////////////////////////////////////////////////////////
 	// 버퍼 Pos 이동. (음수이동은 안됨)
@@ -317,12 +321,15 @@ public:
 	static DWORD _iLogAllocIdx;
 	static LPVOID _allocLog[CPACKET_LOGSIZE];
 	//static procademy::CMemoryPool_LockFree<CPacket> _CPacketPool;
-	static TLSMemoryPoolManager<CPacket> _CPacketPool;
+	//static TLSMemoryPoolManager<CPacket> _CPacketPool;
+	static procademy::MemoryPool_TLS<CPacket> _CPacketPool;
 	//friend class TLSMemoryPoolManager<CPacket>;
 protected:
+	bool _isUsing;
 	int _iBufferSize;
 	// 현재 버퍼에 사용중인 사이즈
 	int _iDataSize;
+	int _iHeaderSize;
 
 	int _head;
 	int _tail;

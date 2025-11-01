@@ -147,6 +147,7 @@
     <ClInclude Include="RefCountPointer.h" />
     <ClInclude Include="TestStack.h" />
     <ClInclude Include="TLSMemoryPool.h" />
+    <ClInclude Include="TLS_MemoryPool.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

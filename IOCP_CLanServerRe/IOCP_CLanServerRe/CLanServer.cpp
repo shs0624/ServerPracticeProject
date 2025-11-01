@@ -9,9 +9,8 @@
 #include "Debug.h"
 #include "CLanServer.h"
 #include "ProcademyProfiler.h"
-#include "TLSMemoryPool.h"
+//#include "TLSMemoryPool.h"
 #define IOCP_THREADCOUNT 5
-//#define SENDDEBUG
 
 procademy::CCrashDump cCrashDump;
 //TLSMemoryPoolManager<CPacket> _TLSPool(100, 3, 5);
@@ -264,18 +263,11 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			{
 				ptr->cPacketArr[i].DecRefCount();
 			}
-
 			ptr->dwSendCount = 0;
 
 			int size = ptr->sendBuf->Size();
 			if (size > 0)
 			{
-#ifdef SENDDEBUG
-				LONG currentCount = InterlockedIncrement(&ptr->_tempWSASendCheck);
-				if (ptr->_tempSendPacketCheck >= 1)
-					DebugBreak();
-#endif
-
 				if (!thisPtr->SetWSASend(ptr))
 				{
 					InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
@@ -285,18 +277,31 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 						thisPtr->ReleaseSession(ptr->ulSessionID);
 					}
 				}
-
-#ifdef SENDDEBUG
-				LONG outCount = InterlockedDecrement(&ptr->_tempWSASendCheck);
-				if (ptr->_tempSendPacketCheck >= 1)
-					DebugBreak();
-#endif
 			}
 			else
 			{
-				InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
+				if (ptr->sendBuf->Empty())
+				{
+					InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
+				}
+				else
+				{
+					while (ptr->sendBuf->Size() <= 0)
+					{
+						Sleep(0);
+					}
+
+					if (!thisPtr->SetWSASend(ptr))
+					{
+						InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+						if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+						{
+							// 연결 끊기
+							thisPtr->ReleaseSession(ptr->ulSessionID);
+						}
+					}
+				}
 			}
-			//LeaveCriticalSection(&ptr->sendLock);
 		}
 
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
@@ -494,6 +499,15 @@ bool CLanServer::Disconnect(ULONGLONG sessionID)
 	return true;
 }
 
+void CLanServer::Encode(RefCountPointer& cPacket)
+{
+	//헤더를 넣은 cPacket이 들어온다는 가정 하에 짜자.
+
+	//일단 체크섬을 빼고, 그 뒤 메세지를 이용해서 체크섬을 넣어야 한다.
+
+	//그 후 체크섬을 포함해서 인코딩 공식을 사용.
+}
+
 bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 {
 	st_Session* ptr;
@@ -514,12 +528,6 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
-#ifdef SENDDEBUG
-		LONG currentCount = InterlockedIncrement(&ptr->_tempSendPacketCheck);
-		if (ptr->_tempWSASendCheck >= 1)
-			DebugBreak();
-#endif
-
 		if (!SetWSASend(ptr))
 		{
 			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
@@ -528,12 +536,6 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 				// 연결 끊기
 				ReleaseSession(ptr->ulSessionID);
 			}
-
-#ifdef SENDDEBUG
-			LONG outCount = InterlockedDecrement(&ptr->_tempSendPacketCheck);
-			if (ptr->_tempWSASendCheck >= 1)
-				DebugBreak();
-#endif
 
 			return false;
 		}

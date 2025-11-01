@@ -1,7 +1,8 @@
 #include "CSerializationBuffer.h"
 
 //procademy::CMemoryPool_LockFree<CPacket> CPacket::_CPacketPool(0, true, false);
-TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 5, 5, true, false);
+//TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 5, 5, true, false);
+procademy::MemoryPool_TLS<CPacket> CPacket::_CPacketPool(500, true);
 DWORD CPacket::_iLogFreeIdx;
 LPVOID CPacket::_freeLog[CPACKET_LOGSIZE];
 DWORD CPacket::_iLogAllocIdx;
@@ -14,12 +15,17 @@ void CPacket::Initialize(int iBufferSize, int iHeaderSize = 0)
 	_head = iHeaderSize;
 	_tail = iHeaderSize;
 	_iDataSize = 0;
+	_iHeaderSize = iHeaderSize;
 	_iBuffer = (char*)malloc(_iBufferSize);
 	if (_iBuffer == nullptr)
 	{
 		DebugBreak();
 		return;
 	}
+
+	if (_isUsing == TRUE)
+		DebugBreak();
+	_isUsing = TRUE;
 
 	int idx = InterlockedIncrement(&_iLogAllocIdx) % CPACKET_LOGSIZE;
 	_allocLog[idx] = (LPVOID)this;
@@ -82,6 +88,10 @@ CPacket::~CPacket()
 
 	free(_iBuffer);
 	_iBuffer = nullptr;
+
+	if (_isUsing == FALSE)
+		DebugBreak();
+	_isUsing = FALSE;
 }
 
 void CPacket::PushHeader(char* header, int headerSize)

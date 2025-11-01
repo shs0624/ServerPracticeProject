@@ -15,6 +15,15 @@ struct st_NetHeader
 	short shLen;
 };
 
+struct st_NetHeaderEncode
+{
+	unsigned char FixedKey;
+	short shLen;
+	unsigned char RandKey;
+	unsigned char CheckSum;
+	// Ã¼Å©¼¶?
+};
+
 struct st_PACKET
 {
 	short shLen;
@@ -58,6 +67,9 @@ public:
 
 	bool Disconnect(ULONGLONG sessionID);
 	bool SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket);
+
+	void Encode(RefCountPointer& cPacket);
+	void Decode();
 
 	int getAcceptTPS() { return _iAcceptTPS; }
 	int getRecvMessageTPS() { return _iRecvMessageTPS; }

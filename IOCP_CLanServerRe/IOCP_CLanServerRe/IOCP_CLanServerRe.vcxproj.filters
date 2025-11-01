@@ -89,5 +89,8 @@
     <ClInclude Include="TLSMemoryPool.h">
       <Filter>Lib</Filter>
     </ClInclude>
+    <ClInclude Include="TLS_MemoryPool.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

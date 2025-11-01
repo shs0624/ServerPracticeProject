@@ -14,6 +14,14 @@ enum LOG_WORKTYPE
 	FREE_TLSPOOL
 };
 
+enum LOG_NODESTATE
+{
+	NONE,
+	IN_USE,
+	IN_TLS,
+	IN_MANAGER
+};
+
 template <typename DATA>
 class TLSMemoryPoolManager
 {
@@ -22,6 +30,7 @@ class TLSMemoryPoolManager
 	{
 		LPVOID guardCode;
 		T allocData;
+		LOG_NODESTATE state;
 		st_BLOCK_NODE<T>* nextPtr;
 	};
 
@@ -104,6 +113,17 @@ public:
 
 				chunkPtr->guardCode = _pGuardCode;
 #endif
+				// 할당하려는게 깨졌는지 - 걸림
+				/*st_BLOCK_NODE<DATA>* node = chunkPtr;
+				for (int i = 0; i < _iChunkSize - 1; i++)
+				{
+					if (node->nextPtr == NULL)
+						DebugBreak();
+
+					node = node->nextPtr;
+				}*/
+
+
 				InterlockedIncrement(&_iUseChunk);
 				InterlockedDecrement(&_iLeftChunk);
 
@@ -126,6 +146,17 @@ public:
 			DebugBreak();
 		}
 #endif
+
+		// TLS에서 이미 무너져있는지
+		st_BLOCK_NODE<DATA>* node = chunk;
+		for (int i = 0; i < _iChunkSize - 1; i++)
+		{
+			if (node->nextPtr == NULL)
+				DebugBreak();
+
+			node = node->nextPtr;
+		}
+
 
 		while (1)
 		{
@@ -221,6 +252,7 @@ public:
 				pChunkNode = pNodeStart + i;
 				pChunkNode->guardCode = _pGuardCode;
 				pChunkNode->nextPtr = prevNode;
+				pChunkNode->state = IN_MANAGER;
 
 				if (_bCreateNew)
 					new(&(pChunkNode->allocData))DATA;
@@ -281,10 +313,16 @@ public:
 				// 그 노드를 타고 들어가서 최하단 노드를 찾기
 				for (int j = 0; j < _iTlsChunkSize - 1; j++)
 				{
+					if (bottomNode->state != IN_MANAGER)
+						DebugBreak();
+					bottomNode->state = IN_TLS;
 					bottomNode = bottomNode->nextPtr;
 				}
 
 				// bottomNode는 Top과 연결,Top은 청크로 받은 노드로 변경.
+				if (bottomNode->state != IN_MANAGER)
+					DebugBreak();
+				bottomNode->state = IN_TLS;
 				bottomNode->nextPtr = _TopNode;
 				_TopNode = chunkTop;
 
@@ -310,10 +348,18 @@ public:
 				// 현재 노드에서 Size만큼 탐색하며 그 다음 노드를 Top으로 설정
 				st_BLOCK_NODE<DATA>* returnChunk = _TopNode;
 				st_BLOCK_NODE<DATA>* newTopNode = _TopNode;
+				st_BLOCK_NODE<DATA>* tailChunk = NULL;
 				for (int i = 0; i < _iTlsChunkSize; i++)
 				{
+					tailChunk = newTopNode;
+					if (tailChunk->state != IN_TLS)
+						DebugBreak();
+					tailChunk->state = IN_MANAGER;
+
 					newTopNode = newTopNode->nextPtr;
 				}
+
+				tailChunk->nextPtr = NULL;
 				_TopNode = newTopNode;
 
 				// 청크 데이터를 반환
@@ -334,6 +380,10 @@ public:
 			DWORD localCnt = InterlockedIncrement(&_dwTLSLogIdx) % LOGSIZE;
 			_TLSLogArr[localCnt].ptr = nodePtr;
 			_TLSLogArr[localCnt].type = FREE_TLSPOOL;
+
+			if (nodePtr->state != IN_USE)
+				DebugBreak();
+			nodePtr->state = IN_TLS;
 
 			nodePtr->nextPtr = _TopNode;
 			_TopNode = nodePtr;
@@ -372,6 +422,9 @@ public:
 			_TLSLogArr[localCnt].ptr = oldTop;
 			_TLSLogArr[localCnt].type = ALLOC_TLSPOOL;
 
+			if (oldTop->state != IN_TLS)
+				DebugBreak();
+			oldTop->state = IN_USE;
 			_TopNode = _TopNode->nextPtr ;
 			//_workArr[_logIdx++] = { POP, oldTop };
 
