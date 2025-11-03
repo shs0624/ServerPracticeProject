@@ -4,18 +4,19 @@
 #include "CRingBuffer.h"
 #include "LockFreeQueue.h"
 #include "TestStack.h"
-#define PROTOCOL_MAX_SIZE 16
+#define PROTOCOL_MAX_SIZE 24
 #define SERVERPORT	6000
 #define PROTOCOL_SIZE 10
 #define PROTOCOL_NUMSIZE 8
+#define FIXED_KEY 0xa9
 
 #pragma pack(1)
-struct st_NetHeader
+struct st_LanHeader
 {
 	short shLen;
 };
 
-struct st_NetHeaderEncode
+struct st_NetHeader
 {
 	unsigned char FixedKey;
 	short shLen;
@@ -120,8 +121,9 @@ protected:
 	bool AcceptProc(CLanServer* thisPtr);
 	bool SetWSARecv(st_Session* ptr);
 	bool SetWSASend(st_Session* ptr);
-	bool SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer cPacket);
+	bool SendLoginPacket(ULONGLONG ulSessionID);
 	bool RecvProc(st_Session* ptr, DWORD cbTransferred);
+	bool RecvProc_Net(st_Session* ptr, DWORD cbTransferred);
 	void ReleaseSession(ULONGLONG ulSessionID);
 	void ResetTPS();
 }; 

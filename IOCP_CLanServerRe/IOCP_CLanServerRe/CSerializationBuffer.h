@@ -44,6 +44,14 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	int		GetDataSize(void) { return _iDataSize; }
 
+	unsigned char GetCheckSum();
+
+	void SetCheckSum();
+
+	void Encode(unsigned char K, unsigned char RK);
+
+	void Decode(unsigned char K, unsigned char RK);
+
 	void Initialize(int iBufferSize, int iHeaderSize);
 
 	//////////////////////////////////////////////////////////////////////////
@@ -58,7 +66,7 @@ public:
 
 	char* GetHeadPtr(void) { return _iBuffer + _head; }
 
-	char* GetEncodePtr(void) { return _iBuffer + _iHeaderSize - sizeof(unsigned char); }
+	char* GetCheckSumPtr(void) { return _iBuffer + _iHeaderSize - sizeof(unsigned char); }
 
 	char* GetPayloadPtr(void) { return _iBuffer + _iHeaderSize; }
 

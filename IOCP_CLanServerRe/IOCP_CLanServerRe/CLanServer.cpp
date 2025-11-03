@@ -12,6 +12,9 @@
 //#include "TLSMemoryPool.h"
 #define IOCP_THREADCOUNT 5
 
+//#define NETSERVER
+#define LANSERVER
+
 procademy::CCrashDump cCrashDump;
 //TLSMemoryPoolManager<CPacket> _TLSPool(100, 3, 5);
 
@@ -234,7 +237,12 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		{
 			{
 				//Profiler("RecvProc");
+#ifdef LANSERVER
 				if (!thisPtr->RecvProc(ptr, cbTransferred))
+#endif
+#ifdef NETSERVER
+				if (!thisPtr->RecvProc_Net(ptr, cbTransferred))
+#endif
 				{
 					if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
 					{
@@ -335,7 +343,13 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 		}
 
 		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
+#ifdef LANSERVER
+		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_LanHeader));
+#endif
+		
+#ifdef NETSERVER
 		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
+#endif
 
 		EnterCriticalSection(&_echoBufferLock);
 		if (_echoBuffer->GetUseSize() < sizeof(st_PACKET_HEADER) + PROTOCOL_NUMSIZE)
@@ -430,6 +444,66 @@ bool CLanServer::Init(int maxConnection)
 bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 {
 	st_PACKET_HEADER header;
+	st_LanHeader netHeader;
+	RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
+	(*csPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
+
+	ptr->recvBuf->MoveRear(cbTransferred);
+
+	// 받은 데이터 순회하며 Echo버퍼에 넣기
+	while (1)
+	{
+		(*csPacket)->Clear();
+
+		int useSize = ptr->recvBuf->GetUseSize();
+		if (useSize < sizeof(st_LanHeader))
+		{
+			break;
+		}
+
+		int peekRet = ptr->recvBuf->Peek((char*)&netHeader, sizeof(st_LanHeader));
+		if (peekRet != sizeof(st_LanHeader))
+		{
+			DebugBreak();
+			Disconnect(ptr->ulSessionID);
+			return false;
+		}
+
+		if (useSize < sizeof(st_LanHeader) + netHeader.shLen)
+		{
+			DebugBreak();
+			Disconnect(ptr->ulSessionID);
+			return false;
+		}
+
+		ptr->recvBuf->MoveFront(sizeof(st_LanHeader));
+		ptr->recvBuf->Dequeue((*csPacket)->GetTailPtr(), netHeader.shLen);
+		(*csPacket)->MoveWritePos(netHeader.shLen);
+
+		header.ulSessionID = ptr->ulSessionID;
+		EnterCriticalSection(&_echoBufferLock);
+		_echoBuffer->Enqueue((char*)&header, sizeof(st_PACKET_HEADER));
+		int enqueueRet = _echoBuffer->Enqueue((char*)(*csPacket)->GetHeadPtr(), netHeader.shLen);
+		LeaveCriticalSection(&_echoBufferLock);
+		if (enqueueRet != netHeader.shLen)
+		{
+			DebugBreak();
+ 			Disconnect(ptr->ulSessionID);
+			return false;
+		}
+
+		// Post
+		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, NULL);
+		InterlockedIncrement((LONG*)&_iRecvMessageTPS);
+	}
+
+	csPacket.DecRefCount();
+	return true;
+}
+
+bool CLanServer::RecvProc_Net(st_Session* ptr, DWORD cbTransferred)
+{
+	st_PACKET_HEADER header;
 	st_NetHeader netHeader;
 	RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
 	(*csPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
@@ -447,15 +521,18 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 			break;
 		}
 
-		int peekRet = ptr->recvBuf->Peek((char*)&netHeader, sizeof(st_NetHeader));
+		int peekRet = ptr->recvBuf->Peek((char*)(*csPacket)->GetHeadPtr(), sizeof(st_NetHeader));
 		if (peekRet != sizeof(st_NetHeader))
 		{
 			DebugBreak();
 			Disconnect(ptr->ulSessionID);
 			return false;
 		}
+		(*csPacket)->MoveReadPos(sizeof(st_NetHeader));
 
-		if (useSize < sizeof(st_NetHeader) + netHeader.shLen)
+		short len = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->shLen;
+		unsigned char RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
+		if (useSize < sizeof(st_NetHeader) + len)
 		{
 			DebugBreak();
 			Disconnect(ptr->ulSessionID);
@@ -463,18 +540,24 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 		}
 
 		ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
-		ptr->recvBuf->Dequeue((*csPacket)->GetTailPtr(), netHeader.shLen);
-		(*csPacket)->MoveWritePos(netHeader.shLen);
+		ptr->recvBuf->Dequeue((*csPacket)->GetTailPtr(), len);
+		(*csPacket)->MoveWritePos(len);
+
+		// 디코드 필요
+		(*csPacket)->Decode(FIXED_KEY, RK);
+		unsigned char checkSum = (*csPacket)->GetCheckSum();
+		if(checkSum != *((*csPacket)->GetCheckSumPtr()))
+			DebugBreak();
 
 		header.ulSessionID = ptr->ulSessionID;
 		EnterCriticalSection(&_echoBufferLock);
 		_echoBuffer->Enqueue((char*)&header, sizeof(st_PACKET_HEADER));
-		int enqueueRet = _echoBuffer->Enqueue((char*)(*csPacket)->GetHeadPtr(), netHeader.shLen);
+		int enqueueRet = _echoBuffer->Enqueue((char*)(*csPacket)->GetHeadPtr(), len);
 		LeaveCriticalSection(&_echoBufferLock);
-		if (enqueueRet != netHeader.shLen)
+		if (enqueueRet != len)
 		{
 			DebugBreak();
- 			Disconnect(ptr->ulSessionID);
+			Disconnect(ptr->ulSessionID);
 			return false;
 		}
 
@@ -502,10 +585,15 @@ bool CLanServer::Disconnect(ULONGLONG sessionID)
 void CLanServer::Encode(RefCountPointer& cPacket)
 {
 	//헤더를 넣은 cPacket이 들어온다는 가정 하에 짜자.
+	unsigned char randKey = rand();
 
 	//일단 체크섬을 빼고, 그 뒤 메세지를 이용해서 체크섬을 넣어야 한다.
+	(*cPacket)->SetCheckSum();
 
-	//그 후 체크섬을 포함해서 인코딩 공식을 사용.
+	//그 후 체크섬을 포함해서 인코딩 공식을 사용. 체크섬 + 페이로드가 인코딩 대상
+	(*cPacket)->Encode(FIXED_KEY, randKey);
+
+	// 인코딩 끝~
 }
 
 bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
@@ -518,10 +606,22 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 	}
 
 	short shSize = (*cPacket)->GetDataSize();
-	st_NetHeader header;
+
+#ifdef LANSERVER
+	st_LanHeader header;
 	header.shLen = shSize;
 	
-	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
+	(*cPacket)->PushHeader((char*)&header, sizeof(st_LanHeader));
+#endif
+
+#ifdef NETSERVER
+	st_NetHeader netHeader;
+	netHeader.FixedKey = FIXED_KEY;
+	netHeader.RandKey = (unsigned char)rand();
+	netHeader.shLen = shSize;
+
+	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+#endif
 
 	cPacket.IncRefCount();
 	ptr->sendBuf->Enqueue(cPacket);
@@ -638,8 +738,19 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	return true;
 }
 
-bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer cPacket)
+bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID)
 {
+	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+#ifdef LANSERVER
+	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_LanHeader));
+#endif
+#ifdef NETSERVER
+	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
+#endif
+
+	__int64 login = 0x7fffffffffffffff;
+	*(*cPacket) << login;
+
 	DWORD sendBytes, retval;
 	st_Session* pSession = NULL;
 	FindSession(ulSessionID, &pSession);
@@ -649,11 +760,21 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID, RefCountPointer cPacket)
 	}
 
 	short shSize = (*cPacket)->GetDataSize();
-	st_NetHeader header;
+#ifdef LANSERVER
+	st_LanHeader header;
 	header.shLen = shSize;
 
-	//EnterCriticalSection(&pSession->crtLock);
-	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
+	(*cPacket)->PushHeader((char*)&header, sizeof(st_LanHeader));
+#endif
+
+#ifdef NETSERVER
+	st_NetHeader netHeader;
+	netHeader.FixedKey = FIXED_KEY;
+	netHeader.RandKey = (unsigned char)rand();
+	netHeader.shLen = shSize;
+
+	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+#endif
 
 	WSABUF sendWsa;
 	sendWsa.buf = (*cPacket)->GetBufferPtr();

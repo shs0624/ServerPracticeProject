@@ -38,6 +38,89 @@ CPacket::CPacket()
 }
 #pragma warning(default:26495)
 
+void CPacket::SetCheckSum()
+{
+	unsigned char* payloadPtr = (unsigned char*)_iBuffer + _iHeaderSize;
+	unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
+
+	unsigned long sum = 0;
+	while (payloadPtr != tailPtr)
+	{
+		sum += (unsigned char)*(_iBuffer + _iHeaderSize) + 1;
+		payloadPtr++;
+	}
+
+	unsigned char checkSum = (unsigned char)(sum % 256);
+	*(GetCheckSumPtr()) = checkSum;
+}
+
+unsigned char CPacket::GetCheckSum()
+{
+	unsigned char* payloadPtr = (unsigned char*)_iBuffer + _iHeaderSize;
+	unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
+
+	unsigned long sum = 0;
+	while (payloadPtr != tailPtr)
+	{
+		sum += (unsigned char)*(_iBuffer + _iHeaderSize) + 1;
+		payloadPtr++;
+	}
+
+	unsigned char checkSum = (unsigned char)(sum % 256);
+	return checkSum;
+}
+
+void CPacket::Encode(unsigned char K, unsigned char RK)
+{
+	unsigned char* cursorPtr = (unsigned char*)GetCheckSumPtr();
+	unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
+
+	unsigned char E = 0;
+	unsigned char P = 0;
+
+	int cnt = 1;
+	while (cursorPtr != tailPtr)
+	{
+		unsigned char D = *cursorPtr;
+
+		P = D ^ (P + RK + cnt);
+		E = P ^ (E + K + cnt);
+
+		*cursorPtr = E;
+
+		cursorPtr++;
+		cnt++;
+	}
+}
+
+void CPacket::Decode(unsigned char K, unsigned char RK)
+{
+	unsigned char* cursorPtr = (unsigned char*)GetCheckSumPtr();
+	unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
+
+	unsigned char D = 0;
+	unsigned char P = 0;
+	unsigned char prevE = 0;
+	unsigned char prevP = 0;
+
+	int cnt = 1;
+	while (cursorPtr != tailPtr)
+	{
+		unsigned char E = *cursorPtr;
+
+		P = E ^ (prevE + K + cnt);
+		D = P ^ (prevP + RK + cnt);
+
+		prevP = P;
+		prevE = E;
+
+		*cursorPtr = D;
+		cursorPtr++;
+		cnt++;
+	}
+}
+
+
 int CPacket::GetData(char* chpDest, int iSize)
 {
 	int getSize = (iSize > _iDataSize) ? _iDataSize : iSize;
