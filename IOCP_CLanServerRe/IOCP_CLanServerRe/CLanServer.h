@@ -50,7 +50,8 @@ struct st_Session
 
 	DWORD dwSendCount;
 	DWORD dwRecvCount;
-	DWORD dwIOCount;
+	alignas(4) DWORD dwIOCount;
+	alignas(4) BOOL bReleaseFlag;
 	BOOL bSendFlag;
 	BOOL bSessionAlive;
 	LONG _tempWSASendCheck;
@@ -66,6 +67,7 @@ public:
 	int GetSessionCount();
 	virtual void QuitServer();
 
+	st_Session* FindSession();
 	bool Disconnect(ULONGLONG sessionID);
 	bool SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket);
 

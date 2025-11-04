@@ -58,13 +58,19 @@ public:
     {
         _size = 0;
 
+        /*
         st_Node* _headP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
         while (_headP->next != NULL)
         {
             _NodePool->Free(_headP);
             _headP = _headP->next;
+        }*/
+        while (!Empty())
+        {
+            Pop_Front();
         }
 
+        st_Node* _headP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
         _headP->next = NULL;
         _tail = _head;
     }

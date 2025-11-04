@@ -87,6 +87,11 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 	if (_ListenSocket == INVALID_SOCKET)
 		err_quit("socket()");
 
+	LINGER lingerOpt = { 0,1 };
+	int lingerRet = setsockopt(_ListenSocket, SOL_SOCKET, SO_LINGER, (char*)&lingerOpt, sizeof(LINGER));
+	if (lingerRet == SOCKET_ERROR)
+		err_quit("Linger()");
+
 	int optval = 0;
 	retval = setsockopt(_ListenSocket, SOL_SOCKET, SO_SNDBUF, (char*)&optval, sizeof(optval));
 	if (retval == SOCKET_ERROR)
@@ -177,6 +182,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	ULONGLONG ulIdx = (idx << 48);
 	ptr->ulSessionID = (ulIdx | id);
 	ptr->dwIOCount = 0;
+	ptr->bReleaseFlag = false;
 	ptr->bSendFlag = false;
 	ptr->_tempWSASendCheck = 0;
 	ptr->sock = client_sock;
@@ -196,7 +202,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
 			// ¿¬°á ²÷±â
-			ReleaseSession(ptr->ulSessionID);
+			thisPtr->Disconnect(ptr->ulSessionID);
 		}
 	}
 
@@ -228,7 +234,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 			{
 				// ¿¬°á ²÷±â
-				thisPtr->ReleaseSession(ptr->ulSessionID);
+				thisPtr->Disconnect(ptr->ulSessionID);
 			}
 			continue;
 		}
@@ -246,7 +252,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 				{
 					if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
 					{
-						thisPtr->ReleaseSession(ptr->ulSessionID);
+						thisPtr->Disconnect(ptr->ulSessionID);
 						continue;
 					}
 				}
@@ -258,7 +264,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 					{
 						// ¿¬°á ²÷±â
-						thisPtr->ReleaseSession(ptr->ulSessionID);
+						thisPtr->Disconnect(ptr->ulSessionID);
 						continue;
 					}
 				}
@@ -282,7 +288,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 					{
 						// ¿¬°á ²÷±â
-						thisPtr->ReleaseSession(ptr->ulSessionID);
+						thisPtr->Disconnect(ptr->ulSessionID);
 					}
 				}
 			}
@@ -305,7 +311,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 						if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 						{
 							// ¿¬°á ²÷±â
-							thisPtr->ReleaseSession(ptr->ulSessionID);
+							thisPtr->Disconnect(ptr->ulSessionID);
 						}
 					}
 				}
@@ -315,7 +321,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
 			// ¿¬°á ²÷±â
-			thisPtr->ReleaseSession(ptr->ulSessionID);
+			thisPtr->Disconnect(ptr->ulSessionID);
 		}
 	}
 }
@@ -364,18 +370,6 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 		LeaveCriticalSection(&_echoBufferLock);
 
 		(*csPacket)->MoveWritePos(PROTOCOL_NUMSIZE);
-		thisPtr->FindSession(header.ulSessionID, &ptr);
-		if (ptr == NULL)
-		{
-			csPacket.DecRefCount();
-			continue;
-		}
-
-		if (!ptr->bSessionAlive)
-		{
-			csPacket.DecRefCount();
-			continue;
-		}
 
 		// ¼¼¼ÇÀº Ã£¾ÒÀ¸´Ï, °ÂÇÑÅ× SendPacket
 		thisPtr->SendPacket(header.ulSessionID, csPacket);
@@ -390,6 +384,7 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 
 	for (ULONGLONG i = 0; i < maxConnection; i++)
 	{
+		_sessionArr[i].bReleaseFlag = false;
 		_sessionArr[i].bSessionAlive = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
@@ -577,8 +572,11 @@ bool CLanServer::Disconnect(ULONGLONG sessionID)
 	if (ptr == NULL)
 		return false;
 
+	CancelIoEx((HANDLE)ptr->sock, NULL);
+
+	ReleaseSession(sessionID);
 	ptr->bSessionAlive = false;
-	closesocket(ptr->sock);
+
 	return true;
 }
 
@@ -605,8 +603,12 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 		return false;
 	}
 
-	short shSize = (*cPacket)->GetDataSize();
+	if (ptr->bReleaseFlag == 1)
+		return false;
 
+	InterlockedIncrement(&ptr->dwIOCount);
+
+	short shSize = (*cPacket)->GetDataSize();
 #ifdef LANSERVER
 	st_LanHeader header;
 	header.shLen = shSize;
@@ -634,9 +636,10 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 			{
 				// ¿¬°á ²÷±â
-				ReleaseSession(ptr->ulSessionID);
+				Disconnect(ptr->ulSessionID);
 			}
 
+			InterlockedDecrement(&ptr->dwIOCount);
 			return false;
 		}
 
@@ -648,6 +651,7 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 	}
 	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
 
+	InterlockedDecrement(&ptr->dwIOCount);
 	return true;
 }
 
@@ -730,7 +734,7 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 		if (err != WSA_IO_PENDING)
 		{
 			printf("WSASend Fail! : %d\n", err);
-			DebugBreak();
+			//DebugBreak();
 			return false;
 		}
 	}
@@ -740,6 +744,19 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 
 bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID)
 {
+	DWORD sendBytes, retval;
+	st_Session* pSession = NULL;
+	FindSession(ulSessionID, &pSession);
+	if (pSession == NULL)
+	{
+		return false;
+	}
+
+	if (pSession->bReleaseFlag == 1)
+		return false;
+
+	InterlockedIncrement(&pSession->dwIOCount);
+
 	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
 #ifdef LANSERVER
 	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_LanHeader));
@@ -750,14 +767,6 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID)
 
 	__int64 login = 0x7fffffffffffffff;
 	*(*cPacket) << login;
-
-	DWORD sendBytes, retval;
-	st_Session* pSession = NULL;
-	FindSession(ulSessionID, &pSession);
-	if (pSession == NULL)
-	{
-		return false;
-	}
 
 	short shSize = (*cPacket)->GetDataSize();
 #ifdef LANSERVER
@@ -776,27 +785,45 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID)
 	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
 #endif
 
-	WSABUF sendWsa;
-	sendWsa.buf = (*cPacket)->GetBufferPtr();
-	sendWsa.len = (*cPacket)->GetDataSize();
+	pSession->sendBuf->Enqueue(cPacket);
 
-	int sendRet = WSASend(pSession->sock, &sendWsa, 1, &sendBytes, 0, &(pSession->sendOverlapped), NULL);
-	if (sendRet == SOCKET_ERROR)
+	//if (InterlockedExchange((LONG*)&(pSession->bSendFlag), TRUE) != TRUE)
 	{
-		int err = WSAGetLastError();
-		if (err != WSA_IO_PENDING)
+		if (!SetWSASend(pSession))
 		{
-			printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
-			DebugBreak();
-			return true;
-		}
+			InterlockedExchange((LONG*)&(pSession->bSendFlag), FALSE);
+			if (InterlockedDecrement((DWORD*)&(pSession->dwIOCount)) == 0)
+			{
+				// ¿¬°á ²÷±â
+				Disconnect(pSession->ulSessionID);
+			}
 
-		printf("IOPending : %d\n", WSAGetLastError());
-		return false;
+			InterlockedDecrement(&pSession->dwIOCount);
+			return false;
+		}
 	}
-	//LeaveCriticalSection(&pSession->crtLock);
+	//WSABUF sendWsa;
+	//sendWsa.buf = (*cPacket)->GetBufferPtr();
+	//sendWsa.len = (*cPacket)->GetDataSize();
+
+	//int sendRet = WSASend(pSession->sock, &sendWsa, 1, &sendBytes, 0, &(pSession->sendOverlapped), NULL);
+	//if (sendRet == SOCKET_ERROR)
+	//{
+	//	int err = WSAGetLastError();
+	//	if (err != WSA_IO_PENDING)
+	//	{
+	//		InterlockedDecrement(&pSession->dwIOCount);
+	//		printf("Send SOCKET ERROR # ERRORNUM : %d\n", WSAGetLastError());
+	//		DebugBreak();
+	//		return false;
+	//	}
+
+	//	printf("IOPending : %d\n", WSAGetLastError());
+	//}
+	////LeaveCriticalSection(&pSession->crtLock);
 
 	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
+	InterlockedDecrement(&pSession->dwIOCount);
 	return true;
 }
 
@@ -807,17 +834,16 @@ void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 	if (ptr == NULL)
 		return;
 
-	if (!(ptr->bSessionAlive))
-		return;
-
+	// dwIOCount°¡ 0ÀÌ¸é¼­ Release°¡ False(0)ÀÌ¸é Release¸¦ 1·Î º¯°æ
+	if (_InterlockedCompareExchange64((LONGLONG*)&ptr->dwIOCount, 0x0000000100000000, 0x0000000000000000) == 0x0000000000000001)
+		DebugBreak();
+	
 	ULONGLONG idx = (ulSessionID) >> 48;
 	//printf("Release Session IDX : %d\n", idx);
 	OnRelease(ptr->ulSessionID);
 
 	ptr->recvBuf->ClearBuffer();
-	//EnterCriticalSection(&ptr->sendLock);
 	ptr->sendBuf->Clear();
-	//LeaveCriticalSection(&ptr->sendLock);
 
 	ptr->bSessionAlive = false;
 	ptr->dwIOCount = 0;
