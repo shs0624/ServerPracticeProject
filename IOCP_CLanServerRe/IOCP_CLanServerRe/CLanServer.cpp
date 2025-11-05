@@ -11,12 +11,25 @@
 #include "ProcademyProfiler.h"
 //#include "TLSMemoryPool.h"
 #define IOCP_THREADCOUNT 5
+#define LOGCOUNT 10000
 
 //#define NETSERVER
 #define LANSERVER
 
 procademy::CCrashDump cCrashDump;
 //TLSMemoryPoolManager<CPacket> _TLSPool(100, 3, 5);
+
+enum logState
+{
+	ACCEPT,
+	FREE
+};
+
+struct stLOG
+{
+	logState state;
+	DWORD sockNum;
+};
 
 CRITICAL_SECTION _echoBufferLock;
 CRITICAL_SECTION _indexStackLock;
@@ -31,6 +44,8 @@ HANDLE _EchoIOCPHandle;
 HANDLE _EchoIOCPWorkerHandle;
 
 DWORD _threadID = 0;
+DWORD _logID = 0;
+stLOG _logArr[10000];
 
 HANDLE _tpsThreadHandle;
 
@@ -202,8 +217,14 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
 			// 연결 끊기
-			thisPtr->Disconnect(ptr->ulSessionID);
+			thisPtr->ReleaseSession(ptr->ulSessionID);
 		}
+	}
+
+	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+	{
+		// 연결 끊기 - 로그인 패킷에 대한 Dec
+		thisPtr->ReleaseSession(ptr->ulSessionID);
 	}
 
 	return true;
@@ -229,20 +250,24 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			return 0;
 		}
 
+		InterlockedIncrement(&ptr->dwIOCount);
+		if (ptr->bReleaseFlag == TRUE)
+			continue;
+
 		if (retval == 0 && cbTransferred == 0)
 		{
 			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 			{
 				// 연결 끊기
-				thisPtr->Disconnect(ptr->ulSessionID);
+				thisPtr->ReleaseSession(ptr->ulSessionID);
 			}
-			continue;
+			goto DecRef;
+			//continue;
 		}
 
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
 			{
-				//Profiler("RecvProc");
 #ifdef LANSERVER
 				if (!thisPtr->RecvProc(ptr, cbTransferred))
 #endif
@@ -252,8 +277,9 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 				{
 					if (InterlockedDecrement((DWORD*)&ptr->dwIOCount) == 0)
 					{
-						thisPtr->Disconnect(ptr->ulSessionID);
-						continue;
+						thisPtr->ReleaseSession(ptr->ulSessionID);
+						goto DecRef;
+						//continue;
 					}
 				}
 			}
@@ -264,8 +290,9 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 					{
 						// 연결 끊기
-						thisPtr->Disconnect(ptr->ulSessionID);
-						continue;
+						thisPtr->ReleaseSession(ptr->ulSessionID);
+						goto DecRef;
+						//continue;
 					}
 				}
 			}
@@ -288,7 +315,8 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 					if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 					{
 						// 연결 끊기
-						thisPtr->Disconnect(ptr->ulSessionID);
+						thisPtr->ReleaseSession(ptr->ulSessionID);
+						goto DecRef;
 					}
 				}
 			}
@@ -311,17 +339,26 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 						if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 						{
 							// 연결 끊기
-							thisPtr->Disconnect(ptr->ulSessionID);
+							thisPtr->ReleaseSession(ptr->ulSessionID);
+							goto DecRef;
 						}
 					}
 				}
 			}
 		}
 
+		// 완료 통지에 대한 IO차감
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
 			// 연결 끊기
-			thisPtr->Disconnect(ptr->ulSessionID);
+			thisPtr->ReleaseSession(ptr->ulSessionID);
+		}
+	DecRef:
+		// 여긴 세션 참조에 대한 IO차감
+		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+		{
+			// 연결 끊기
+			thisPtr->ReleaseSession(ptr->ulSessionID);
 		}
 	}
 }
@@ -373,6 +410,15 @@ unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
 
 		// 세션은 찾았으니, 걔한테 SendPacket
 		thisPtr->SendPacket(header.ulSessionID, csPacket);
+		//if (!thisPtr->SendPacket(header.ulSessionID, csPacket));
+		//{
+		//	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+		//	{
+		//		// 연결 끊기
+		//		thisPtr->ReleaseSession(ptr->ulSessionID);
+		//	}
+		//}
+
 		csPacket.DecRefCount();
 	}
 }
@@ -399,7 +445,7 @@ bool CLanServer::Init(int maxConnection)
 	InitializeCriticalSection(&_echoBufferLock);
 	InitializeCriticalSection(&_indexStackLock);
 
-	_echoBuffer = new CRingBuffer(100000);
+	_echoBuffer = new CRingBuffer(300000);
 	InitializeSessions(maxConnection);
 
 	//CPU 개수 확인
@@ -450,6 +496,9 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 	{
 		(*csPacket)->Clear();
 
+		if (ptr->bReleaseFlag == TRUE)
+			return false;
+
 		int useSize = ptr->recvBuf->GetUseSize();
 		if (useSize < sizeof(st_LanHeader))
 		{
@@ -464,7 +513,7 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 			return false;
 		}
 
-		if (useSize < sizeof(st_LanHeader) + netHeader.shLen)
+		if (ptr->recvBuf->GetUseSize() < sizeof(st_LanHeader) + netHeader.shLen)
 		{
 			DebugBreak();
 			Disconnect(ptr->ulSessionID);
@@ -603,10 +652,9 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 		return false;
 	}
 
+	InterlockedIncrement(&ptr->dwIOCount);
 	if (ptr->bReleaseFlag == 1)
 		return false;
-
-	InterlockedIncrement(&ptr->dwIOCount);
 
 	short shSize = (*cPacket)->GetDataSize();
 #ifdef LANSERVER
@@ -636,10 +684,14 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 			{
 				// 연결 끊기
-				Disconnect(ptr->ulSessionID);
+				ReleaseSession(ptr->ulSessionID);
 			}
 
-			InterlockedDecrement(&ptr->dwIOCount);
+			if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+			{
+				// 연결 끊기
+				ReleaseSession(ptr->ulSessionID);
+			}
 			return false;
 		}
 
@@ -649,9 +701,13 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 			DebugBreak();
 #endif
 	}
-	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
 
-	InterlockedDecrement(&ptr->dwIOCount);
+	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
+	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+	{
+		// 연결 끊기
+		ReleaseSession(ptr->ulSessionID);
+	}
 	return true;
 }
 
@@ -752,10 +808,9 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID)
 		return false;
 	}
 
+	InterlockedIncrement(&pSession->dwIOCount);
 	if (pSession->bReleaseFlag == 1)
 		return false;
-
-	InterlockedIncrement(&pSession->dwIOCount);
 
 	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
 #ifdef LANSERVER
@@ -791,14 +846,20 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID)
 	{
 		if (!SetWSASend(pSession))
 		{
+			// SetWSASend에 대한 IO 차감
 			InterlockedExchange((LONG*)&(pSession->bSendFlag), FALSE);
 			if (InterlockedDecrement((DWORD*)&(pSession->dwIOCount)) == 0)
 			{
 				// 연결 끊기
-				Disconnect(pSession->ulSessionID);
+				ReleaseSession(pSession->ulSessionID);
 			}
 
-			InterlockedDecrement(&pSession->dwIOCount);
+			// 얘는 리턴 전에 Login에 들어오며 올린 IOCount 차감
+			if (InterlockedDecrement((DWORD*)&(pSession->dwIOCount)) == 0)
+			{
+				// 연결 끊기
+				ReleaseSession(pSession->ulSessionID);
+			}
 			return false;
 		}
 	}
@@ -823,7 +884,11 @@ bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID)
 	////LeaveCriticalSection(&pSession->crtLock);
 
 	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
-	InterlockedDecrement(&pSession->dwIOCount);
+	if (InterlockedDecrement((DWORD*)&(pSession->dwIOCount)) == 0)
+	{
+		// 연결 끊기
+		ReleaseSession(pSession->ulSessionID);
+	}
 	return true;
 }
 
@@ -835,8 +900,9 @@ void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 		return;
 
 	// dwIOCount가 0이면서 Release가 False(0)이면 Release를 1로 변경
-	if (_InterlockedCompareExchange64((LONGLONG*)&ptr->dwIOCount, 0x0000000100000000, 0x0000000000000000) == 0x0000000000000001)
-		DebugBreak();
+	_InterlockedCompareExchange64((LONGLONG*)&ptr->dwIOCount, 0x0000000100000000, 0x0000000000000000);
+	/*if (_InterlockedCompareExchange64((LONGLONG*)&ptr->dwIOCount, 0x0000000100000000, 0x0000000000000000) == 0x0000000000000001)
+		DebugBreak();*/
 	
 	ULONGLONG idx = (ulSessionID) >> 48;
 	//printf("Release Session IDX : %d\n", idx);
