@@ -37,10 +37,17 @@ struct st_PACKET_HEADER
 };
 #pragma pack(pop)
 
+struct MYOVERLAPPED
+{
+	OVERLAPPED _overlap;
+	ULONGLONG ulSessionID;
+};
+
 struct st_Session
 {
 	OVERLAPPED sendOverlapped;
 	OVERLAPPED recvOverlapped;
+	MYOVERLAPPED myOverlapped;
 	ULONGLONG ulSessionID;
 	SOCKET sock;
 	LockFreeQueue<RefCountPointer>* sendBuf;
@@ -68,6 +75,7 @@ public:
 	virtual void QuitServer();
 
 	st_Session* FindSession();
+	bool DecrementIOCount(st_Session* ptr);
 	bool Disconnect(ULONGLONG sessionID);
 	bool SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket);
 
@@ -80,7 +88,7 @@ public:
 
 	virtual bool OnConnectionRequest(ULONG ip, LONG port) = 0; // accept 직후 핸들러
 
-	virtual void OnAccept(ULONGLONG sessionID) = 0; // Accept 후 접속처리 완료 후 호출
+	virtual bool OnAccept(ULONGLONG sessionID) = 0; // Accept 후 접속처리 완료 후 호출
 
 	virtual void OnRelease(ULONGLONG SessionID) = 0;
 

@@ -25,9 +25,9 @@ int main()
 	}
 }
 
-void EchoServer::OnAccept(ULONGLONG SessionID)
+bool EchoServer::OnAccept(ULONGLONG SessionID)
 {
-	SendLoginPacket(SessionID);
+	return SendLoginPacket(SessionID);
 }
 
 void EchoServer::OnRelease(ULONGLONG SessionID)
