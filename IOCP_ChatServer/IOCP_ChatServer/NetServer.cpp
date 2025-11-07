@@ -6,33 +6,13 @@
 #include <crtdbg.h>
 #include <minidumpapiset.h>
 #include "CCrashDump.h"
-#include "Debug.h"
-#include "CLanServer.h"
+#include "DebugLog.h"
+#include "NetServer.h"
 #include "ProcademyProfiler.h"
-//#include "TLSMemoryPool.h"
 #define IOCP_THREADCOUNT 5
 #define LOGCOUNT 10000
 
-//#define NETSERVER
-#define LANSERVER
-
 procademy::CCrashDump cCrashDump;
-//TLSMemoryPoolManager<CPacket> _TLSPool(100, 3, 5);
-
-enum logState
-{
-	ACCEPT,
-	FREE
-};
-
-struct stLOG
-{
-	logState state;
-	DWORD sockNum;
-};
-
-CRITICAL_SECTION _echoBufferLock;
-CRITICAL_SECTION _indexStackLock;
 
 SOCKET _ListenSocket;
 
@@ -45,11 +25,8 @@ HANDLE _EchoIOCPWorkerHandle;
 
 DWORD _threadID = 0;
 DWORD _logID = 0;
-stLOG _logArr[10000];
 
 HANDLE _tpsThreadHandle;
-
-CRingBuffer* _echoBuffer;
 
 unsigned int _tpsThreadID;
 unsigned int _acceptThreadID;
@@ -58,22 +35,17 @@ unsigned int _NetIOCPWorkerThreadID[50];
 
 bool _bServerEnabled = true;
 
-// thread-safe 락 걸음
-int CLanServer::FindUsableSessionIndex()
+// thread-safe 락프리 스택
+int CNetServer::FindUsableSessionIndex()
 {
-	int idx = -1;
-	EnterCriticalSection(&_indexStackLock);
-	if (_emptyIndexStack.count() != 0)
-	{
-		idx = _emptyIndexStack.top();
-		_emptyIndexStack.pop();
-	}
-	LeaveCriticalSection(&_indexStackLock);
+	ULONGLONG idx = -1;
+	while (_emptyIndexStack.pop(&idx))
+		break;
+
 	return idx;
 }
 
-// thread-safe 락 걸음
-void CLanServer::FindSession(ULONGLONG sessionID, st_Session** pSession)
+void CNetServer::FindSession(ULONGLONG sessionID, st_Session** pSession)
 {
 	ULONGLONG idx = sessionID >> 48;
 	if (sessionID == _sessionArr[idx].ulSessionID)
@@ -88,7 +60,7 @@ void CLanServer::FindSession(ULONGLONG sessionID, st_Session** pSession)
 	return;
 }
 
-bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection)
+bool CNetServer::StartNetServer(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection)
 {
 	int retval;
 
@@ -133,10 +105,10 @@ bool CLanServer::Start(ULONG ip, LONG port, int workerCount, int concurrentThrea
 	printf("\n[TCP 서버] 시작\n");
 }
 
-unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
+unsigned int WINAPI CNetServer::AcceptThread(LPVOID arg)
 {
 	// static 선언해서 함수 호출을 위한 포인터
-	CLanServer* thisPtr = (CLanServer*)arg;
+	CNetServer* thisPtr = (CNetServer*)arg;
 
 	// 데이터 통신에 사용할 변수
 	SOCKET client_sock;
@@ -159,7 +131,7 @@ unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 	return 0;
 }
 
-bool CLanServer::AcceptProc(CLanServer* thisPtr)
+bool CNetServer::AcceptProc(CNetServer* thisPtr)
 {
 	// 데이터 통신에 사용할 변수
 	SOCKET client_sock;
@@ -192,18 +164,16 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	// 수정이 필요함
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
-	ptr->bSessionAlive = true;
 	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
 	ULONGLONG ulIdx = (idx << 48);
 	ptr->ulSessionID = (ulIdx | id);
 	ptr->dwIOCount = 0;
 	ptr->bReleaseFlag = false;
 	ptr->bSendFlag = false;
-	ptr->_tempWSASendCheck = 0;
 	ptr->sock = client_sock;
 	ptr->sendBuf->Clear();
 	ptr->recvBuf->ClearBuffer();
-	
+
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
 	InterlockedIncrement((LONG*)&_iSessionCount);
 
@@ -228,9 +198,6 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	{
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
-			if (ptr->dwIOCount >= 100)
-				DebugBreak();
-
 			// 연결 끊기
 			thisPtr->ReleaseSession(ptr->ulSessionID);
 			return false;
@@ -239,10 +206,6 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 
 	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 	{
-		// 연결 끊기 - 로그인 패킷에 대한 Dec
-		if (ptr->dwIOCount >= 100)
-			DebugBreak();
-
 		thisPtr->ReleaseSession(ptr->ulSessionID);
 		return false;
 	}
@@ -250,11 +213,11 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	return true;
 }
 
-unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
+unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 {
 	char tempBuffer[PROTOCOL_SIZE + 1];
 	int retval;
-	CLanServer* thisPtr = (CLanServer*)arg;
+	CNetServer* thisPtr = (CNetServer*)arg;
 
 	while (1)
 	{
@@ -278,7 +241,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		{
 			if (!thisPtr->DecrementIOCount(ptr))
 				goto DecRef;
-		}		
+		}
 
 		if (retval == 0 || cbTransferred == 0)
 		{
@@ -288,25 +251,16 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
+			if (!thisPtr->RecvProc_Net(ptr, cbTransferred))
 			{
-#ifdef LANSERVER
-				if (!thisPtr->RecvProc(ptr, cbTransferred))
-#endif
-#ifdef NETSERVER
-				if (!thisPtr->RecvProc_Net(ptr, cbTransferred))
-#endif
-				{
-					if (!thisPtr->DecrementIOCount(ptr))
-						goto DecRef;
-				}
+				if (!thisPtr->DecrementIOCount(ptr))
+					goto DecRef;
 			}
+			
+			if (!thisPtr->SetWSARecv(ptr))
 			{
-				//Profiler("SetWSARecv");
-				if (!thisPtr->SetWSARecv(ptr))
-				{
-					if (!thisPtr->DecrementIOCount(ptr))
-						goto DecRef;
-				}
+				if (!thisPtr->DecrementIOCount(ptr))
+					goto DecRef;
 			}
 		}
 		else
@@ -330,6 +284,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			}
 			else
 			{
+				// 한 번 더 실제로 head가 비었는지 체크
 				if (ptr->sendBuf->Empty())
 				{
 					InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
@@ -359,58 +314,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 	}
 }
 
-unsigned int WINAPI CLanServer::EchoThread(LPVOID arg)
-{
-	int retval;
-	CLanServer* thisPtr = (CLanServer*)arg;
-
-	while (1)
-	{
-		WSABUF wsabuf;
-		DWORD cbTransferred = 0;
-		st_Session* ptr = NULL;
-		OVERLAPPED* pOverlapped = NULL;
-		st_PACKET_HEADER header;
-
-		retval = GetQueuedCompletionStatus(_EchoIOCPHandle, &cbTransferred,
-			(PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
-
-		if (cbTransferred == 0 && ptr == NULL && pOverlapped == NULL)
-		{
-			// 종료
-			continue;
-		}
-
-		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
-#ifdef LANSERVER
-		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_LanHeader));
-#endif
-		
-#ifdef NETSERVER
-		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
-#endif
-
-		EnterCriticalSection(&_echoBufferLock);
-		if (_echoBuffer->GetUseSize() < sizeof(st_PACKET_HEADER) + PROTOCOL_NUMSIZE)
-		{
-			DebugBreak();
-			LeaveCriticalSection(&_echoBufferLock);
-			continue;
-		}
-
-		_echoBuffer->Dequeue((char*)&header, sizeof(st_PACKET_HEADER));
-		_echoBuffer->Dequeue((*csPacket)->GetTailPtr(), PROTOCOL_NUMSIZE);
-		LeaveCriticalSection(&_echoBufferLock);
-
-		(*csPacket)->MoveWritePos(PROTOCOL_NUMSIZE);
-
-		// 세션은 찾았으니, 걔한테 SendPacket
-		thisPtr->SendPacket(header.ulSessionID, csPacket);
-		csPacket.DecRefCount();
-	}
-}
-
-void CLanServer::InitializeSessions(ULONG maxConnection)
+void CNetServer::InitializeSessions(ULONG maxConnection)
 {
 	_sessionArr = (st_Session*)malloc(sizeof(st_Session) * maxConnection);
 	_iSessionCount = 0;
@@ -418,7 +322,6 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 	for (ULONGLONG i = 0; i < maxConnection; i++)
 	{
 		_sessionArr[i].bReleaseFlag = false;
-		_sessionArr[i].bSessionAlive = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
 
@@ -426,13 +329,9 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 	}
 }
 
-bool CLanServer::Init(int maxConnection)
+bool CNetServer::Init(int maxConnection)
 {
 	_imaxConnection = maxConnection;
-	InitializeCriticalSection(&_echoBufferLock);
-	InitializeCriticalSection(&_indexStackLock);
-
-	_echoBuffer = new CRingBuffer(300000);
 	InitializeSessions(maxConnection);
 
 	//CPU 개수 확인
@@ -465,143 +364,70 @@ bool CLanServer::Init(int maxConnection)
 		if (_NetIOCPWorkerThreadHandleArr[i] == NULL)
 			return false;
 	}
-
-	_EchoIOCPWorkerHandle = (HANDLE)_beginthreadex(NULL, 0, EchoThread, this, 0, &_EchoIOCPWorkerThreadID);
 }
 
-bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
+bool CNetServer::RecvProc_Net(st_Session* ptr, DWORD cbTransferred)
 {
-	st_PACKET_HEADER header;
-	st_LanHeader netHeader;
-	RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
-	(*csPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
-
-	ptr->recvBuf->MoveRear(cbTransferred);
-
-	// 받은 데이터 순회하며 Echo버퍼에 넣기
-	while (1)
-	{
-		(*csPacket)->Clear();
-
-		if (ptr->bReleaseFlag == TRUE)
-			return false;
-
-		int useSize = ptr->recvBuf->GetUseSize();
-		if (useSize < sizeof(st_LanHeader))
-		{
-			break;
-		}
-
-		int peekRet = ptr->recvBuf->Peek((char*)&netHeader, sizeof(st_LanHeader));
-		if (peekRet != sizeof(st_LanHeader))
-		{
-			DebugBreak();
-			Disconnect(ptr->ulSessionID);
-			return false;
-		}
-
-		if (ptr->recvBuf->GetUseSize() < sizeof(st_LanHeader) + netHeader.shLen)
-		{
-			DebugBreak();
-			Disconnect(ptr->ulSessionID);
-			return false;
-		}
-
-		ptr->recvBuf->MoveFront(sizeof(st_LanHeader));
-		ptr->recvBuf->Dequeue((*csPacket)->GetTailPtr(), netHeader.shLen);
-		(*csPacket)->MoveWritePos(netHeader.shLen);
-
-		header.ulSessionID = ptr->ulSessionID;
-		EnterCriticalSection(&_echoBufferLock);
-		_echoBuffer->Enqueue((char*)&header, sizeof(st_PACKET_HEADER));
-		int enqueueRet = _echoBuffer->Enqueue((char*)(*csPacket)->GetHeadPtr(), netHeader.shLen);
-		LeaveCriticalSection(&_echoBufferLock);
-		if (enqueueRet != netHeader.shLen)
-		{
-			DebugBreak();
- 			Disconnect(ptr->ulSessionID);
-			return false;
-		}
-
-		// Post
-		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, NULL);
-		InterlockedIncrement((LONG*)&_iRecvMessageTPS);
-	}
-
-	csPacket.DecRefCount();
-	return true;
-}
-
-bool CLanServer::RecvProc_Net(st_Session* ptr, DWORD cbTransferred)
-{
-	st_PACKET_HEADER header;
 	st_NetHeader netHeader;
-	RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
-	(*csPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
-
 	ptr->recvBuf->MoveRear(cbTransferred);
 
-	// 받은 데이터 순회하며 Echo버퍼에 넣기
+	// 받은 데이터 ChatServer에 전달
 	while (1)
 	{
-		(*csPacket)->Clear();
+		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
+		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
 
-		int useSize = ptr->recvBuf->GetUseSize();
-		if (useSize < sizeof(st_NetHeader))
+		short len;
+		unsigned char RK;
+
+		// csPacket 초기화 후 ptr->recvBuf에서 Dequeue
 		{
-			break;
+			(*csPacket)->Clear();
+
+			int useSize = ptr->recvBuf->GetUseSize();
+			if (useSize < sizeof(st_NetHeader))
+			{
+				break;
+			}
+
+			int peekRet = ptr->recvBuf->Peek((char*)(*csPacket)->GetHeadPtr(), sizeof(st_NetHeader));
+			if (peekRet != sizeof(st_NetHeader))
+			{
+				DebugBreak();
+				Disconnect(ptr->ulSessionID);
+				return false;
+			}
+			(*csPacket)->MoveReadPos(sizeof(st_NetHeader));
+
+			len = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->shLen;
+			RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
+			if (useSize < sizeof(st_NetHeader) + len)
+			{
+				DebugBreak();
+				Disconnect(ptr->ulSessionID);
+				return false;
+			}
+
+			ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
+			ptr->recvBuf->Dequeue((*csPacket)->GetTailPtr(), len);
+			(*csPacket)->MoveWritePos(len);
 		}
 
-		int peekRet = ptr->recvBuf->Peek((char*)(*csPacket)->GetHeadPtr(), sizeof(st_NetHeader));
-		if (peekRet != sizeof(st_NetHeader))
-		{
-			DebugBreak();
+		// 디코딩, 체크섬 검사
+		if (!(*csPacket)->Decode(FIXED_KEY, RK))
 			Disconnect(ptr->ulSessionID);
-			return false;
-		}
+
+		// netHeader만큼 이동시키고, OnRecv
 		(*csPacket)->MoveReadPos(sizeof(st_NetHeader));
+		OnRecv(ptr->ulSessionID, csPacket);
 
-		short len = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->shLen;
-		unsigned char RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
-		if (useSize < sizeof(st_NetHeader) + len)
-		{
-			DebugBreak();
-			Disconnect(ptr->ulSessionID);
-			return false;
-		}
-
-		ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
-		ptr->recvBuf->Dequeue((*csPacket)->GetTailPtr(), len);
-		(*csPacket)->MoveWritePos(len);
-
-		// 디코드 필요
-		(*csPacket)->Decode(FIXED_KEY, RK);
-		unsigned char checkSum = (*csPacket)->GetCheckSum();
-		if(checkSum != *((*csPacket)->GetCheckSumPtr()))
-			DebugBreak();
-
-		header.ulSessionID = ptr->ulSessionID;
-		EnterCriticalSection(&_echoBufferLock);
-		_echoBuffer->Enqueue((char*)&header, sizeof(st_PACKET_HEADER));
-		int enqueueRet = _echoBuffer->Enqueue((char*)(*csPacket)->GetHeadPtr(), len);
-		LeaveCriticalSection(&_echoBufferLock);
-		if (enqueueRet != len)
-		{
-			DebugBreak();
-			Disconnect(ptr->ulSessionID);
-			return false;
-		}
-
-		// Post
-		PostQueuedCompletionStatus(_EchoIOCPHandle, cbTransferred, (ULONG_PTR)&ptr, NULL);
 		InterlockedIncrement((LONG*)&_iRecvMessageTPS);
 	}
 
-	csPacket.DecRefCount();
 	return true;
 }
 
-bool CLanServer::DecrementIOCount(st_Session* ptr)
+bool CNetServer::DecrementIOCount(st_Session* ptr)
 {
 	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 	{
@@ -612,11 +438,11 @@ bool CLanServer::DecrementIOCount(st_Session* ptr)
 		ReleaseSession(ptr->ulSessionID);
 		return false;
 	}
-	
+
 	return true;
 }
 
-bool CLanServer::Disconnect(ULONGLONG sessionID)
+bool CNetServer::Disconnect(ULONGLONG sessionID)
 {
 	st_Session* ptr;
 	FindSession(sessionID, &ptr);
@@ -626,24 +452,11 @@ bool CLanServer::Disconnect(ULONGLONG sessionID)
 	//CancelIoEx((HANDLE)ptr->sock, NULL);
 
 	ReleaseSession(sessionID);
-	ptr->bSessionAlive = false;
 
 	return true;
 }
 
-void CLanServer::Encode(RefCountPointer& cPacket)
-{
-	//헤더를 넣은 cPacket이 들어온다는 가정 하에 짜자.
-	unsigned char randKey = rand();
-
-	//일단 체크섬을 빼고, 그 뒤 메세지를 이용해서 체크섬을 넣어야 한다.
-	(*cPacket)->SetCheckSum();
-
-	//그 후 체크섬을 포함해서 인코딩 공식을 사용. 체크섬 + 페이로드가 인코딩 대상
-	(*cPacket)->Encode(FIXED_KEY, randKey);
-}
-
-bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
+bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket)
 {
 	st_Session* ptr;
 	FindSession(sessionID, &ptr);
@@ -660,21 +473,14 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 	}
 
 	short shSize = (*cPacket)->GetDataSize();
-#ifdef LANSERVER
-	st_LanHeader header;
-	header.shLen = shSize;
-	
-	(*cPacket)->PushHeader((char*)&header, sizeof(st_LanHeader));
-#endif
 
-#ifdef NETSERVER
 	st_NetHeader netHeader;
 	netHeader.FixedKey = FIXED_KEY;
 	netHeader.RandKey = (unsigned char)rand();
 	netHeader.shLen = shSize;
 
 	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
-#endif
+	(*cPacket)->Encode(FIXED_KEY);
 
 	cPacket.IncRefCount();
 	ptr->sendBuf->Enqueue(cPacket);
@@ -689,12 +495,6 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 			DecrementIOCount(ptr);
 			return false;
 		}
-
-#ifdef SENDDEBUG
-		LONG outCount = InterlockedDecrement(&ptr->_tempSendPacketCheck);
-		if (ptr->_tempWSASendCheck >= 1)
-			DebugBreak();
-#endif
 	}
 
 	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
@@ -702,7 +502,7 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 	return true;
 }
 
-bool CLanServer::SetWSARecv(st_Session* ptr)
+bool CNetServer::SetWSARecv(st_Session* ptr)
 {
 	// WSARecv
 	int recvRet, recvCount = 0;
@@ -712,7 +512,7 @@ bool CLanServer::SetWSARecv(st_Session* ptr)
 	WSABUF recvWsa[200];
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
-	
+
 	if (ptr->recvBuf->DirectEnqueueSize() < ptr->recvBuf->GetFreeSize())
 	{
 		// 두개로 나눠 받아야 함
@@ -743,7 +543,7 @@ bool CLanServer::SetWSARecv(st_Session* ptr)
 	return true;
 }
 
-bool CLanServer::SetWSASend(st_Session* ptr)
+bool CNetServer::SetWSASend(st_Session* ptr)
 {
 	int retval, sendCount = 0;
 	DWORD sendbytes;
@@ -774,7 +574,7 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	ptr->dwSendCount = sendCount;
 	retval = WSASend(ptr->sock, sendWsa, sendCount, &sendbytes,
 		0, &(ptr->sendOverlapped), NULL);
-	
+
 
 	if (retval == SOCKET_ERROR)
 	{
@@ -790,70 +590,7 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 	return true;
 }
 
-bool CLanServer::SendLoginPacket(ULONGLONG ulSessionID)
-{
-	DWORD sendBytes, retval;
-	st_Session* pSession = NULL;
-	FindSession(ulSessionID, &pSession);
-	if (pSession == NULL)
-	{
-		return false;
-	}
-
-	InterlockedIncrement(&pSession->dwIOCount);
-	if (pSession->bReleaseFlag == 1)
-	{
-		DecrementIOCount(pSession);
-		return false;
-	}
-
-	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-#ifdef LANSERVER
-	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_LanHeader));
-#endif
-#ifdef NETSERVER
-	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE + 1, sizeof(st_NetHeader));
-#endif
-
-	__int64 login = 0x7fffffffffffffff;
-	*(*cPacket) << login;
-
-	short shSize = (*cPacket)->GetDataSize();
-#ifdef LANSERVER
-	st_LanHeader header;
-	header.shLen = shSize;
-
-	(*cPacket)->PushHeader((char*)&header, sizeof(st_LanHeader));
-#endif
-
-#ifdef NETSERVER
-	st_NetHeader netHeader;
-	netHeader.FixedKey = FIXED_KEY;
-	netHeader.RandKey = (unsigned char)rand();
-	netHeader.shLen = shSize;
-
-	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
-#endif
-
-	pSession->sendBuf->Enqueue(cPacket);
-
-	if (!SetWSASend(pSession))
-	{
-		// SetWSASend에 대한 IO 차감
-		InterlockedExchange((LONG*)&(pSession->bSendFlag), FALSE);
-		DecrementIOCount(pSession);
-
-		// 얘는 리턴 전에 Login에 들어오며 올린 IOCount 차감
-		DecrementIOCount(pSession);
-		return false;
-	}
-
-	InterlockedIncrement((unsigned int*)&_iSendMessageTPS);
-	DecrementIOCount(pSession);
-	return true;
-}
-
-void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
+void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 {
 	st_Session* ptr;
 	FindSession(ulSessionID, &ptr);
@@ -863,14 +600,13 @@ void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 	// dwIOCount가 0이면서 Release가 False(0)이면 Release를 1로 변경
 	if (_InterlockedCompareExchange64((LONGLONG*)&ptr->dwIOCount, 0x0000000100000000, 0x0000000000000000) != 0x0000000000000000)
 		return;
-	
+
 	ULONGLONG idx = (ulSessionID) >> 48;
 	OnRelease(ptr->ulSessionID);
 
 	ptr->recvBuf->ClearBuffer();
 	ptr->sendBuf->Clear();
 
-	ptr->bSessionAlive = false;
 	ptr->dwIOCount = 0;
 	closesocket(ptr->sock);
 	_emptyIndexStack.push(idx);
@@ -879,7 +615,7 @@ void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 	InterlockedDecrement((LONG*)&_iSessionCount);
 }
 
-void CLanServer::QuitServer()
+void CNetServer::QuitServer()
 {
 
 }
