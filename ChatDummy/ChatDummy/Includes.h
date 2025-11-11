@@ -1,0 +1,22 @@
+#pragma once
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#include <Windows.h>
+#include <iostream>
+#include <process.h>
+#include <conio.h>
+#include <cstdio>
+#include <io.h>
+#include <fcntl.h>
+#include <algorithm>
+#include <crtdbg.h>
+#include <minidumpapiset.h>
+#include <list>
+#include <vector>
+#include <queue>
+
+#include "CCrashDump.h"
+#include "RefCountPointer.h"
+#include "DebugLog.h"
+#include "LockFreeQueue.h"
+#include "CRingBuffer.h"
