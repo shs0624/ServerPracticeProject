@@ -97,12 +97,11 @@ unsigned int WINAPI ChatDummyManager::IOCPWorkerThread(LPVOID arg)
 
 		if (pOverlapped == thisPtr->_lpWorkOverlapped)
 		{
-			// Connect, Disconnect, Login상태는 이 분기를 타야함.
+			// Connect, Disconnect 상태는 이 분기를 타야함.
 			// @@TODO : 작업 Update, Act는 상속 구조로 바꿔보기
-			// @@TODO : Connect가 실패해도 Login으로 넘어감. 애초에 True, False로 이걸 진행하게 하면 안됐음.
+			// @@TODO : Connect 직후 Login을 안함
 			if (!thisPtr->WorkByAction(ptr))
 			{
-				//ptr->UpdateAction();
 				PostQueuedCompletionStatus(thisPtr->_IOCPHandle, MAXDWORD, (ULONG_PTR)ptr, thisPtr->_lpWorkOverlapped);
 				continue;
 			}
@@ -163,7 +162,7 @@ bool ChatDummyManager::WorkByAction(ChatDummy* ptr)
 		ptr->Login();
 
 		// @@TODO : 로그인은 바로 Post하면 안된다. Login 결과가 오기 전까진 작동 안하기 때문이다.
-		//PostQueuedCompletionStatus(_IOCPHandle, MAXDWORD, (ULONG_PTR)ptr, _lpWorkOverlapped);
+		// 어차피 로그인은 Recv쪽에서 처리하니까, Post가 필요 없음.
 	}
 	else if (act == DummyAction::en_ActionConnect)
 	{
@@ -177,6 +176,7 @@ bool ChatDummyManager::WorkByAction(ChatDummy* ptr)
 		}
 		InterlockedIncrement(&_dwConnectSuccess);
 		InterlockedDecrement((DWORD*)&_dwConnectWaitCount);
+		PostQueuedCompletionStatus(_IOCPHandle, MAXDWORD, (ULONG_PTR)ptr, _lpWorkOverlapped);
 	}
 	else if (act == DummyAction::en_ActionDisconnect)
 	{
