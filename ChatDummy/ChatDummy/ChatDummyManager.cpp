@@ -59,7 +59,7 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 			return false;
 	}
 
-	for (int i = 0; i < 100; i++)
+	for (int i = 0; i < sessionCount; i++)
 	{
 		_DummyArr[i].Init(DummyType::en_Normal, _IOCPHandle);
 		PostQueuedCompletionStatus(_IOCPHandle, MAXDWORD, (ULONG_PTR)&_DummyArr[i], _lpWorkOverlapped);
@@ -99,7 +99,6 @@ unsigned int WINAPI ChatDummyManager::IOCPWorkerThread(LPVOID arg)
 		{
 			// Connect, Disconnect 상태는 이 분기를 타야함.
 			// @@TODO : 작업 Update, Act는 상속 구조로 바꿔보기
-			// @@TODO : Connect 직후 Login을 안함
 			if (!thisPtr->WorkByAction(ptr))
 			{
 				PostQueuedCompletionStatus(thisPtr->_IOCPHandle, MAXDWORD, (ULONG_PTR)ptr, thisPtr->_lpWorkOverlapped);
@@ -282,7 +281,6 @@ void ChatDummyManager::PrintLog()
 
 	printf("\n%-25ls%5d\n", L"Connect Try :", _dwConnectTry);
 	printf("%-25ls%5d\n", L"Connect Success :", _dwConnectSuccess);
-	printf("%-25ls%5d\n", L"Connect Fail :", _dwConnectFail);
 
 	printf("\n%-25ls%5d\n", L"Error - Connect Fail :", _dwConnectFail);
 	printf("%-25ls%5d\n", L"Error - Disconnect from Server :", _dwDisconnectFromServerCount);

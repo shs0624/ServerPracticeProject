@@ -13,7 +13,8 @@ enum DummyType
 	en_TimeOut_Session,
 	en_TimeOut_User,
 	en_Disconnect_Session,
-	en_Disconnect_User
+	en_Disconnect_User,
+	en_Message_Flood
 };
 
 // 할 행동들.

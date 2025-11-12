@@ -72,7 +72,7 @@ protected:
 	unsigned int _tpsThreadID;
 
 	ULONG _threadID = 1;
-	ChatDummy _DummyArr[100];
+	ChatDummy _DummyArr[1000];
 
 	HANDLE _IOCPHandle;
 	HANDLE _IOCPWorkerThreadHandleArr[50];
