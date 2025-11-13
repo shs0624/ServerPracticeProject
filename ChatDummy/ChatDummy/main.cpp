@@ -39,16 +39,16 @@ void Input(string& serverIP, int& serverPort, int& clientCount)
     string disconnectTest;
     string clientCountStr;
 
-    wcout << L"Server IP : ";
+    cout << "Server IP : ";
     getline(cin, serverIP);
 
-    wcout << L"Server Port : ";
+    cout << "Server Port : ";
     getline(cin, sserverPort);
 
-    wcout << L"ClientCount          1 = 1 / 2 = 2 / 3 = 50 / 4 = 100 / 5 = 1000 : ";
+    cout << "ClientCount          1 = 1 / 2 = 2 / 3 = 50 / 4 = 100 / 5 = 1000 : ";
     getline(cin, clientCountStr);
 
-    wcout << L"Disconnect Test      1 = YES / 2 = NO : ";
+    cout << "Disconnect Test      1 = YES / 2 = NO : ";
     getline(cin, disconnectTest);
 
     serverPort = sserverPort.empty() ? 0 : stoi(sserverPort);

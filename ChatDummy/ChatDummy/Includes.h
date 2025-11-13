@@ -6,6 +6,7 @@
 #include <process.h>
 #include <conio.h>
 #include <cstdio>
+#include <random>
 #include <io.h>
 #include <fcntl.h>
 #include <algorithm>

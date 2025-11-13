@@ -5,6 +5,8 @@
 #include "ChatDummyManager_MakePacket.h"
 #define DISCONNECT_COUNT 100
 #define CHAT_COUNT 3
+#define HEARTBEAT_MS 30000
+#define TIMEOUT_MS 40000
 
 enum DummyType
 {
@@ -14,6 +16,7 @@ enum DummyType
 	en_TimeOut_User,
 	en_Disconnect_Session,
 	en_Disconnect_User,
+	// @@TODO : 나중에 추가할 타입
 	en_Message_Flood
 };
 
@@ -49,13 +52,26 @@ public:
 		return &(_mySession->recvOverlapped);
 	}
 
-	void Init(DummyType type, HANDLE IOCPHandle)
+	DWORD GetLastHeartbeat()
+	{
+		return _dwLastHeartBeat;
+	}
+
+	void Init(DummyType type, HANDLE IOCPHandle, int id, int nick)
 	{
 		StartNetClient();
+
+		memcpy(_ID, &id, sizeof(id));
+		memcpy(_NickName, &nick, sizeof(nick));
 
 		_enType = type;
 		_enNextAction = DummyAction::en_ActionConnect;
 		_IOCPHandle = IOCPHandle;
+
+		if (_enType == DummyType::en_TimeOut_Session || DummyType::en_TimeOut_User)
+			_bErrorCheckDummy = true;
+		else 
+			_bErrorCheckDummy = false;
 	}
 
 	void Move()
@@ -94,6 +110,23 @@ public:
 		UpdateAction();
 
 		_bWait = true;
+	}
+
+	void HeartBeat()
+	{
+		RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+		(*cPacket)->Initialize(MAX_PROTOCOLSIZE, sizeof(st_NetHeader));
+
+		mpREQHeartBeat(cPacket);
+
+		SendPost(this, cPacket, _IOCPHandle);
+
+		_dwLastHeartBeat = timeGetTime();
+		// 다음 행동 정하기
+		/*_shActionCount++;
+		UpdateAction();*/
+
+		//_bWait = true;
 	}
 
 	// Wait/Disconnect/LoginWait 상태에서 호출하는 함수. 다음 행동을 설정함.
@@ -168,8 +201,41 @@ public:
 	bool Connect(SOCKADDR_IN serverAddr)
 	{
 		_shActionCount = 0;
+		
+		// ID, NIck은 초기화 필요없음.세션키만 다시 설정
+		SetSessionKey();
+
+		// @@TODO : 접속직후 하트비트를 해야하나?
+		_dwLastHeartBeat = timeGetTime();
 
 		return CNetClient::Connect(serverAddr);
+	}
+
+	void SetSessionKey()
+	{
+		unsigned char K = rand();
+		unsigned char RK = rand();
+		unsigned char* cursorPtr = (unsigned char*)_sessionKey;
+		unsigned char* tailPtr = (unsigned char*)_sessionKey + 64;
+
+		unsigned char E = 0;
+		unsigned char P = 0;
+
+		int cnt = 1;
+		while (cursorPtr != tailPtr)
+		{
+			unsigned char D = *cursorPtr;
+
+			P = D ^ (P + RK + cnt);
+			E = P ^ (E + K + cnt);
+
+			*cursorPtr = E;
+
+			cursorPtr++;
+			cnt++;
+		}
+
+		int a = 3;
 	}
 
 	bool OnIOCPRecv_RecvProc(DWORD cbTransferred, DWORD& recvTPS)
@@ -264,6 +330,8 @@ public:
 	}
 private:
 	DWORD _iMessageNotCorrect;
+	DWORD _dwLastHeartBeat;
+	DWORD _dwTimeOutStart;
 
 	HANDLE _IOCPHandle;
 
@@ -279,6 +347,7 @@ private:
 	INT64 _AccountNo;
 	char _sessionKey[64];
 
+	BOOL _bErrorCheckDummy;
 	BOOL _bUser;
 	BOOL _bWait;
 };

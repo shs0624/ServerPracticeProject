@@ -1,7 +1,6 @@
 #pragma comment(lib,"ws2_32")
 #include "Includes.h"
 #include "NetClient.h"
-#define IOCP_THREADCOUNT 5
 #define LOGCOUNT 10000
 
 DWORD _threadID = 0;
@@ -115,7 +114,7 @@ bool CNetClient::Connect(SOCKADDR_IN serverAddr)
 	while(!_mySession->sendBuf->empty())
 		_mySession->sendBuf->pop();
 	while (!_mySession->cPacketQ->empty())
-		_mySession->sendBuf->pop();
+		_mySession->cPacketQ->pop();
 
 	// socket();
 	_mySession->sock = socket(AF_INET, SOCK_STREAM, 0);

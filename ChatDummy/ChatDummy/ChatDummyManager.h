@@ -71,12 +71,21 @@ protected:
 	HANDLE _htpsThreadHandle;
 	unsigned int _tpsThreadID;
 
+	HANDLE _hTimeOutEvent;
+	HANDLE _hTimeOutThreadHandle;
+	unsigned int _TimeOutThreadID;
+
+	HANDLE _hHeartBeatEvent;
+	HANDLE _hHeartBeatThreadHandle;
+	unsigned int _HeartBeatThreadID;
+
 	ULONG _threadID = 1;
 	ChatDummy _DummyArr[1000];
+	vector<ChatDummy*> _vTimeOutTargetVector;
 
 	HANDLE _IOCPHandle;
-	HANDLE _IOCPWorkerThreadHandleArr[50];
-	unsigned int _IOCPWorkerThreadID[50];
+	HANDLE _IOCPWorkerThreadHandleArr[100];
+	unsigned int _IOCPWorkerThreadID[100];
 
 	LPOVERLAPPED _lpWorkOverlapped;
 
@@ -89,5 +98,7 @@ protected:
 	static unsigned int WINAPI LogingThread(LPVOID arg);
 	static unsigned int WINAPI MoveThread(LPVOID arg);
 	static unsigned int WINAPI ChatThread(LPVOID arg);
+	static unsigned int WINAPI TimeoutThread(LPVOID arg);
+	static unsigned int WINAPI HeartBeatThread(LPVOID arg);
 	static unsigned int WINAPI IOCPWorkerThread(LPVOID arg);
 };

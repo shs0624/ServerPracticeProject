@@ -29,7 +29,7 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
-	int concurrentThread = si.dwNumberOfProcessors - 5;
+	int concurrentThread = si.dwNumberOfProcessors - 6;
 	if (concurrentThread <= 0)
 		concurrentThread = si.dwNumberOfProcessors - 1;
 
@@ -51,6 +51,16 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 	if (_hMoveDummyThreadHandle == NULL)
 		return false;
 
+	_hTimeOutEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	_hTimeOutThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimeoutThread, this, 0, &_TimeOutThreadID);
+	if (_hTimeOutThreadHandle == NULL)
+		return false;
+
+	_hHeartBeatEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	_hHeartBeatThreadHandle = (HANDLE)_beginthreadex(NULL, 0, HeartBeatThread, this, 0, &_HeartBeatThreadID);
+	if (_hHeartBeatThreadHandle == NULL)
+		return false;
+
 	//IOCP_THREADCOUNT
 	for (int i = 0; i < threadCount; i++)
 	{
@@ -61,9 +71,13 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 
 	for (int i = 0; i < sessionCount; i++)
 	{
-		_DummyArr[i].Init(DummyType::en_Normal, _IOCPHandle);
+		//@@TODO : 파일에서 ID, 닉네임, AccountNo 읽어오는 방향으로 수정하기
+		_DummyArr[i].Init(DummyType::en_Normal, _IOCPHandle, i, i + 100000);
 		PostQueuedCompletionStatus(_IOCPHandle, MAXDWORD, (ULONG_PTR)&_DummyArr[i], _lpWorkOverlapped);
 	}
+
+	// @@TODO : 항상 비정상적인 세션은 개수를 정해두자.
+	// 로그인만 하는 세션과 커넥트만 하는 세션 각각 10개씩.
 }
 
 unsigned int WINAPI ChatDummyManager::IOCPWorkerThread(LPVOID arg)
@@ -71,7 +85,9 @@ unsigned int WINAPI ChatDummyManager::IOCPWorkerThread(LPVOID arg)
 	char tempBuffer[MAX_PROTOCOLSIZE + 1];
 	int retval;
 	ChatDummyManager* thisPtr = (ChatDummyManager*)arg;
-	srand(time(NULL));
+	//@@TODO : 거의 동시에 초기화되니까 이거 변경 필요
+	random_device ran;
+	srand(ran());
 
 	while (1)
 	{
@@ -81,7 +97,7 @@ unsigned int WINAPI ChatDummyManager::IOCPWorkerThread(LPVOID arg)
 
 		retval = GetQueuedCompletionStatus(thisPtr->_IOCPHandle, &cbTransferred, (PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
 
-		if (retval == 0 && ptr == NULL && pOverlapped == NULL)
+		if (retval == 0 && ptr == NULL && pOverlapped == NULL) 
 		{
 			// 종료
 			return 0;
@@ -233,6 +249,56 @@ unsigned int WINAPI ChatDummyManager::ChatThread(LPVOID arg)
 		}
 
 		WaitForSingleObject(thisPtr->_hChatDummyEvent, TIME_CHAT_EVENT);
+	}
+}
+
+unsigned int WINAPI ChatDummyManager::TimeoutThread(LPVOID arg)
+{
+	/*ChatDummyManager* thisPtr = (ChatDummyManager*)arg;
+	DWORD timeoutTime;
+	DWORD nowTime = timeGetTime();
+
+	while (1)
+	{
+		DWORD minTime = HEARTBEAT_MS;
+		nowTime = timeGetTime();
+		for (int i = 0; i < thisPtr->_vTimeOutTargetVector.size(); i++)
+		{
+			DWORD lasttime = thisPtr->_vTimeOutTargetVector[i]->GetLastHeartbeat();
+			if (nowTime - lasttime > HEARTBEAT_MS)
+			{
+				thisPtr->_DummyArr[i].HeartBeat();
+				if (lasttime < minTime)
+					minTime = lasttime;
+			}
+		}
+
+		WaitForSingleObject(thisPtr->_hTimeOutEvent, TIME_CHAT_EVENT);
+	}*/
+}
+
+unsigned int WINAPI ChatDummyManager::HeartBeatThread(LPVOID arg)
+{
+	ChatDummyManager* thisPtr = (ChatDummyManager*)arg;
+	DWORD timeoutTime;
+	DWORD nowTime = timeGetTime();
+
+	while (1)
+	{
+		DWORD minTime = HEARTBEAT_MS;
+		nowTime = timeGetTime();
+		for (int i = 0; i < thisPtr->_iSessionCount; i++)
+		{
+			DWORD lasttime = thisPtr->_DummyArr[i].GetLastHeartbeat();
+			if (nowTime - lasttime > HEARTBEAT_MS)
+			{
+				thisPtr->_DummyArr[i].HeartBeat();
+				if (lasttime < minTime)
+					minTime = lasttime;
+			}
+		}
+
+		WaitForSingleObject(thisPtr->_hHeartBeatEvent, minTime);
 	}
 }
 
