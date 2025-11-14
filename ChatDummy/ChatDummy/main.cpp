@@ -1,4 +1,5 @@
 #pragma comment(lib,"ws2_32")
+#pragma comment(lib,"winmm.lib")
 #include "PacketDefine.h"
 #include "Includes.h"
 #include <string>

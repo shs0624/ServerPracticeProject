@@ -15,6 +15,7 @@ bool CNetClient::StartNetClient()
 	ZeroMemory(&(_mySession->sendOverlapped), sizeof(OVERLAPPED));
 	_mySession->dwSendCount = 0;
 	_mySession->bSendFlag = false;
+	_mySession->bConnected = false;
 	_mySession->sendBuf = new queue<RefCountPointer>();
 	_mySession->cPacketQ = new queue<RefCountPointer>();
 	_mySession->recvBuf = new CRingBuffer(20000);
@@ -137,6 +138,8 @@ bool CNetClient::Connect(SOCKADDR_IN serverAddr)
 	int connectRet = connect(_mySession->sock, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
 	if (connectRet == SOCKET_ERROR)
 		return false;
+
+	_mySession->bConnected = true;
 
 	SetWSARecv();
 

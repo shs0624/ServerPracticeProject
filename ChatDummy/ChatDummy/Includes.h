@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <random>
 #include <io.h>
+#include <time.h>
 #include <fcntl.h>
 #include <algorithm>
 #include <crtdbg.h>

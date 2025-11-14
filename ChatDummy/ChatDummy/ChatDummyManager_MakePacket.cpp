@@ -32,9 +32,9 @@ void mpREQSectorMove(RefCountPointer cPacket, INT64 accountNo, WORD sectorX, WOR
 	header.shLen = sizeof(WORD) + sizeof(INT64) + sizeof(WORD) + sizeof(WORD);
 
 	(*cPacket)->PutData((char*)en_PACKET_TYPE::en_PACKET_CS_CHAT_REQ_SECTOR_MOVE, sizeof(en_PACKET_TYPE));
-	(*cPacket)->PutData((char*)accountNo, sizeof(INT64));
-	(*cPacket)->PutData((char*)sectorX, sizeof(WORD));
-	(*cPacket)->PutData((char*)sectorY, sizeof(WORD));
+	(*cPacket)->PutData((char*)&accountNo, sizeof(INT64));
+	(*cPacket)->PutData((char*)&sectorX, sizeof(WORD));
+	(*cPacket)->PutData((char*)&sectorY, sizeof(WORD));
 
 	(*cPacket)->Encode(FIXED_KEY);
 	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
@@ -48,8 +48,8 @@ void mpREQMessage(RefCountPointer cPacket, INT64 accountNo, WORD messageLen, WCH
 	header.shLen = sizeof(WORD) + sizeof(INT64) + sizeof(WORD) + messageLen;
 
 	(*cPacket)->PutData((char*)en_PACKET_TYPE::en_PACKET_CS_CHAT_REQ_MESSAGE, sizeof(en_PACKET_TYPE));
-	(*cPacket)->PutData((char*)accountNo, sizeof(INT64));
-	(*cPacket)->PutData((char*)messageLen, sizeof(WORD));
+	(*cPacket)->PutData((char*)&accountNo, sizeof(INT64));
+	(*cPacket)->PutData((char*)&messageLen, sizeof(WORD));
 	(*cPacket)->PutData((char*)message, messageLen);
 
 	(*cPacket)->Encode(FIXED_KEY);
@@ -63,7 +63,9 @@ void mpREQHeartBeat(RefCountPointer cPacket)
 	header.RandKey = rand() % 256;
 	header.shLen = sizeof(WORD);
 
-	(*cPacket)->PutData((char*)en_PACKET_TYPE::en_PACKET_CS_CHAT_REQ_HEARTBEAT, sizeof(en_PACKET_TYPE));
+	en_PACKET_TYPE type = en_PACKET_TYPE::en_PACKET_CS_CHAT_REQ_HEARTBEAT;
+
+	(*cPacket)->PutData((char*)&type, sizeof(en_PACKET_TYPE));
 
 	(*cPacket)->Encode(FIXED_KEY);
 	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));

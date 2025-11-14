@@ -13,3 +13,12 @@ struct st_NetHeader
 	unsigned char RandKey;
 	unsigned char CheckSum;
 };
+
+enum ERROR_TYPE
+{
+	SUCCESS = 0,
+	TIMEOUT_NOTRECV,
+	TIMEOUT_NOTRECV_LOGIN,
+	NEED_TIMEOUT_USER,
+	NEED_TIMEOUT_SESSION
+};

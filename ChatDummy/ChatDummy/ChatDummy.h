@@ -5,8 +5,10 @@
 #include "ChatDummyManager_MakePacket.h"
 #define DISCONNECT_COUNT 100
 #define CHAT_COUNT 3
-#define HEARTBEAT_MS 30000
-#define TIMEOUT_MS 40000
+#define dfHEARTBEAT_MS 30000
+#define dfTIMEOUT_WAIT_MS 5000
+#define dfTIMEOUT_USER_MS 40000
+#define dfTIMEOUT_SESSION_MS 5000
 
 enum DummyType
 {
@@ -74,6 +76,65 @@ public:
 			_bErrorCheckDummy = false;
 	}
 
+	ERROR_TYPE TimerCheck(DWORD nowTime, DWORD& leftTime)
+	{
+		if (!_mySession->bConnected)
+			return SUCCESS;
+
+		DWORD diff = nowTime - _dwLastMessageTime;
+		if (!_bUser)
+		{
+			// 먼저 로그인 패킷을 보낸 상태인지 확인
+			if (_bWait)
+			{
+				if (diff >= dfTIMEOUT_WAIT_MS)
+				{
+					// 세션 상태에서 로그인을 보냈지만 응답이 없는 상태
+					return TIMEOUT_NOTRECV_LOGIN;
+				}
+
+				// 세션 상태에서 로그인을 보냈지만, 응답 타임아웃만큼 기다린건 아닌 상태
+				leftTime = dfTIMEOUT_WAIT_MS - diff;
+				return SUCCESS;
+			}
+			else if (diff >= dfTIMEOUT_SESSION_MS)
+			{
+				// 세션 상태에서 로그인을 안보내고 대기중인 세션이며 타임아웃 시간이 지난 상태
+				//Disconnect();
+				return NEED_TIMEOUT_SESSION;
+			}
+
+			// 세션 상태에서 로그인을 안보내고 대기중인 세션이며 타임아웃까지 남은 상태
+			leftTime = dfTIMEOUT_SESSION_MS - diff;
+			return SUCCESS;
+		}
+		else
+		{
+			if (diff > dfTIMEOUT_USER_MS)
+			{
+				// 로그인하고, 유저가 타임아웃 시간을 지난 상태
+				return NEED_TIMEOUT_USER;
+			}
+
+			if (_bWait)
+			{
+				if (diff >= dfTIMEOUT_WAIT_MS)
+				{
+					// 로그인하고 메세지를 보냈지만 응답이 시간이 넘게 오지 않은 상태
+					return TIMEOUT_NOTRECV;
+				}
+
+				// 로그인하고 메세지를 보내고 기다리고 있는 상태
+				leftTime = dfTIMEOUT_WAIT_MS - diff;
+				return SUCCESS;
+			}
+
+			// 로그인하고 메세지는 안보냈고 타임아웃 시간도 안 된 상태
+			leftTime = dfTIMEOUT_USER_MS - diff;
+			return SUCCESS;
+		}
+	}
+
 	void Move()
 	{
 		int nx = rand() % dfSECTOR_MAX_X;
@@ -112,8 +173,17 @@ public:
 		_bWait = true;
 	}
 
-	void HeartBeat()
+	bool HeartBeat(DWORD nowTime)
 	{
+		if (!_bUser)
+			return false;
+
+		if (_enType == en_TimeOut_Session || _enType == en_TimeOut_User)
+			return false;
+
+		if (nowTime - _dwLastHeartBeat < dfHEARTBEAT_MS)
+			return false;
+
 		RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
 		(*cPacket)->Initialize(MAX_PROTOCOLSIZE, sizeof(st_NetHeader));
 
@@ -122,6 +192,8 @@ public:
 		SendPost(this, cPacket, _IOCPHandle);
 
 		_dwLastHeartBeat = timeGetTime();
+
+		return true;
 		// 다음 행동 정하기
 		/*_shActionCount++;
 		UpdateAction();*/
@@ -189,6 +261,8 @@ public:
 		mpREQLogin(cPacket, _AccountNo, _ID, _NickName, _sessionKey);
 
 		_enNextAction = en_ActionLogin;
+
+		_bWait = TRUE;
 		// 이렇게 넣으면 완료통지에서 SendQ 확인하고 보낼거임
 		return SendPost(this, cPacket, _IOCPHandle);
 	}
@@ -196,6 +270,8 @@ public:
 	void Disconnect()
 	{
 		closesocket(_mySession->sock);
+
+		_mySession->bConnected = false;
 	}
 
 	bool Connect(SOCKADDR_IN serverAddr)
@@ -243,7 +319,6 @@ public:
 		if (!RecvProc_Net(cbTransferred, recvTPS))
 		{
 			// 같은 작업 한 번 더 시도하게 유도
-			_bWait = FALSE;
 			return false;
 		}
 
@@ -326,12 +401,15 @@ public:
 
 	virtual bool OnSend()
 	{
+		_dwLastMessageTime = timeGetTime();
+		_bWait = TRUE;
+
 		return true;
 	}
 private:
 	DWORD _iMessageNotCorrect;
 	DWORD _dwLastHeartBeat;
-	DWORD _dwTimeOutStart;
+	DWORD _dwLastMessageTime;
 
 	HANDLE _IOCPHandle;
 

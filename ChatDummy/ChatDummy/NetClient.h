@@ -7,7 +7,7 @@
 #define PROTOCOL_NUMSIZE 8
 #define FIXED_KEY 0xa9
 
-#pragma pack(1)
+//#pragma pack(1)
 struct st_Session
 {
 	OVERLAPPED sendOverlapped;
@@ -20,8 +20,9 @@ struct st_Session
 
 	DWORD dwSendCount;
 	BOOL bSendFlag;
+	BOOL bConnected;
 };
-#pragma pack(pop)
+//#pragma pack(pop)
 
 class CNetClient
 {

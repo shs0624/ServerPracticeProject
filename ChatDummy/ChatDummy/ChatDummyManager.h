@@ -50,6 +50,10 @@ protected:
 	DWORD _dwLoginWaitCount;
 	DWORD _dwDisconnectFromServerCount;
 	DWORD _dwResponseFailCount;
+	DWORD _dwMessageNotRecvCount;
+	DWORD _dwLoginResNotRecvCount;
+	DWORD _dwNeedTimeoutSessionCount;
+	DWORD _dwNeedTimeoutUserCount;
 
 	SOCKADDR_IN _serverAddr;
 
@@ -71,9 +75,9 @@ protected:
 	HANDLE _htpsThreadHandle;
 	unsigned int _tpsThreadID;
 
-	HANDLE _hTimeOutEvent;
-	HANDLE _hTimeOutThreadHandle;
-	unsigned int _TimeOutThreadID;
+	HANDLE _hTimerEvent;
+	HANDLE _hTimerThreadHandle;
+	unsigned int _TimerThreadID;
 
 	HANDLE _hHeartBeatEvent;
 	HANDLE _hHeartBeatThreadHandle;
@@ -98,7 +102,7 @@ protected:
 	static unsigned int WINAPI LogingThread(LPVOID arg);
 	static unsigned int WINAPI MoveThread(LPVOID arg);
 	static unsigned int WINAPI ChatThread(LPVOID arg);
-	static unsigned int WINAPI TimeoutThread(LPVOID arg);
+	static unsigned int WINAPI TimerThread(LPVOID arg);
 	static unsigned int WINAPI HeartBeatThread(LPVOID arg);
 	static unsigned int WINAPI IOCPWorkerThread(LPVOID arg);
 };

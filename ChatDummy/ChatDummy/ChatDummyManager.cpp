@@ -25,6 +25,16 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 	_iThreadCount = threadCount;
 	_iSessionCount = sessionCount;
 
+
+	_dwConnectWaitCount = 0;
+	_dwLoginWaitCount = 0;
+	_dwDisconnectFromServerCount = 0;
+	_dwResponseFailCount = 0;
+	_dwMessageNotRecvCount = 0;
+	_dwLoginResNotRecvCount = 0;
+	_dwNeedTimeoutSessionCount = 0;
+	_dwNeedTimeoutUserCount = 0;
+
 	//CPU 개수 확인
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
@@ -49,17 +59,7 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 	_hMoveDummyEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	_hMoveDummyThreadHandle = (HANDLE)_beginthreadex(NULL, 0, MoveThread, this, 0, &_MoveDummyThreadID);
 	if (_hMoveDummyThreadHandle == NULL)
-		return false;
-
-	_hTimeOutEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	_hTimeOutThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimeoutThread, this, 0, &_TimeOutThreadID);
-	if (_hTimeOutThreadHandle == NULL)
-		return false;
-
-	_hHeartBeatEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	_hHeartBeatThreadHandle = (HANDLE)_beginthreadex(NULL, 0, HeartBeatThread, this, 0, &_HeartBeatThreadID);
-	if (_hHeartBeatThreadHandle == NULL)
-		return false;
+		return false;	
 
 	//IOCP_THREADCOUNT
 	for (int i = 0; i < threadCount; i++)
@@ -75,6 +75,16 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 		_DummyArr[i].Init(DummyType::en_Normal, _IOCPHandle, i, i + 100000);
 		PostQueuedCompletionStatus(_IOCPHandle, MAXDWORD, (ULONG_PTR)&_DummyArr[i], _lpWorkOverlapped);
 	}
+
+	_hTimerEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	_hTimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
+	if (_hTimerThreadHandle == NULL)
+		return false;
+
+	_hHeartBeatEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	_hHeartBeatThreadHandle = (HANDLE)_beginthreadex(NULL, 0, HeartBeatThread, this, 0, &_HeartBeatThreadID);
+	if (_hHeartBeatThreadHandle == NULL)
+		return false;
 
 	// @@TODO : 항상 비정상적인 세션은 개수를 정해두자.
 	// 로그인만 하는 세션과 커넥트만 하는 세션 각각 10개씩.
@@ -150,6 +160,10 @@ unsigned int WINAPI ChatDummyManager::IOCPWorkerThread(LPVOID arg)
 				ptr->Disconnect();
 				ptr->UpdateAction();
 			}
+			else
+			{
+				ptr->OnSend();
+			}
 		}
 
 		// @@TODO : Login, Disconnect라면 추가로 PostQueue가 필요하다 .이걸 어떻게 스무스하게 하냐.
@@ -189,6 +203,9 @@ bool ChatDummyManager::WorkByAction(ChatDummy* ptr)
 			InterlockedIncrement(&_dwConnectFail);
 			return false;
 		}
+
+		SetEvent(_hTimerEvent);
+
 		InterlockedIncrement(&_dwConnectSuccess);
 		InterlockedDecrement((DWORD*)&_dwConnectWaitCount);
 		PostQueuedCompletionStatus(_IOCPHandle, MAXDWORD, (ULONG_PTR)ptr, _lpWorkOverlapped);
@@ -252,29 +269,57 @@ unsigned int WINAPI ChatDummyManager::ChatThread(LPVOID arg)
 	}
 }
 
-unsigned int WINAPI ChatDummyManager::TimeoutThread(LPVOID arg)
+unsigned int WINAPI ChatDummyManager::TimerThread(LPVOID arg)
 {
-	/*ChatDummyManager* thisPtr = (ChatDummyManager*)arg;
+	ChatDummyManager* thisPtr = (ChatDummyManager*)arg;
 	DWORD timeoutTime;
 	DWORD nowTime = timeGetTime();
 
 	while (1)
 	{
-		DWORD minTime = HEARTBEAT_MS;
 		nowTime = timeGetTime();
-		for (int i = 0; i < thisPtr->_vTimeOutTargetVector.size(); i++)
+		DWORD minTime = dfTIMEOUT_USER_MS;
+		// 순회
+		for (int i = 0; i < thisPtr->_iSessionCount; i++)
 		{
-			DWORD lasttime = thisPtr->_vTimeOutTargetVector[i]->GetLastHeartbeat();
-			if (nowTime - lasttime > HEARTBEAT_MS)
+			DWORD leftTime = minTime;
+			ERROR_TYPE type = thisPtr->_DummyArr[i].TimerCheck(nowTime, leftTime);
+			switch (type)
 			{
-				thisPtr->_DummyArr[i].HeartBeat();
-				if (lasttime < minTime)
-					minTime = lasttime;
+				case TIMEOUT_NOTRECV:
+				{
+					thisPtr->_DummyArr[i].Disconnect();
+					thisPtr->_dwMessageNotRecvCount++;
+					break;
+				}
+				case TIMEOUT_NOTRECV_LOGIN:
+				{
+					thisPtr->_DummyArr[i].Disconnect();
+					thisPtr->_dwLoginResNotRecvCount++;
+					break;
+				}
+				case NEED_TIMEOUT_SESSION:
+				{
+					thisPtr->_DummyArr[i].Disconnect();
+					thisPtr->_dwNeedTimeoutSessionCount++;
+					break;
+				}
+				case NEED_TIMEOUT_USER:
+				{
+					thisPtr->_DummyArr[i].Disconnect();
+					thisPtr->_dwNeedTimeoutUserCount++;
+					break;
+				}
+				case SUCCESS:
+				{
+					if (leftTime < minTime)
+						minTime = leftTime;
+				}
 			}
 		}
-
-		WaitForSingleObject(thisPtr->_hTimeOutEvent, TIME_CHAT_EVENT);
-	}*/
+		
+		WaitForSingleObject(thisPtr->_hTimerEvent, minTime);
+	}
 }
 
 unsigned int WINAPI ChatDummyManager::HeartBeatThread(LPVOID arg)
@@ -285,14 +330,13 @@ unsigned int WINAPI ChatDummyManager::HeartBeatThread(LPVOID arg)
 
 	while (1)
 	{
-		DWORD minTime = HEARTBEAT_MS;
+		DWORD minTime = dfHEARTBEAT_MS;
 		nowTime = timeGetTime();
 		for (int i = 0; i < thisPtr->_iSessionCount; i++)
 		{
-			DWORD lasttime = thisPtr->_DummyArr[i].GetLastHeartbeat();
-			if (nowTime - lasttime > HEARTBEAT_MS)
+			if (!thisPtr->_DummyArr[i].HeartBeat(nowTime))
 			{
-				thisPtr->_DummyArr[i].HeartBeat();
+				DWORD lasttime = thisPtr->_DummyArr[i].GetLastHeartbeat();
 				if (lasttime < minTime)
 					minTime = lasttime;
 			}
@@ -341,18 +385,22 @@ void ChatDummyManager::PrintLog()
 		_iSessionCount, _iThreadCount);
 	printf("====================================================\n\n");
 
-	printf("%-25ls%5d\n", L"Thread Loop :", 0);
-	printf("%-25ls%5d\n", L"Wait Echo Count :", 0);
-	printf("%-25ls%5ls\n", L"Max Latency :", L"0 ms");
+	printf("%-25s%5d\n", "Thread Loop :", 0);
+	printf("%-25s%5d\n", "Wait Echo Count :", 0);
+	//printf("%-25s%5ls\n", "Max Latency :", "0 ms");
 
-	printf("\n%-25ls%5d\n", L"Connect Try :", _dwConnectTry);
-	printf("%-25ls%5d\n", L"Connect Success :", _dwConnectSuccess);
+	printf("\n%-25s%5d\n", "Connect Try :", _dwConnectTry);
+	printf("%-25s%5d\n", "Connect Success :", _dwConnectSuccess);
 
-	printf("\n%-25ls%5d\n", L"Error - Connect Fail :", _dwConnectFail);
-	printf("%-25ls%5d\n", L"Error - Disconnect from Server :", _dwDisconnectFromServerCount);
+	printf("\n%-25s%5d\n", "Error - Connect Fail :", _dwConnectFail);
+	printf("%-25s%5d\n", "Error - Disconnect from Server :", _dwDisconnectFromServerCount);
+	printf("%-25s%5d\n", "Error - Timeout - Not Recv :", _dwMessageNotRecvCount);
+	printf("%-25s%5d\n", "Error - Timeout - Not Recv Login Response :", _dwLoginResNotRecvCount);
+	printf("%-25s%5d\n", "Error - Need Timeout - Session :", _dwNeedTimeoutSessionCount);
+	printf("%-25s%5d\n", "Error - Need Timeout - User :", _dwNeedTimeoutUserCount);
 
-	printf("\n%-25ls%5d\n", L"PacketPool Use :", 0);
-	printf("%-25ls%5d\n", L"SendPacket TPS :", _dwSendMessageTPS);
-	printf("%-25ls%5d\n", L"RecvPacket TPS :", _dwRecvMessageTPS);
+	printf("\n%-25s%5d\n", "PacketPool Use :", 0);
+	printf("%-25s%5d\n", "SendPacket TPS :", _dwSendMessageTPS);
+	printf("%-25s%5d\n", "RecvPacket TPS :", _dwRecvMessageTPS);
 }
 
