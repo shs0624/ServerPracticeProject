@@ -141,11 +141,6 @@ void ChatDummyController::OnRecv(DWORD sessionID, RefCountPointer& cPacket)
 	{
 		InterlockedIncrement(&LogController::_LogController._dwResponseFailCount);
 	}
-
-	/*if (!_DummyArr[sessionID]._bWait && _DummyArr[sessionID]._bUser)
-	{
-		_DummyArr[sessionID].UpdateAction();
-	}*/
 }
 
 // 패킷을 해체 분석, 틀린 데이터라면 false 반환

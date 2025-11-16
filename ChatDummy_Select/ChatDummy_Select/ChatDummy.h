@@ -72,27 +72,12 @@ public:
 		}
 		else if (_enNextAction == DummyAction::en_ActionChat)
 		{
-			//Chat(refCountPointer);
-			Move(refCountPointer);
+			Chat(refCountPointer);
+			//Move(refCountPointer);
 		}
 		else if (_enNextAction == DummyAction::en_ActionLogin)
 		{
 			Login(refCountPointer);
-		}
-		else if (_enNextAction == DummyAction::en_ActionConnect)
-		{
-			// @@TODO : Connect를 어떻게 네트워크 쪽에 전달하냐?
-
-			//InterlockedIncrement(&_dwConnectTry);
-			//InterlockedIncrement((DWORD*)&_dwConnectWaitCount);
-			//if (!ptr->Connect(_serverAddr))
-			//{
-			//	// connect 실패 count 올리기
-			//	InterlockedIncrement(&_dwConnectFail);
-			//	return false;
-			//}
-			//InterlockedIncrement(&_dwConnectSuccess);
-			//InterlockedDecrement((DWORD*)&_dwConnectWaitCount);
 		}
 
 		UpdateAction();
@@ -226,19 +211,13 @@ public:
 		_shActionCount++;
 
 		// Disconnect - Connect는 무조건
-		/*if (_enNextAction == en_ActionDisconnect)
-		{
-			_enNextAction = en_ActionConnect;
-			return;
-		}*/
-
 		switch (_enType)
 		{
 			case DummyType::en_Normal:
 			{
 				if (_shActionCount >= DISCONNECT_COUNT)
 					_enNextAction = en_ActionDisconnect;
-				else if (_enNextAction == en_ActionConnect) // @@TODO : 이거 좀 어색한듯
+				else if (_enNextAction == en_ActionConnect)
 					_enNextAction = en_ActionLogin;
 				else if (_shActionCount % CHAT_COUNT == 0)
 					_enNextAction = en_ActionChat;
@@ -286,27 +265,23 @@ public:
 	{
 		// 패킷 생성
 		mpREQLogin(cPacket, _AccountNo, _ID, _NickName, _sessionKey);
-
-		//_bWait = TRUE;
-
-		//UpdateAction();
 	}
 
 	void OnDisconnect()
 	{
 		if(_enNextAction == en_ActionDisconnect)
 			InterlockedIncrement(&LogController::_LogController._dwNormalDisconnectCount);
-		else if(!(_enType == DummyType::en_TimeOut_Session || _enType == DummyType::en_TimeOut_User))
-			InterlockedIncrement(&LogController::_LogController._dwDisconnectFromServerCount);
-		else
+		else if(_enType == DummyType::en_TimeOut_Session || _enType == DummyType::en_TimeOut_User)
 			InterlockedIncrement(&LogController::_LogController._dwIntendedDisconnectSessionCount);
+		else
+			InterlockedIncrement(&LogController::_LogController._dwDisconnectFromServerCount);
+			
 
 		_shActionCount = 0;
 		_bWait = FALSE;
 		_bUser = FALSE;
 		_bConnected = FALSE;
 
-		//UpdateAction();
 		_enNextAction = en_ActionConnect;
 	}
 

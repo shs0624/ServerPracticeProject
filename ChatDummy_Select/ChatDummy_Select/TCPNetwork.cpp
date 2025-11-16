@@ -169,8 +169,9 @@ void TCPNetworkController::netProc_Recv(SOCKET socket)
 
 	CRingBuffer* recvBuffer = pSession->recvBuf;
 	int freeSize = recvBuffer->GetFreeSize();
-	int recvSize = (recvBuffer->DirectEnqueueSize() > MAX_PROTOCOLSIZE)
-		? MAX_PROTOCOLSIZE : recvBuffer->DirectEnqueueSize();
+	/*int recvSize = (recvBuffer->DirectEnqueueSize() > MAX_PROTOCOLSIZE)
+		? MAX_PROTOCOLSIZE : recvBuffer->DirectEnqueueSize();*/
+	int recvSize = recvBuffer->DirectEnqueueSize();
 
 	int recvRet = recv(pSession->sock, recvBuffer->GetRearBufferPtr(), recvSize, 0);
 	if (recvRet == SOCKET_ERROR)
