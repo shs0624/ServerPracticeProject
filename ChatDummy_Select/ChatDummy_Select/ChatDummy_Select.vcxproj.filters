@@ -1,0 +1,120 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="소스 파일">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="헤더 파일">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="리소스 파일">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Network">
+      <UniqueIdentifier>{6760a597-f133-454f-bfea-baa451c50a4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Lib">
+      <UniqueIdentifier>{e40fa7d6-dac9-42b5-b64b-c0f8e480d240}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Debug">
+      <UniqueIdentifier>{b5328da1-0e11-454d-8cbf-e6eaaef1381e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ChatDummy">
+      <UniqueIdentifier>{9f508952-49d8-40c6-8017-30c472e42530}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Handler">
+      <UniqueIdentifier>{c57188cf-e64f-454b-84ad-aed543f23910}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="TCPNetwork.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="CRingBuffer.cpp">
+      <Filter>Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="CSerializationBuffer.cpp">
+      <Filter>Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="ChatDummyController.cpp">
+      <Filter>ChatDummy</Filter>
+    </ClCompile>
+    <ClCompile Include="ChatDummyManager.cpp">
+      <Filter>ChatDummy</Filter>
+    </ClCompile>
+    <ClCompile Include="ChatDummyManager_MakePacket.cpp">
+      <Filter>ChatDummy</Filter>
+    </ClCompile>
+    <ClCompile Include="DummyHandler.cpp">
+      <Filter>Handler</Filter>
+    </ClCompile>
+    <ClCompile Include="LogController.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Includes.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="CFreeList_LockFree.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="CRingBuffer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="CSerializationBuffer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="LockFreeQueue.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="RefCountPointer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="LockFreeStack_Re.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="TLS_MemoryPool.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="TCPNetwork.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="CCrashDump.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugLog.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="ChatDummy.h">
+      <Filter>ChatDummy</Filter>
+    </ClInclude>
+    <ClInclude Include="ChatDummyController.h">
+      <Filter>ChatDummy</Filter>
+    </ClInclude>
+    <ClInclude Include="ChatDummyManager.h">
+      <Filter>ChatDummy</Filter>
+    </ClInclude>
+    <ClInclude Include="ChatDummyManager_MakePacket.h">
+      <Filter>ChatDummy</Filter>
+    </ClInclude>
+    <ClInclude Include="DummyHandler.h">
+      <Filter>Handler</Filter>
+    </ClInclude>
+    <ClInclude Include="LogController.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="PacketDefine.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="CommonProtocol.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
