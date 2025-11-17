@@ -8,13 +8,9 @@ public:
 		_dummyHandler = handler;
 	}
 
-	void InitController(int sessionCount, int startIdx);
+	void InitController(int sessionCount, int startIdx, bool bTestTimeout);
 
 	bool WorkByAction(ChatDummy* ptr);
-
-	//int getAcceptTPS() { return _iAcceptTPS; }
-	//int getRecvMessageTPS() { return _dwRecvMessageTPS; }
-	//int getSendMessageTPS() { return _dwSendMessageTPS; }
 
 	bool PacketProc(ChatDummy& dummy, RefCountPointer& cPacket);
 

@@ -8,7 +8,7 @@
 #include "ChatDummy.h"
 #include "ChatDummyController.h"
 
-void ChatDummyController::InitController(int sessionCount, int startIdx)
+void ChatDummyController::InitController(int sessionCount, int startIdx, bool bTestTimeout)
 {
 	_iSessionCount = sessionCount;
 	for (int i = 0; i < _iSessionCount; i++)

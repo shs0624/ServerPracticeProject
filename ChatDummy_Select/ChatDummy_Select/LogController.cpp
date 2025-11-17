@@ -91,11 +91,10 @@ void LogController::PrintLog()
 		_iSessionCount, _iThreadCount);
 	printf("====================================================\n\n");
 
-	printf("%-25s%5d\n", "Thread Loop :", 0);
-	printf("%-25s%5d\n", "Wait Echo Count :", 0);
+	//printf("%-25s%5d\n", "Thread Loop :", 0);
 	//printf("%-25s%5ls\n", "Max Latency :", "0 ms");
 
-	printf("\n%-25s%5d\n", "Connect Try :", _dwConnectTry);
+	printf("%-25s%5d\n", "Connect Try :", _dwConnectTry);
 	printf("%-25s%5d\n", "Connect Success :", _dwConnectSuccess);
 
 	printf("%-25s%5d\n", "Login	 Send :", _dwLoginSendCount);
@@ -109,7 +108,7 @@ void LogController::PrintLog()
 	printf("%-25s%5d\n", "Error - Need Timeout - Session :", _dwNeedTimeoutSessionCount);
 	printf("%-25s%5d\n", "Error - Need Timeout - User :", _dwNeedTimeoutUserCount);
 
-	printf("%-25s%5d\n", "Success - Normal Disconnect :", _dwNormalDisconnectCount);
+	printf("\n%-25s%5d\n", "Success - Normal Disconnect :", _dwNormalDisconnectCount);
 	printf("%-25s%5d\n", "Success - ErorrCheck Disconnect :", _dwIntendedDisconnectSessionCount);
 
 	printf("\n%-25s%5d\n", "PacketPool Use :", 0);

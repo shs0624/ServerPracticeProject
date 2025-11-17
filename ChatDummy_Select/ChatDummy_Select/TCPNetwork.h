@@ -8,7 +8,7 @@ public:
 		_dummyHandler = handler;
 	}
 
-	void netStartUp(int sessionCount, int startIdx);
+	void netStartUp(int sessionCount, int startIdx, bool bTestTimeout);
 
 	void netSelectIO();
 
@@ -28,7 +28,7 @@ private:
 	void netProc_Send(SOCKET socket);
 	void netProc_Except(SOCKET socket);
 
-	void InitSession(int startIdx);
+	//void InitSession(int startIdx);
 
 	int _iSessionCount;
 	int _iselectIOFrame = 0;

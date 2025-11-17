@@ -6,6 +6,9 @@
 #define dfSECTOR_MAX_Y 32
 #define dfSECTOR_MAX_X 32
 
+#define dfSessionTimeOutClient 25
+#define dfUserTimeOutClient 25
+
 #pragma pack(push,1)
 struct st_NetHeader
 {

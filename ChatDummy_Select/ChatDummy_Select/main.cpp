@@ -11,7 +11,7 @@ using namespace std;
 
 procademy::CCrashDump cCrashDump;
 
-void Input(string& serverIP, int& serverPort, int& clientCount);
+void Input(string& serverIP, int& serverPort, int& clientCount, bool& isTimeoutTest);
 
 int main()
 {
@@ -20,10 +20,11 @@ int main()
     string serverIP;
     int serverPort = 0;
     int clientCountPerThread = 0;
+    bool isTimeoutTest = FALSE;
 
-    Input(serverIP, serverPort, clientCountPerThread);
+    Input(serverIP, serverPort, clientCountPerThread, isTimeoutTest);
 
-	manager->InitManager(serverIP, serverPort, 4, clientCountPerThread);
+	manager->InitManager(serverIP, serverPort, 4, clientCountPerThread, isTimeoutTest);
 
 	while (1)
 	{
@@ -33,13 +34,13 @@ int main()
 	return 0;
 }
 
-void Input(string& serverIP, int& serverPort, int& clientCount)
+void Input(string& serverIP, int& serverPort, int& clientCount, bool& isTimeoutTest)
 {
     //std::locale::global(std::locale("")); // 시스템이 사용하는 locale로 지정 
     cout.imbue(std::locale());
 
     string sserverPort;
-    string disconnectTest;
+    string timeoutTest;
     string clientCountStr;
 
     cout << "Server IP : ";
@@ -48,14 +49,14 @@ void Input(string& serverIP, int& serverPort, int& clientCount)
     cout << "Server Port : ";
     getline(cin, sserverPort);
 
-    cout << "ClientCount Per Thread     1 = 1 / 2 = 25 / 3 = 100 / 4 = 250 / 5 = 1250 : ";
+    cout << "ClientCount Per Thread (4 Threads)   1 = 1 / 2 = 25 / 3 = 100 / 4 = 250 / 5 = 1250 : ";
     getline(cin, clientCountStr);
 
-    cout << "Disconnect Test            1 = YES / 2 = NO : ";
-    getline(cin, disconnectTest);
+    cout << "Timeout Test            1 = YES / 2 = NO : ";
+    getline(cin, timeoutTest);
 
     serverPort = sserverPort.empty() ? 0 : stoi(sserverPort);
-    int disconnectTestValue = disconnectTest.empty() ? 0 : stoi(disconnectTest);
+    int timeoutTestValue = timeoutTest.empty() ? 0 : stoi(timeoutTest);
     clientCount = clientCountStr.empty() ? 0 : stoi(clientCountStr);
     switch (clientCount)
     {
@@ -76,10 +77,15 @@ void Input(string& serverIP, int& serverPort, int& clientCount)
         break;
     }
 
+    if (timeoutTestValue == 1)
+        isTimeoutTest = TRUE;
+    else
+        isTimeoutTest = FALSE;
+
      // 확인용 출력 (필요한 경우 주석 해제)
     cout << "\n입력 결과:\n";
     cout << "Server IP : " << serverIP << endl;
     cout << "Server Port : " << serverPort << endl;
-    cout << "Disconnect Test : " << disconnectTestValue << endl;
+    cout << "Timeout Test : " << timeoutTestValue << endl;
     cout << "Client Count    : " << clientCount << endl;
 }

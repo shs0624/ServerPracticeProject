@@ -3,7 +3,7 @@
 #define TIME_CHAT_EVENT 5000
 #define TIME_MOVE_EVENT 1000
 #define TIME_LOGIN_EVENT 500
-#define df_FRAMETIME 500
+#define df_FRAMETIME 333
 
 #define SERVERIP "127.0.0.1"
 #define SERVERPORT 6000
@@ -16,7 +16,7 @@ public:
 		
 	}
 
-	bool InitManager(string serverIP, int serverPort, int threadCount, int sessionCount);
+	bool InitManager(string serverIP, int serverPort, int threadCount, int sessionCount, bool isTimeoutTest);
 	bool Disconnect(ULONGLONG sessionID);
 
 	bool WorkByAction(ChatDummy* ptr);
@@ -36,6 +36,8 @@ protected:
 	int _iSessionCountPerThread;
 	int _iThreadCount;
 	int _iStartIdx;
+
+	bool _bTestTimeout;
 
 	SOCKADDR_IN _serverAddr;
 

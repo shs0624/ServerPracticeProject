@@ -14,7 +14,7 @@
 // 매니저는 모든 스레드의 정보를 통합해서 관리한다.
 // 스레드의 첫 시작을 담당하며, 로깅과 오류 정보도 매니저가 가진다.
 // 스레드는 ChatDummyController 위주로 작동하게 하자.
-bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCount, int sessionCountPerThread)
+bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCount, int sessionCountPerThread, bool isTimeoutTest)
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -28,6 +28,7 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 	}
 	_serverAddr.sin_port = htons(serverPort);
 
+	_bTestTimeout = isTimeoutTest;
 	_iThreadCount = threadCount;
 	_iSessionCountPerThread = sessionCountPerThread;	
 	_iStartIdx = 0;
@@ -71,7 +72,7 @@ unsigned int WINAPI ChatDummyManager::ChatDummyControlThread(LPVOID arg)
 	DummyHandler* dummyHandler = new DummyHandler();
 	//dummyHandler->InitHandler(thisPtr->_serverAddr, (thisPtr->_iSessionCountPerThread), 0);
 	int startidx = InterlockedExchange((DWORD*)&thisPtr->_iStartIdx, thisPtr->_iStartIdx + thisPtr->_iSessionCountPerThread);
-	dummyHandler->InitHandler(thisPtr->_serverAddr, thisPtr->_iSessionCountPerThread, startidx);
+	dummyHandler->InitHandler(thisPtr->_serverAddr, thisPtr->_iSessionCountPerThread, startidx, thisPtr->_bTestTimeout);
 
 	while (1)
 	{

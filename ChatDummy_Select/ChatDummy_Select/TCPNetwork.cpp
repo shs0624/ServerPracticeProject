@@ -8,12 +8,28 @@
 #include "ChatDummyController.h"
 
 
-void TCPNetworkController::netStartUp(int sessionCount, int startIdx)
+void TCPNetworkController::netStartUp(int sessionCount, int startIdx, bool bTestTimeout)
 {
 	srand(time(NULL));
 
 	_iSessionCount = sessionCount;
-	InitSession(startIdx);
+	int idx;
+	for (idx = 0; idx < _iSessionCount; idx++)
+	{
+		st_NetSession* ptr = new st_NetSession;
+
+		ptr->sendBuf = new CRingBuffer(MAX_PROTOCOLSIZE * 100);
+		ptr->recvBuf = new CRingBuffer(MAX_PROTOCOLSIZE * 1000);
+
+		_sessionArr[idx] = ptr;
+		_sessionArr[idx]->sock = INVALID_SOCKET;
+		_sessionArr[idx]->sessionID = idx;
+		_sessionArr[idx]->bConnected = false;
+		_sessionArr[idx]->bConnectPending = false;
+		_sessionArr[idx]->bDeleted = false;
+	}
+
+	// 타임아웃 세션 추가
 }
 
 void TCPNetworkController::netSelectIO()
@@ -408,23 +424,4 @@ void TCPNetworkController::DisconnectSession(st_NetSession* pSession)
 	pSession->bDeleted = true;
 	pSession->bConnected = false;
 	_dummyHandler->OnDisconnect(pSession->sessionID);
-}
-
-// 세션 배열 초기화
-void TCPNetworkController::InitSession(int startIdx)
-{
-	for (int i = 0; i < _iSessionCount; i++)
-	{
-		st_NetSession* ptr = new st_NetSession;
-
-		ptr->sendBuf = new CRingBuffer(MAX_PROTOCOLSIZE * 100);
-		ptr->recvBuf = new CRingBuffer(MAX_PROTOCOLSIZE * 1000);
-
-		_sessionArr[i] = ptr;
-		_sessionArr[i]->sock = INVALID_SOCKET;
-		_sessionArr[i]->sessionID = i;
-		_sessionArr[i]->bConnected = false;
-		_sessionArr[i]->bConnectPending = false;
-		_sessionArr[i]->bDeleted = false;
-	}
 }

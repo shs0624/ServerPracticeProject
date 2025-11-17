@@ -5,7 +5,7 @@ class TCPNetworkController;
 class DummyHandler
 {
 public:
-	void InitHandler(SOCKADDR_IN serverAddr, int sessionCount, int startIdx);
+	void InitHandler(SOCKADDR_IN serverAddr, int sessionCount, int startIdx, bool IsTestTimeout);
 	void Update();
 
 	// L7 -> L4
