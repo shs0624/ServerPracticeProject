@@ -18,7 +18,7 @@ struct stLOG
 class LogController
 {
 public:
-	void Init(SOCKADDR_IN serverAddr);
+	void Init(SOCKADDR_IN serverAddr, int iClientCount);
 
 	void PrintLog();
 

@@ -24,11 +24,12 @@ void LogController::LOG_RECV(INT64 accountNo, INT64 recvNo, WORD packetType)
 	_logArr[idx].AccountNo = accountNo;
 }
 
-void LogController::Init(SOCKADDR_IN serverAddr)
+void LogController::Init(SOCKADDR_IN serverAddr, int iClientCount)
 {
 	_serverAddr = serverAddr;
 
 	_iLogCount = 0;
+	_iSessionCount = iClientCount;
 
 	_dwConnectWaitCount = 0;
 	_dwLoginWaitCount = 0;
@@ -88,7 +89,7 @@ void LogController::PrintLog()
 		ipBuf, port);
 	printf("====================================================\n");
 	printf("Client:%-5d| Thread %-3d\n",
-		_iSessionCount, _iThreadCount);
+		_iSessionCount, 4);
 	printf("====================================================\n\n");
 
 	//printf("%-25s%5d\n", "Thread Loop :", 0);

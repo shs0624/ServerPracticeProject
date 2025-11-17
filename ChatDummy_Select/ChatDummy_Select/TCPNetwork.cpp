@@ -45,7 +45,6 @@ void TCPNetworkController::netSelectIO()
 	FD_ZERO(&readSet);
 	FD_ZERO(&writeSet);
 	FD_ZERO(&exceptSet);
-	//FD_SET(m_ListenSocket, &readSet);
 
 	int setSize = 0;
 	for (int i = 0; i < _iSessionCount; i++)
@@ -64,7 +63,7 @@ void TCPNetworkController::netSelectIO()
 		FD_SET(_sessionArr[i]->sock, &readSet);
 		if (_sessionArr[i]->bConnectPending || _sessionArr[i]->sendBuf->GetUseSize() > 0)
 			FD_SET(_sessionArr[i]->sock, &writeSet);
-		if (_sessionArr[i]->bConnectPending)            // ← 실패 통지를 except에서 받기 위해 등록
+		if (_sessionArr[i]->bConnectPending)        
 			FD_SET(_sessionArr[i]->sock, &exceptSet);
 
 		setSize++;
@@ -244,7 +243,6 @@ void TCPNetworkController::netProc_Recv(SOCKET socket)
 		//@@TODO : 인코딩 잠시 비활성화
 		//if (!(*csPacket)->Decode(FIXED_KEY, header.RandKey))
 		//{
-		//	// @@TODO : 디코딩 실패. 로그로 남기기
 		//	InterlockedIncrement(&LogController::_LogController._dwResponseFailCount);
 		//	(*csPacket)->Clear();
 		//	continue;
@@ -254,7 +252,6 @@ void TCPNetworkController::netProc_Recv(SOCKET socket)
 		(*csPacket)->Clear();
 
 		//_LOG(0, L"Received Message # Type : %d # sessionID : %d\n", header.byType, session->dwSessionID);
-		// @@TODO : 메세지 TPS 올리기
 		InterlockedIncrement(&LogController::_LogController._dwRecvMessageTPS);
 	}
 
@@ -287,12 +284,12 @@ void TCPNetworkController::netProc_Except(SOCKET socket)
 {
 	auto it = _sessionMap.find(socket);
 	if (it == _sessionMap.end()) {
-		//FD_CLR(socket, exceptSet);    // 방어적 처리
 		return;
 	}
 
 	st_NetSession* session = it->second;
-	if (!session->bConnectPending) return;
+	if (!session->bConnectPending) 
+		return;
 
 	int err = 0;
 	int len = sizeof(err);
@@ -304,31 +301,40 @@ void TCPNetworkController::netProc_Except(SOCKET socket)
 		_sessionMap.erase(socket);
 		closesocket(socket);
 		session->sock = INVALID_SOCKET;
-		// 필요하면 재시도 로직 호출 (곧바로 재시도 안 하려면 타이머/큐에 넣어도 됨)
+
+		// 실패한 세션은 재연결 시도
+		Connect(session->sessionID);
 	}
 }
 
+// @@TODO : Connect 성공만 여길 타기 때문에 비활성화해둠. 확인 필요
 void TCPNetworkController::ConnectProc(st_NetSession* ptr)
 {
-	int err = 0;
-	int len = sizeof(err);
-	getsockopt(ptr->sock, SOL_SOCKET, SO_ERROR, (char*)&err, &len);
-	if (err == 0)
-	{
-		InterlockedIncrement(&LogController::_LogController._dwConnectSuccess);
+	InterlockedIncrement(&LogController::_LogController._dwConnectSuccess);
 
-		ptr->bConnectPending = false;
-		ptr->bConnected = true;
-		_dummyHandler->OnConnected(ptr->sessionID);
-	}
-	else
-	{
-		InterlockedIncrement(&LogController::_LogController._dwConnectFail);
+	ptr->bConnectPending = false;
+	ptr->bConnected = true;
+	_dummyHandler->OnConnected(ptr->sessionID);
 
-		ptr->bConnectPending = false;
-		// 다시 커넥트 시도
-		Connect(ptr->sessionID);
-	}
+	//int err = 0;
+	//int len = sizeof(err);
+	//getsockopt(ptr->sock, SOL_SOCKET, SO_ERROR, (char*)&err, &len);
+	//if (err == 0)
+	//{
+	//	InterlockedIncrement(&LogController::_LogController._dwConnectSuccess);
+
+	//	ptr->bConnectPending = false;
+	//	ptr->bConnected = true;
+	//	_dummyHandler->OnConnected(ptr->sessionID);
+	//}
+	//else
+	//{
+	//	InterlockedIncrement(&LogController::_LogController._dwConnectFail);
+
+	//	ptr->bConnectPending = false;
+	//	// 다시 커넥트 시도
+	//	Connect(ptr->sessionID);
+	//}
 }
 
 void TCPNetworkController::SendProc(st_NetSession* ptr)

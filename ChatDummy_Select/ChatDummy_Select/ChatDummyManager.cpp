@@ -56,7 +56,7 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 			return false;
 	}*/
 
-	LogController::_LogController.Init(_serverAddr);
+	LogController::_LogController.Init(_serverAddr, _iSessionCountPerThread * 4);
 	// @@TODO : 항상 비정상적인 세션은 개수를 정해두자.
 	// 로그인만 하는 세션과 커넥트만 하는 세션 각각 10개씩.
 }

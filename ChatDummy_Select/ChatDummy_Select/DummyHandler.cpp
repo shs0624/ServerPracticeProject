@@ -13,7 +13,7 @@ void DummyHandler::InitHandler(SOCKADDR_IN serverAddr, int sessionCount, int sta
 	_DummyController = new ChatDummyController(this);
 	_NetworkController = new TCPNetworkController(serverAddr, this);
 
-	_NetworkController->netStartUp(sessionCount, startIdx);
+	_NetworkController->netStartUp(sessionCount, startIdx, IsTestTimeout);
 	_DummyController->InitController(sessionCount, startIdx, IsTestTimeout);
 }
 

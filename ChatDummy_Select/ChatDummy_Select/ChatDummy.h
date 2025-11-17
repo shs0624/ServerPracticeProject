@@ -4,7 +4,7 @@
 #include "ChatDummyManager_MakePacket.h"
 #define DISCONNECT_COUNT 30
 #define CHAT_COUNT 3
-#define dfHEARTBEAT_MS 30000
+#define dfHEARTBEAT_MS 10000
 #define dfTIMEOUT_OFFSET_MS 3000
 #define dfTIMEOUT_WAIT_MS 5000
 #define dfTIMEOUT_USER_MS 40000
