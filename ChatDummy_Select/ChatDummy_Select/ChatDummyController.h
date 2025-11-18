@@ -10,6 +10,8 @@ public:
 
 	void InitController(int sessionCount, int startIdx, bool bTestTimeout);
 
+	void InitTestDummy(int sessionCount, int startIdx);
+
 	bool WorkByAction(ChatDummy* ptr);
 
 	bool PacketProc(ChatDummy& dummy, RefCountPointer& cPacket);

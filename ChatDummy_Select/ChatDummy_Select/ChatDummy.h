@@ -83,7 +83,7 @@ public:
 		UpdateAction();
 	}
 
-	void Init(DummyType type, int id, int nick)
+	void Init(DummyType type, INT64 id, INT64 nick)
 	{
 		memset(_ID, 0, sizeof(_ID));
 		memset(_NickName, 0, sizeof(_NickName));
@@ -178,7 +178,7 @@ public:
 
 	void Chat(RefCountPointer& cPacket)
 	{
-		int idx = rand() % _dfRANDOMCOUNT;
+		int idx = rand() % dfRANDOMCOUNT;
 		wstring str = randomChat[idx];
 
 		WORD messageLen = str.size() * sizeof(WCHAR);
@@ -210,19 +210,42 @@ public:
 	{
 		_shActionCount++;
 
+		if (_enNextAction == en_ActionDisconnect)
+			return;
+
 		// Disconnect - Connect는 무조건
 		switch (_enType)
 		{
 			case DummyType::en_Normal:
 			{
-				if (_shActionCount >= DISCONNECT_COUNT)
-					_enNextAction = en_ActionDisconnect;
-				else if (_enNextAction == en_ActionConnect)
+				if (_enNextAction == en_ActionConnect)
 					_enNextAction = en_ActionLogin;
+				else if ((rand() % 100) <= dfDISCONNECT_PROBABILITY)
+					_enNextAction = en_ActionDisconnect;
 				else if (_shActionCount % CHAT_COUNT == 0)
 					_enNextAction = en_ActionChat;
 				else
 					_enNextAction = en_ActionMove;
+				break;
+			}
+			case DummyType::en_TimeOut_User:
+			{
+				// 유저가 되면 Disconnect, 유저가 아니라면 Login
+				if (_enNextAction == en_ActionLogin)
+					_enNextAction = en_ActionNone;
+				else if (_enNextAction == en_ActionConnect)
+					_enNextAction = en_ActionLogin;
+				else if (_enNextAction == en_ActionNone)
+					break;
+				break;
+			}
+			case DummyType::en_TimeOut_Session:
+			{
+				// Connect 이후로 아무것도 안해야함.
+				if (_enNextAction == en_ActionConnect)
+					_enNextAction = en_ActionNone;
+				else if (_enNextAction == en_ActionNone)
+					break;
 				break;
 			}
 			case DummyType::en_Disconnect_Session:
@@ -230,7 +253,7 @@ public:
 				// 로그인 대신, 연결 끊기. 로그인 상태가 아니라면 Connect
 				if (_enNextAction == en_ActionLogin)
 					_enNextAction = en_ActionDisconnect;
-				else if(_enNextAction == en_ActionConnect)
+				else if (_enNextAction == en_ActionConnect)
 					_enNextAction = en_ActionLogin;
 				else
 					_enNextAction = en_ActionConnect;
@@ -245,17 +268,6 @@ public:
 					_enNextAction = en_ActionLogin;
 				else
 					_enNextAction = en_ActionConnect;
-				break;
-			}
-			case DummyType::en_TimeOut_User:
-			{
-				// 유저가 되면 Disconnect, 유저가 아니라면 Login
-				if (_enNextAction == en_ActionLogin)
-					_enNextAction = en_ActionNone;
-				else if (_enNextAction == en_ActionConnect)
-					_enNextAction = en_ActionLogin;
-				else if (_enNextAction == en_ActionNone)
-					break;
 				break;
 			}
 		}
@@ -276,7 +288,6 @@ public:
 		else
 			InterlockedIncrement(&LogController::_LogController._dwDisconnectFromServerCount);
 			
-
 		_shActionCount = 0;
 		_bWait = FALSE;
 		_bUser = FALSE;

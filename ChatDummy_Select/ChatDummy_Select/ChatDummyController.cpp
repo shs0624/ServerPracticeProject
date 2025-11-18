@@ -11,13 +11,35 @@
 void ChatDummyController::InitController(int sessionCount, int startIdx, bool bTestTimeout)
 {
 	_iSessionCount = sessionCount;
-	for (int i = 0; i < _iSessionCount; i++)
+	INT64 idx;
+	for (idx = 0; idx < _iSessionCount; idx++)
 	{
 		//@@TODO : 파일에서 ID, 닉네임, AccountNo 읽어오는 방향으로 수정하기
-		int id = startIdx + i;
-		int nick = id + 100000;
+		INT64 id = startIdx + idx;
+		INT64 nick = id + 100000;
 
-		_DummyArr[i].Init(en_Normal, id, nick);
+		_DummyArr[idx].Init(en_Normal, id, nick);
+	}
+
+	if (bTestTimeout)
+	{
+		for (int i = 0; i < dfTIMEOUTTEST_COUNT; i++)
+		{
+			INT64 id = startIdx + idx;
+			INT64 nick = id + 100000;
+
+			_DummyArr[idx++].Init(en_TimeOut_Session, id, nick);
+		}
+
+		for (int i = 0; i < dfTIMEOUTTEST_COUNT; i++)
+		{
+			INT64 id = startIdx + idx;
+			INT64 nick = id + 100000;
+
+			_DummyArr[idx++].Init(en_TimeOut_User, id, nick);
+		}
+
+		_iSessionCount += dfTIMEOUTTEST_COUNT * 2;
 	}
 }
 

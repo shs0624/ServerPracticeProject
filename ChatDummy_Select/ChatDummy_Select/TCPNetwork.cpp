@@ -7,12 +7,17 @@
 #include "ChatDummy.h"
 #include "ChatDummyController.h"
 
-
 void TCPNetworkController::netStartUp(int sessionCount, int startIdx, bool bTestTimeout)
 {
 	srand(time(NULL));
 
-	_iSessionCount = sessionCount;
+	_connectQueue = new queue<pair<st_NetSession*, DWORD>>();
+
+	if (bTestTimeout)
+		_iSessionCount = sessionCount + dfTIMEOUTTEST_COUNT * 2;
+	else
+		_iSessionCount = sessionCount;
+
 	int idx;
 	for (idx = 0; idx < _iSessionCount; idx++)
 	{
@@ -28,7 +33,6 @@ void TCPNetworkController::netStartUp(int sessionCount, int startIdx, bool bTest
 		_sessionArr[idx]->bConnectPending = false;
 		_sessionArr[idx]->bDeleted = false;
 	}
-
 	// 타임아웃 세션 추가
 }
 
@@ -39,6 +43,8 @@ void TCPNetworkController::netSelectIO()
 	time.tv_usec = 0;
 
 	_iselectIOFrame++;
+
+	CheckReConnect();
 
 	int loopCount = 0;
 	fd_set readSet, writeSet, exceptSet; 
@@ -105,6 +111,27 @@ void TCPNetworkController::SelectProc(fd_set* readSet, fd_set* writeSet, fd_set*
 		{
 			netProc_Except(exceptSet->fd_array[i]);
 		}
+	}
+}
+
+// 연결 끊긴 세션의 시간을 체크해서 재연결
+void TCPNetworkController::CheckReConnect()
+{
+	if (_connectQueue->empty())
+		return;
+
+	DWORD nowTime = timeGetTime();
+
+	while (!_connectQueue->empty())
+	{
+		DWORD lastTime = _connectQueue->front().second;
+		if (nowTime - lastTime > dfRECONNECTTIME)
+		{
+			Connect(_connectQueue->front().first->sessionID);
+			_connectQueue->pop();
+		}
+		else
+			break;
 	}
 }
 
@@ -184,9 +211,10 @@ void TCPNetworkController::netProc_Recv(SOCKET socket)
 
 	CRingBuffer* recvBuffer = pSession->recvBuf;
 	int freeSize = recvBuffer->GetFreeSize();
+	int recvSize = recvBuffer->DirectEnqueueSize();
 	/*int recvSize = (recvBuffer->DirectEnqueueSize() > MAX_PROTOCOLSIZE)
 		? MAX_PROTOCOLSIZE : recvBuffer->DirectEnqueueSize();*/
-	int recvSize = recvBuffer->DirectEnqueueSize();
+	
 
 	int recvRet = recv(pSession->sock, recvBuffer->GetRearBufferPtr(), recvSize, 0);
 	if (recvRet == SOCKET_ERROR)
@@ -430,4 +458,7 @@ void TCPNetworkController::DisconnectSession(st_NetSession* pSession)
 	pSession->bDeleted = true;
 	pSession->bConnected = false;
 	_dummyHandler->OnDisconnect(pSession->sessionID);
+
+	DWORD nowTime = timeGetTime();
+	_connectQueue->push({ pSession, nowTime });
 }

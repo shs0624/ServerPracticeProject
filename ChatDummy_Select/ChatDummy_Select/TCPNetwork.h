@@ -1,4 +1,6 @@
 #pragma once
+#define dfRECONNECTTIME 1000
+
 class TCPNetworkController
 {
 public:
@@ -20,6 +22,8 @@ public:
 
 	void DisconnectSession(DWORD sessionID);
 private:
+	void CheckReConnect();
+
 	void DisconnectSession(st_NetSession* pSession);
 	void ConnectProc(st_NetSession* ptr);
 	void SendProc(st_NetSession* ptr);
@@ -34,6 +38,8 @@ private:
 	int _iselectIOFrame = 0;
 
 	SOCKADDR_IN _serverAddr;
+
+	std::queue<pair<st_NetSession*, DWORD>>* _connectQueue;
 
 	DummyHandler* _dummyHandler;
 	st_NetSession* _sessionArr[4000];

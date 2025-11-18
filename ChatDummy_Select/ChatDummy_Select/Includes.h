@@ -15,7 +15,7 @@
 #include <crtdbg.h>
 #include <minidumpapiset.h>
 #include <list>
-#include <vector>
+#include <queue>
 #include <string>
 #include <unordered_map>
 

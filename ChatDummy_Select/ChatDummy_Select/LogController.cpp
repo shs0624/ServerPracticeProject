@@ -24,12 +24,14 @@ void LogController::LOG_RECV(INT64 accountNo, INT64 recvNo, WORD packetType)
 	_logArr[idx].AccountNo = accountNo;
 }
 
-void LogController::Init(SOCKADDR_IN serverAddr, int iClientCount)
+void LogController::Init(SOCKADDR_IN serverAddr, int iClientCount, bool bTestTimeout)
 {
 	_serverAddr = serverAddr;
 
 	_iLogCount = 0;
 	_iSessionCount = iClientCount;
+	if (bTestTimeout)
+		_iTimeoutTestSessionCount = dfTIMEOUTTEST_COUNT;
 
 	_dwConnectWaitCount = 0;
 	_dwLoginWaitCount = 0;
@@ -84,34 +86,34 @@ void LogController::PrintLog()
 	printf("S : Echo PLAY | Q : Quit\n");
 	//wprintf(L"C : Reconnect STOP\n\n");
 
-	printf("====================================================\n");
+	printf("==============================================================================\n");
 	printf("Server IP:%-s| Server Port: %-3d\n",
 		ipBuf, port);
-	printf("====================================================\n");
-	printf("Client:%-5d| Thread %-3d\n",
-		_iSessionCount, 4);
-	printf("====================================================\n\n");
+	printf("==============================================================================\n");
+	printf("Client:%-5d| Thread: %-5d| TimeOutTest_User : %-5d| TimeOutTest_Session : %-5d\n",
+		_iSessionCount, 4, _iTimeoutTestSessionCount * 4, _iTimeoutTestSessionCount * 4);
+	printf("==============================================================================\n");
 
 	//printf("%-25s%5d\n", "Thread Loop :", 0);
 	//printf("%-25s%5ls\n", "Max Latency :", "0 ms");
 
 	printf("%-25s%5d\n", "Connect Try :", _dwConnectTry);
 	printf("%-25s%5d\n", "Connect Success :", _dwConnectSuccess);
-
+	printf("==============================================================================\n");
 	printf("%-25s%5d\n", "Login	 Send :", _dwLoginSendCount);
 	printf("%-25s%5d\n", "Move	 Send :", _dwMoveSendCount);
 	printf("%-25s%5d\n", "Chat	 Send :", _dwChatSendCount);
-
-	printf("\n%-25s%5d\n", "Error - Connect Fail :", _dwConnectFail);
+	printf("==============================================================================\n");
+	printf("%-25s%5d\n", "Error - Connect Fail :", _dwConnectFail);
 	printf("%-25s%5d\n", "Error - Disconnect from Server :", _dwDisconnectFromServerCount);
 	printf("%-25s%5d\n", "Error - Timeout - Not Recv :", _dwMessageNotRecvCount);
 	printf("%-25s%5d\n", "Error - Timeout - Not Recv Login Response :", _dwLoginResNotRecvCount);
 	printf("%-25s%5d\n", "Error - Need Timeout - Session :", _dwNeedTimeoutSessionCount);
 	printf("%-25s%5d\n", "Error - Need Timeout - User :", _dwNeedTimeoutUserCount);
-
-	printf("\n%-25s%5d\n", "Success - Normal Disconnect :", _dwNormalDisconnectCount);
+	printf("==============================================================================\n");
+	printf("%-25s%5d\n", "Success - Normal Disconnect :", _dwNormalDisconnectCount);
 	printf("%-25s%5d\n", "Success - ErorrCheck Disconnect :", _dwIntendedDisconnectSessionCount);
-
+	printf("==============================================================================\n");
 	printf("\n%-25s%5d\n", "PacketPool Use :", 0);
 	printf("%-25s%5d\n", "SendPacket TPS :", _dwSendMessageTPS);
 	printf("%-25s%5d\n", "RecvPacket TPS :", _dwRecvMessageTPS);

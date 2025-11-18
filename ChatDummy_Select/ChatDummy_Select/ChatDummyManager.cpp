@@ -49,15 +49,7 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 			return false;
 	}
 
-	/*for (int i = 0; i < 1; i++)
-	{
-		_hChatDummyThreadHandle[i] = (HANDLE)_beginthreadex(NULL, 0, ChatDummyControlThread, this, 0, &_ChatDummyThreadID[i]);
-		if (_hChatDummyThreadHandle[i] == NULL)
-			return false;
-	}*/
-
-	LogController::_LogController.Init(_serverAddr, _iSessionCountPerThread * 4);
-	// @@TODO : 항상 비정상적인 세션은 개수를 정해두자.
+	LogController::_LogController.Init(_serverAddr, _iSessionCountPerThread * 4, _bTestTimeout);
 	// 로그인만 하는 세션과 커넥트만 하는 세션 각각 10개씩.
 }
 
@@ -71,7 +63,7 @@ unsigned int WINAPI ChatDummyManager::ChatDummyControlThread(LPVOID arg)
 
 	DummyHandler* dummyHandler = new DummyHandler();
 	//dummyHandler->InitHandler(thisPtr->_serverAddr, (thisPtr->_iSessionCountPerThread), 0);
-	int startidx = InterlockedExchange((DWORD*)&thisPtr->_iStartIdx, thisPtr->_iStartIdx + thisPtr->_iSessionCountPerThread);
+	int startidx = InterlockedExchange((DWORD*)&thisPtr->_iStartIdx, thisPtr->_iStartIdx + dfTHREAD_IDX_JUMPCOUNT);
 	dummyHandler->InitHandler(thisPtr->_serverAddr, thisPtr->_iSessionCountPerThread, startidx, thisPtr->_bTestTimeout);
 
 	while (1)
