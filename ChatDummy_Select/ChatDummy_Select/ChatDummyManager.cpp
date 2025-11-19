@@ -10,11 +10,10 @@
 #include "TCPNetwork.h"
 #include "ChatDummyController.h"
 
-
 // 매니저는 모든 스레드의 정보를 통합해서 관리한다.
 // 스레드의 첫 시작을 담당하며, 로깅과 오류 정보도 매니저가 가진다.
 // 스레드는 ChatDummyController 위주로 작동하게 하자.
-bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCount, int sessionCountPerThread, bool isTimeoutTest)
+bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCount, int sessionCountPerThread, bool bTimeoutTest, bool bMessageFloodTest)
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -28,7 +27,9 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 	}
 	_serverAddr.sin_port = htons(serverPort);
 
-	_bTestTimeout = isTimeoutTest;
+	_bStop = FALSE;
+	_bTestTimeout = bTimeoutTest;
+	_bTestMessageFlood = bMessageFloodTest;
 	_iThreadCount = threadCount;
 	_iSessionCountPerThread = sessionCountPerThread;	
 	_iStartIdx = 0;
@@ -49,8 +50,13 @@ bool ChatDummyManager::InitManager(string serverIP, int serverPort, int threadCo
 			return false;
 	}
 
-	LogController::_LogController.Init(_serverAddr, _iSessionCountPerThread * 4, _bTestTimeout);
+	LogController::_LogController.Init(_serverAddr, _iSessionCountPerThread * 4, _bTestTimeout, _bTestMessageFlood);
 	// 로그인만 하는 세션과 커넥트만 하는 세션 각각 10개씩.
+}
+
+void ChatDummyManager::OnOffManager()
+{
+	_bStop = !_bStop;
 }
 
 unsigned int WINAPI ChatDummyManager::ChatDummyControlThread(LPVOID arg)
@@ -59,16 +65,15 @@ unsigned int WINAPI ChatDummyManager::ChatDummyControlThread(LPVOID arg)
 	random_device ran;
 	srand(ran());
 
-	bool _bStop = FALSE;
-
 	DummyHandler* dummyHandler = new DummyHandler();
 	//dummyHandler->InitHandler(thisPtr->_serverAddr, (thisPtr->_iSessionCountPerThread), 0);
 	int startidx = InterlockedExchange((DWORD*)&thisPtr->_iStartIdx, thisPtr->_iStartIdx + dfTHREAD_IDX_JUMPCOUNT);
-	dummyHandler->InitHandler(thisPtr->_serverAddr, thisPtr->_iSessionCountPerThread, startidx, thisPtr->_bTestTimeout);
+	dummyHandler->InitHandler(thisPtr->_serverAddr, thisPtr->_iSessionCountPerThread, startidx,
+		thisPtr->_bTestTimeout, thisPtr->_bTestMessageFlood);
 
 	while (1)
 	{
-		if (_bStop)
+		if (thisPtr->_bStop)
 		{
 			Sleep(0);
 			continue;

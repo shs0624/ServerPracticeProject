@@ -8,13 +8,13 @@
 #include "ChatDummyController.h"
 #include "TCPNetwork.h"
 
-void DummyHandler::InitHandler(SOCKADDR_IN serverAddr, int sessionCount, int startIdx, bool IsTestTimeout)
+void DummyHandler::InitHandler(SOCKADDR_IN serverAddr, int sessionCount, int startIdx, bool IsTestTimeout, bool bTestFlood)
 {
 	_DummyController = new ChatDummyController(this);
 	_NetworkController = new TCPNetworkController(serverAddr, this);
 
 	_NetworkController->netStartUp(sessionCount, startIdx, IsTestTimeout);
-	_DummyController->InitController(sessionCount, startIdx, IsTestTimeout);
+	_DummyController->InitController(sessionCount, startIdx, IsTestTimeout, bTestFlood);
 }
 
 void DummyHandler::Update()
@@ -24,9 +24,9 @@ void DummyHandler::Update()
 	_DummyController->Update();
 }
 
-void DummyHandler::RequestSendPacket(DWORD sessionID, RefCountPointer& refCountPointer)
+void DummyHandler::RequestSendPacket(DWORD sessionID, RefCountPointer& refCountPointer, int repeat)
 {
-	_NetworkController->SendPacket(sessionID, refCountPointer);
+	_NetworkController->SendPacket(sessionID, refCountPointer, repeat);
 }
 
 void DummyHandler::RequestConnect(DWORD sessionID)

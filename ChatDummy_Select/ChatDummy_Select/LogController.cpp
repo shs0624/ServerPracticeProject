@@ -24,14 +24,21 @@ void LogController::LOG_RECV(INT64 accountNo, INT64 recvNo, WORD packetType)
 	_logArr[idx].AccountNo = accountNo;
 }
 
-void LogController::Init(SOCKADDR_IN serverAddr, int iClientCount, bool bTestTimeout)
+void LogController::Init(SOCKADDR_IN serverAddr, int iClientCount, bool bTestTimeout, bool bTestFlood)
 {
 	_serverAddr = serverAddr;
 
 	_iLogCount = 0;
 	_iSessionCount = iClientCount;
 	if (bTestTimeout)
-		_iTimeoutTestSessionCount = dfTIMEOUTTEST_COUNT;
+	{
+		_iTimeoutTestSessionCount = (_iSessionCount / 4) * dfTIMEOUTTEST_RATIO;
+	}
+
+	if (bTestFlood)
+	{
+		_iMessageFloodTestSessionCount = (_iSessionCount / 4) * dfFLOODTEST_RATIO;
+	}
 
 	_dwConnectWaitCount = 0;
 	_dwLoginWaitCount = 0;
@@ -58,7 +65,6 @@ void LogController::Init(SOCKADDR_IN serverAddr, int iClientCount, bool bTestTim
 unsigned int WINAPI LogController::LogingThread(LPVOID arg)
 {
 	LogController* thisPtr = (LogController*)arg;
-	//_setmode(_fileno(stdout), _O_U16TEXT);
 
 	while (1)
 	{
@@ -81,8 +87,6 @@ void LogController::PrintLog()
 	short port = ntohs(_serverAddr.sin_port);
 	inet_ntop(AF_INET, &(_serverAddr.sin_addr), ipBuf, INET_ADDRSTRLEN);
 
-	//_setmode(_fileno(stdout), _O_U16TEXT);
-
 	printf("S : Echo PLAY | Q : Quit\n");
 	//wprintf(L"C : Reconnect STOP\n\n");
 
@@ -90,8 +94,8 @@ void LogController::PrintLog()
 	printf("Server IP:%-s| Server Port: %-3d\n",
 		ipBuf, port);
 	printf("==============================================================================\n");
-	printf("Client:%-5d| Thread: %-5d| TimeOutTest_User : %-5d| TimeOutTest_Session : %-5d\n",
-		_iSessionCount, 4, _iTimeoutTestSessionCount * 4, _iTimeoutTestSessionCount * 4);
+	printf("Client:%-5d| Thread: %-2d\nTimeOutTest_User : %4d| TimeOutTest_Session : %4d | MessageFlood_Session : %4d\n",
+		_iSessionCount, 4, _iTimeoutTestSessionCount * 4, _iTimeoutTestSessionCount * 4, _iMessageFloodTestSessionCount * 4);
 	printf("==============================================================================\n");
 
 	//printf("%-25s%5d\n", "Thread Loop :", 0);

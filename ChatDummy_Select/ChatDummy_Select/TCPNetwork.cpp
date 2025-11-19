@@ -12,11 +12,7 @@ void TCPNetworkController::netStartUp(int sessionCount, int startIdx, bool bTest
 	srand(time(NULL));
 
 	_connectQueue = new queue<pair<st_NetSession*, DWORD>>();
-
-	if (bTestTimeout)
-		_iSessionCount = sessionCount + dfTIMEOUTTEST_COUNT * 2;
-	else
-		_iSessionCount = sessionCount;
+	_iSessionCount = sessionCount;
 
 	int idx;
 	for (idx = 0; idx < _iSessionCount; idx++)
@@ -33,7 +29,6 @@ void TCPNetworkController::netStartUp(int sessionCount, int startIdx, bool bTest
 		_sessionArr[idx]->bConnectPending = false;
 		_sessionArr[idx]->bDeleted = false;
 	}
-	// 타임아웃 세션 추가
 }
 
 void TCPNetworkController::netSelectIO()
@@ -331,7 +326,8 @@ void TCPNetworkController::netProc_Except(SOCKET socket)
 		session->sock = INVALID_SOCKET;
 
 		// 실패한 세션은 재연결 시도
-		Connect(session->sessionID);
+		DWORD nowTime = timeGetTime();
+		_connectQueue->push({ session, nowTime });
 	}
 }
 
@@ -343,26 +339,6 @@ void TCPNetworkController::ConnectProc(st_NetSession* ptr)
 	ptr->bConnectPending = false;
 	ptr->bConnected = true;
 	_dummyHandler->OnConnected(ptr->sessionID);
-
-	//int err = 0;
-	//int len = sizeof(err);
-	//getsockopt(ptr->sock, SOL_SOCKET, SO_ERROR, (char*)&err, &len);
-	//if (err == 0)
-	//{
-	//	InterlockedIncrement(&LogController::_LogController._dwConnectSuccess);
-
-	//	ptr->bConnectPending = false;
-	//	ptr->bConnected = true;
-	//	_dummyHandler->OnConnected(ptr->sessionID);
-	//}
-	//else
-	//{
-	//	InterlockedIncrement(&LogController::_LogController._dwConnectFail);
-
-	//	ptr->bConnectPending = false;
-	//	// 다시 커넥트 시도
-	//	Connect(ptr->sessionID);
-	//}
 }
 
 void TCPNetworkController::SendProc(st_NetSession* ptr)
@@ -388,40 +364,44 @@ void TCPNetworkController::SendProc(st_NetSession* ptr)
 	}
 
 	ptr->sendBuf->MoveFront(sendRet);
-	InterlockedIncrement(&LogController::_LogController._dwSendMessageTPS);
 }
 
 // 컨텐츠에서 헤더 없이 완성된 패킷을 보낸다.
-void TCPNetworkController::SendPacket(DWORD sessionID, RefCountPointer& cPacket)
+void TCPNetworkController::SendPacket(DWORD sessionID, RefCountPointer& cPacket, int repeat)
 {
 	// 40 + 40 + 64 - id, nickname, sessionKey
 	st_NetHeader header;
-	header.FixedKey = FIXED_KEY;
+	header.FixedKey = PROGRAM_HEADER;
 	header.RandKey = rand() % 256;
 	header.shLen = (*cPacket)->GetDataSize();
 	
 	//@@TODO : 인코딩 잠시 비활성화
 	// 여기서 체크섬까지 다 넣고 인코딩해줌
-	//(*cPacket)->Encode(FIXED_KEY);
+	//(*cPacket)->Encode(FIXED_KEY);	
 	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
 	(*cPacket)->SetCheckSum();
 
-	st_NetSession* pSession = _sessionArr[sessionID];
-	if (pSession->sendBuf->GetFreeSize() < (*cPacket)->GetDataSize())
+	for (int i = 0; i < repeat; i++)
 	{
-		// 연결끊기?
-		DebugBreak();
-		DisconnectSession(pSession);
-		return;
-	}
+		st_NetSession* pSession = _sessionArr[sessionID];
+		if (pSession->sendBuf->GetFreeSize() < (*cPacket)->GetDataSize())
+		{
+			// 연결끊기?
+			DebugBreak();
+			DisconnectSession(pSession);
+			return;
+		}
 
-	int ret = pSession->sendBuf->Enqueue((*cPacket)->GetBufferPtr(), (*cPacket)->GetDataSize());
-	if (ret != (*cPacket)->GetDataSize())
-	{
-		// 연결 끊기
-		DebugBreak();
-		DisconnectSession(pSession);
-		return;
+		int ret = pSession->sendBuf->Enqueue((*cPacket)->GetBufferPtr(), (*cPacket)->GetDataSize());
+		if (ret != (*cPacket)->GetDataSize())
+		{
+			// 연결 끊기
+			DebugBreak();
+			DisconnectSession(pSession);
+			return;
+		}
+
+		InterlockedIncrement(&LogController::_LogController._dwSendMessageTPS);
 	}
 
 	//_LOG(0, L"Enqueue Message  # Size : %d # sessionID : %d\n", ret, pSession->dwSessionID);

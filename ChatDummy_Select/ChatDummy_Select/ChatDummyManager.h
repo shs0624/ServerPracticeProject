@@ -16,10 +16,9 @@ public:
 		
 	}
 
-	bool InitManager(string serverIP, int serverPort, int threadCount, int sessionCount, bool isTimeoutTest);
-	bool Disconnect(ULONGLONG sessionID);
+	bool InitManager(string serverIP, int serverPort, int threadCount, int sessionCount, bool bTimeoutTest, bool bMessageFloodTest);
 
-	bool WorkByAction(ChatDummy* ptr);
+	void OnOffManager();
 
 	bool Skip();
 
@@ -38,6 +37,8 @@ protected:
 	int _iStartIdx;
 
 	bool _bTestTimeout;
+	bool _bTestMessageFlood;
+	bool _bStop;
 
 	SOCKADDR_IN _serverAddr;
 

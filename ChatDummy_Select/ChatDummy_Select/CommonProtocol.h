@@ -2,9 +2,12 @@
 //#define __GODDAMNBUG_ONLINE_PROTOCOL__
 #pragma once
 #define dfRANDOMCOUNT 14
-#define dfTIMEOUTTEST_COUNT 25
+#define dfTIMEOUTTEST_RATIO 0.1
+#define dfFLOODTEST_RATIO 0.05
 #define dfTHREAD_IDX_JUMPCOUNT 10000
 #define dfDISCONNECT_PROBABILITY 2
+#define dfFLOODMESSAGE_COUNT 10
+
 static wstring randomChat[14] =
 {
 	L"Hello Nice",

@@ -8,22 +8,21 @@
 #include "ChatDummy.h"
 #include "ChatDummyController.h"
 
-void ChatDummyController::InitController(int sessionCount, int startIdx, bool bTestTimeout)
+void ChatDummyController::InitController(int sessionCount, int startIdx, bool bTestTimeout, bool bTestFlood)
 {
 	_iSessionCount = sessionCount;
-	INT64 idx;
-	for (idx = 0; idx < _iSessionCount; idx++)
-	{
-		//@@TODO : 파일에서 ID, 닉네임, AccountNo 읽어오는 방향으로 수정하기
-		INT64 id = startIdx + idx;
-		INT64 nick = id + 100000;
-
-		_DummyArr[idx].Init(en_Normal, id, nick);
-	}
-
+	int userTOCount = 0;
+	int sessionTOCount = 0;
 	if (bTestTimeout)
 	{
-		for (int i = 0; i < dfTIMEOUTTEST_COUNT; i++)
+		userTOCount = sessionCount * dfTIMEOUTTEST_RATIO;
+		sessionTOCount = userTOCount;
+	}
+
+	INT64 idx = 0;
+	if (bTestTimeout)
+	{
+		for (int i = 0; i < sessionTOCount; i++)
 		{
 			INT64 id = startIdx + idx;
 			INT64 nick = id + 100000;
@@ -31,16 +30,35 @@ void ChatDummyController::InitController(int sessionCount, int startIdx, bool bT
 			_DummyArr[idx++].Init(en_TimeOut_Session, id, nick);
 		}
 
-		for (int i = 0; i < dfTIMEOUTTEST_COUNT; i++)
+		for (int i = 0; i < userTOCount; i++)
 		{
 			INT64 id = startIdx + idx;
 			INT64 nick = id + 100000;
 
 			_DummyArr[idx++].Init(en_TimeOut_User, id, nick);
 		}
-
-		_iSessionCount += dfTIMEOUTTEST_COUNT * 2;
 	}
+
+	if (bTestFlood)
+	{
+		int userFloodCount = sessionCount * dfFLOODTEST_RATIO;
+		for (int i = 0; i < userFloodCount; i++)
+		{
+			INT64 id = startIdx + idx;
+			INT64 nick = id + 100000;
+
+			_DummyArr[idx++].Init(en_Message_Flood, id, nick);
+		}
+	}
+
+	for (; idx < _iSessionCount; idx++)
+	{
+		//@@TODO : 파일에서 ID, 닉네임, AccountNo 읽어오는 방향으로 수정하기
+		INT64 id = startIdx + idx;
+		INT64 nick = id + 100000;
+
+		_DummyArr[idx].Init(en_Normal, id, nick);
+	}	
 }
 
 void ChatDummyController::Update()
@@ -53,15 +71,12 @@ void ChatDummyController::Update()
 
 		HeartBeatProc(i, nowTime);
 
-		if (_DummyArr[i].IsWait())
-			continue;
-
 		RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
 		(*cPacket)->Initialize(MAX_PROTOCOLSIZE, sizeof(st_NetHeader));
 
-		DummyAction act = _DummyArr[i].GetNextAction();
-		_DummyArr[i].Update(cPacket);
-		
+		DummyAction act = _DummyArr[i].Update(cPacket);
+
+		// @@TODO : 더미에게서 너무 많은 정보를 Get으로 해옴... 뭔가 이상한 구조같음
 		switch (act)
 		{
 		case en_ActionConnect:
@@ -78,13 +93,21 @@ void ChatDummyController::Update()
 			break;
 		case en_ActionMove:
 			_DummyArr[i].OnSend();
-			_dummyHandler->RequestSendPacket(i, cPacket);
+			if (_DummyArr[i].GetDummyType() == en_Message_Flood)
+				_dummyHandler->RequestSendPacket(i, cPacket, dfFLOODMESSAGE_COUNT);
+			else
+				_dummyHandler->RequestSendPacket(i, cPacket);
+
 			LogController::_LogController.LOG_SEND(_DummyArr[i]._AccountNo, en_PACKET_CS_CHAT_REQ_SECTOR_MOVE);
 			InterlockedIncrement(&LogController::_LogController._dwMoveSendCount);
 			break;
 		case en_ActionChat:
 			_DummyArr[i].OnSend();
-			_dummyHandler->RequestSendPacket(i, cPacket);
+			if (_DummyArr[i].GetDummyType() == en_Message_Flood)
+				_dummyHandler->RequestSendPacket(i, cPacket, dfFLOODMESSAGE_COUNT);
+			else
+				_dummyHandler->RequestSendPacket(i, cPacket);
+
 			LogController::_LogController.LOG_SEND(_DummyArr[i]._AccountNo, en_PACKET_CS_CHAT_REQ_MESSAGE);
 			InterlockedIncrement(&LogController::_LogController._dwChatSendCount);
 			break;

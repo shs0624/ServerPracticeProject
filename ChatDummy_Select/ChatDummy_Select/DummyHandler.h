@@ -5,11 +5,11 @@ class TCPNetworkController;
 class DummyHandler
 {
 public:
-	void InitHandler(SOCKADDR_IN serverAddr, int sessionCount, int startIdx, bool IsTestTimeout);
+	void InitHandler(SOCKADDR_IN serverAddr, int sessionCount, int startIdx, bool IsTestTimeout, bool bTestFlood);
 	void Update();
 
 	// L7 -> L4
-	void RequestSendPacket(DWORD sessionID, RefCountPointer& refCountPointer);
+	void RequestSendPacket(DWORD sessionID, RefCountPointer& refCountPointer, int repeat = 1);
 	void RequestConnect(DWORD sessionID);
 	void RequestDisconnect(DWORD sessionID);
 

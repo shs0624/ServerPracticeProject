@@ -43,7 +43,7 @@ public:
 		
 	}
 
-	BOOL IsActive() { return (!_bWait && _bUser); }
+	BOOL IsConnected() { return _bConnected; }
 
 	BOOL IsWait() { return _bWait; }
 
@@ -52,9 +52,14 @@ public:
 		return _bErrorCheckDummy;
 	}
 
+	DummyType GetDummyType()
+	{
+		return _enType;
+	}
+
 	DummyAction GetNextAction()
 	{
-		return _enNextAction;
+		return _enAction;
 	}
 
 	DWORD GetLastHeartbeat()
@@ -62,25 +67,31 @@ public:
 		return _dwLastHeartBeat;
 	}
 
-	// 세팅된 행동에 따라 적절한 작동 유도
-	// 얘는 더미에 세팅된 정보만 바꾸자. 이거에 대한 메세지는 따로 요청
-	void Update(RefCountPointer& refCountPointer)
+	// 얘는 더미가 해야 할 일을 반환한다. 안에서 다음 동작과, 어떤 동작을 해야하는지까지 전부 처리.
+	// 해야 하는 일이 있을때만 패킷을 만들고 Update를 진행하는게 목적.
+	DummyAction Update(RefCountPointer& refCountPointer)
 	{
-		if (_enNextAction == DummyAction::en_ActionMove)
+		// 일단, 지금 상태를 체크
+		if (!CheckUpdatable())
+			return en_ActionNone;
+
+		if (_enAction == DummyAction::en_ActionMove)
 		{
 			Move(refCountPointer);
 		}
-		else if (_enNextAction == DummyAction::en_ActionChat)
+		else if (_enAction == DummyAction::en_ActionChat)
 		{
 			Chat(refCountPointer);
-			//Move(refCountPointer);
 		}
-		else if (_enNextAction == DummyAction::en_ActionLogin)
+		else if (_enAction == DummyAction::en_ActionLogin)
 		{
 			Login(refCountPointer);
 		}
 
+		DummyAction act = _enAction;
 		UpdateAction();
+
+		return act;
 	}
 
 	void Init(DummyType type, INT64 id, INT64 nick)
@@ -94,13 +105,13 @@ public:
 		_AccountNo = (INT64)id;
 
 		_enType = type;
-		_enNextAction = en_ActionConnect;
+		_enAction = en_ActionConnect;
 		_bWait = FALSE;
 		_bUser = FALSE;
-		_shActionCount = 0;
-		_enNextAction = DummyAction::en_ActionConnect;
+		_shActionCount = 1;
 
-		if (_enType == DummyType::en_TimeOut_Session || _enType == DummyType::en_TimeOut_User)
+		if (_enType == DummyType::en_TimeOut_Session || _enType == DummyType::en_TimeOut_User 
+			|| _enType == DummyType::en_Message_Flood)
 			_bErrorCheckDummy = true;
 		else 
 			_bErrorCheckDummy = false;
@@ -205,72 +216,88 @@ public:
 		return true;
 	}
 
+	bool CheckUpdatable()
+	{
+		if (_enAction == en_ActionNone)
+			return false;
+
+		if (_bWait)
+			return false;
+
+		if (_enAction == en_ActionLogin && !_bConnected)
+			return false;
+
+		return true;
+	}
+
 	// Wait/Disconnect/LoginWait 상태에서 호출하는 함수. 다음 행동을 설정함.
+	// 여긴 Login 이후의 작동을 설정하는 부분으로 해야할듯
 	virtual void UpdateAction()
 	{
-		_shActionCount++;
-
-		if (_enNextAction == en_ActionDisconnect)
+		if (_enAction == en_ActionDisconnect)
 			return;
 
 		// Disconnect - Connect는 무조건
 		switch (_enType)
 		{
+			case DummyType::en_Message_Flood:
 			case DummyType::en_Normal:
 			{
-				if (_enNextAction == en_ActionConnect)
-					_enNextAction = en_ActionLogin;
-				else if ((rand() % 100) <= dfDISCONNECT_PROBABILITY)
-					_enNextAction = en_ActionDisconnect;
+				if (_enAction == en_ActionConnect)
+					_enAction = en_ActionLogin;
+				/*else if ((rand() % 100) <= dfDISCONNECT_PROBABILITY)
+					_enAction = en_ActionDisconnect;*/
 				else if (_shActionCount % CHAT_COUNT == 0)
-					_enNextAction = en_ActionChat;
-				else
-					_enNextAction = en_ActionMove;
+					_enAction = en_ActionChat;
+				else if (_bConnected)
+					_enAction = en_ActionMove;
 				break;
 			}
 			case DummyType::en_TimeOut_User:
 			{
 				// 유저가 되면 Disconnect, 유저가 아니라면 Login
-				if (_enNextAction == en_ActionLogin)
-					_enNextAction = en_ActionNone;
-				else if (_enNextAction == en_ActionConnect)
-					_enNextAction = en_ActionLogin;
-				else if (_enNextAction == en_ActionNone)
+				if (_enAction == en_ActionLogin)
+					_enAction = en_ActionNone;
+				else if (_enAction == en_ActionConnect)
+					_enAction = en_ActionLogin;
+				else if (_enAction == en_ActionNone)
 					break;
 				break;
 			}
 			case DummyType::en_TimeOut_Session:
 			{
 				// Connect 이후로 아무것도 안해야함.
-				if (_enNextAction == en_ActionConnect)
-					_enNextAction = en_ActionNone;
-				else if (_enNextAction == en_ActionNone)
+				if (_enAction == en_ActionConnect)
+					_enAction = en_ActionNone;
+				else if (_enAction == en_ActionNone)
 					break;
 				break;
 			}
 			case DummyType::en_Disconnect_Session:
 			{
 				// 로그인 대신, 연결 끊기. 로그인 상태가 아니라면 Connect
-				if (_enNextAction == en_ActionLogin)
-					_enNextAction = en_ActionDisconnect;
-				else if (_enNextAction == en_ActionConnect)
-					_enNextAction = en_ActionLogin;
+				if (_enAction == en_ActionLogin)
+					_enAction = en_ActionDisconnect;
+				else if (_enAction == en_ActionConnect)
+					_enAction = en_ActionLogin;
 				else
-					_enNextAction = en_ActionConnect;
+					_enAction = en_ActionConnect;
 				break;
 			}
 			case DummyType::en_Disconnect_User:
 			{
 				// 유저가 되면 Disconnect, 유저가 아니라면 Login
-				if (_enNextAction == en_ActionLogin)
-					_enNextAction = en_ActionDisconnect;
-				else if (_enNextAction == en_ActionConnect)
-					_enNextAction = en_ActionLogin;
+				if (_enAction == en_ActionLogin)
+					_enAction = en_ActionDisconnect;
+				else if (_enAction == en_ActionConnect)
+					_enAction = en_ActionLogin;
 				else
-					_enNextAction = en_ActionConnect;
+					_enAction = en_ActionConnect;
 				break;
 			}
 		}
+
+		_shActionCount++;
 	}
 
 	void Login(RefCountPointer& cPacket)
@@ -281,25 +308,25 @@ public:
 
 	void OnDisconnect()
 	{
-		if(_enNextAction == en_ActionDisconnect)
+		if(_enAction == en_ActionDisconnect)
 			InterlockedIncrement(&LogController::_LogController._dwNormalDisconnectCount);
-		else if(_enType == DummyType::en_TimeOut_Session || _enType == DummyType::en_TimeOut_User)
+		else if(_bErrorCheckDummy)
 			InterlockedIncrement(&LogController::_LogController._dwIntendedDisconnectSessionCount);
 		else
 			InterlockedIncrement(&LogController::_LogController._dwDisconnectFromServerCount);
 			
-		_shActionCount = 0;
+		_shActionCount = 1;
 		_bWait = FALSE;
 		_bUser = FALSE;
 		_bConnected = FALSE;
 
-		_enNextAction = en_ActionConnect;
+		_enAction = en_ActionConnect;
 	}
 
 	void OnConnect()
 	{
 		_bConnected = TRUE;
-		_shActionCount = 0;
+		_shActionCount = 1;
 		
 		// ID, NIck은 초기화 필요없음.세션키만 다시 설정
 		SetSessionKey();
@@ -413,7 +440,7 @@ public:
 
 	HANDLE _IOCPHandle;
 
-	DummyAction _enNextAction;
+	DummyAction _enAction;
 	DummyType _enType;
 	short _shSectorX;
 	short _shSectorY;

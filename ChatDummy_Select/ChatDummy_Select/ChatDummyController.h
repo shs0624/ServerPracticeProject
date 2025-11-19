@@ -8,7 +8,7 @@ public:
 		_dummyHandler = handler;
 	}
 
-	void InitController(int sessionCount, int startIdx, bool bTestTimeout);
+	void InitController(int sessionCount, int startIdx, bool bTestTimeout, bool bTestFlood);
 
 	void InitTestDummy(int sessionCount, int startIdx);
 

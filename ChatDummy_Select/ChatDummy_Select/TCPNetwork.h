@@ -18,7 +18,7 @@ public:
 
 	bool Connect(DWORD idx);
 
-	void SendPacket(DWORD sessionID, RefCountPointer& cPacket);
+	void SendPacket(DWORD sessionID, RefCountPointer& cPacket, int repeat = 1);
 
 	void DisconnectSession(DWORD sessionID);
 private:

@@ -18,7 +18,7 @@ struct stLOG
 class LogController
 {
 public:
-	void Init(SOCKADDR_IN serverAddr, int iClientCount, bool bTestTimeout);
+	void Init(SOCKADDR_IN serverAddr, int iClientCount, bool bTestTimeout, bool bTestFlood);
 
 	void PrintLog();
 
@@ -62,6 +62,7 @@ protected:
 	int _iSessionCount;
 	int _iThreadCount;
 	int _iTimeoutTestSessionCount;
+	int _iMessageFloodTestSessionCount;
 
 	DWORD _iLogCount;
 	stLOG _logArr[10000];
