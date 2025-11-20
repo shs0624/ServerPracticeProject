@@ -7,6 +7,7 @@
 #include <minidumpapiset.h>
 #include "CCrashDump.h"
 #include "Debug.h"
+#include "LockFreeStack_Re.h"
 #include "CLanServer.h"
 #include "ProcademyProfiler.h"
 //#include "TLSMemoryPool.h"
@@ -210,11 +211,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	InterlockedIncrement(&ptr->dwIOCount);
 	if (ptr->bReleaseFlag == 1)
 	{
-		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
-		{
-			// 연결 끊기
-			ReleaseSession(ptr->ulSessionID);
-		}
+		DebugBreak();
 		return false;
 	}
 
@@ -229,21 +226,15 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 
 	if (!SetWSARecv(ptr))
 	{
-		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+		if (!DecrementIOCount(ptr))
 		{
-			// 연결 끊기
 			DebugBreak();
-			thisPtr->ReleaseSession(ptr->ulSessionID);
 			return false;
 		}
 	}
 
-	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
-	{
-		// 연결 끊기 - 로그인 패킷에 대한 Dec
-		thisPtr->ReleaseSession(ptr->ulSessionID);
+	if (!DecrementIOCount(ptr))
 		return false;
-	}
 
 	return true;
 }
@@ -271,16 +262,16 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 		InterlockedIncrement(&ptr->dwIOCount);
 		if (ptr->bReleaseFlag == TRUE)
 		{
-			//goto DecRef;
 			continue;
 		}		
 
 		if (retval == 0 || cbTransferred == 0)
 		{
-			if (!thisPtr->DecrementIOCount(ptr))
-				continue;
-			else
-				goto DecRef;
+			// 들어오면서 한 번, 완료통지에 관한 거 한 번
+			thisPtr->DecrementIOCount(ptr);
+			thisPtr->DecrementIOCount(ptr);
+
+			continue;
 		}
 
 		if (pOverlapped == &ptr->recvOverlapped)
@@ -366,7 +357,7 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 
 		// 완료 통지에 대한 IO차감
 		thisPtr->DecrementIOCount(ptr);
-	DecRef:
+
 		// 여긴 세션 참조에 대한 IO차감
 		thisPtr->DecrementIOCount(ptr);
 	}
@@ -662,15 +653,6 @@ bool CLanServer::SendPacket(ULONGLONG sessionID, RefCountPointer& cPacket)
 		return false;
 	}
 
-	//InterlockedIncrement(&ptr->dwIOCount);
-	//if (ptr->bReleaseFlag == 1)
-	//{
-	//	InterlockedDecrement((DWORD*)&(ptr->dwIOCount));
-	//	/*if (!DecrementIOCount(ptr))
-	//		return false;*/
-	//	return false;
-	//}
-
 	InterlockedIncrement(&ptr->dwIOCount);
 	if (ptr->bReleaseFlag == 1)
 	{
@@ -804,7 +786,7 @@ bool CLanServer::SetWSASend(st_Session* ptr)
 		{
 			if(err != 10054)
 				printf("WSASend Fail! : %d\n", err);
-			//DebugBreak();
+
 			return false;
 		}
 	}
