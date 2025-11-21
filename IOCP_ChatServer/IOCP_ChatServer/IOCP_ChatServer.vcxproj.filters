@@ -48,7 +48,7 @@
     <ClCompile Include="ChatServer_Sector.cpp">
       <Filter>ChatServer</Filter>
     </ClCompile>
-    <ClCompile Include="ChatServer_Frame.cpp">
+    <ClCompile Include="ChatServer_Timer.cpp">
       <Filter>ChatServer</Filter>
     </ClCompile>
   </ItemGroup>

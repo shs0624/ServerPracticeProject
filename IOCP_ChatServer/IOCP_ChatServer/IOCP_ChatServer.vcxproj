@@ -130,7 +130,7 @@
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
     <ClCompile Include="NetServer.cpp" />
-    <ClCompile Include="ChatServer_Frame.cpp" />
+    <ClCompile Include="ChatServer_Timer.cpp" />
     <ClCompile Include="ChatServer_Sector.cpp" />
     <ClCompile Include="ProcademyProfiler.cpp" />
   </ItemGroup>

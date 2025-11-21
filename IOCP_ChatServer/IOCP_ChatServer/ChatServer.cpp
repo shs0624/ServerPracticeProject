@@ -92,9 +92,13 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 		{
 			// 서버 종료
 		}
-		else if (ret == _hMessageQueueEvent)
+		else if (ret == WAIT_OBJECT_0 + 1)
 		{
-
+			thisPtr->MessageProc();
+		}
+		else
+		{
+			//타임아웃 관리
 		}
 		// 그 외에는 메세지가 있어서 깨어난거임.
 
