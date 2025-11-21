@@ -488,7 +488,10 @@ bool CLanServer::RecvProc(st_Session* ptr, DWORD cbTransferred)
 		(*csPacket)->Clear();
 
 		if (ptr->bReleaseFlag == TRUE)
+		{
+			csPacket.DecRefCount();
 			return false;
+		}
 
 		int useSize = ptr->recvBuf->GetUseSize();
 		if (useSize < sizeof(st_LanHeader))

@@ -1,7 +1,5 @@
 #pragma once
-#include <process.h>
-#include <winsock2.h>
-#include <Windows.h>
+#include "Includes.h"
 #include "NetServer.h"
 #include "ChatServer.h"
 

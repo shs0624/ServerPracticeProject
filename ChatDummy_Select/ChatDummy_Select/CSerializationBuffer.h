@@ -336,7 +336,7 @@ public:
 	// Return: (int)복사한 사이즈.
 	//////////////////////////////////////////////////////////////////////////
 	int	PutData(char* chpSrc, int iSrcSize);
-	
+
 	static DWORD _iLogFreeIdx;
 	static LPVOID _freeLog[CPACKET_LOGSIZE];
 	static DWORD _iLogAllocIdx;

@@ -1,16 +1,6 @@
-#pragma comment(lib,"ws2_32")
-#include <iostream>
-#include <process.h>
-#include <winsock2.h>
-#include <Windows.h>
-#include <crtdbg.h>
-#include <minidumpapiset.h>
-#include "CCrashDump.h"
-#include "DebugLog.h"
+#pragma once
+#include "Includes.h"
 #include "NetServer.h"
-#include "ProcademyProfiler.h"
-#define IOCP_THREADCOUNT 5
-#define LOGCOUNT 10000
 
 procademy::CCrashDump cCrashDump;
 
@@ -39,7 +29,7 @@ bool _bServerEnabled = true;
 int CNetServer::FindUsableSessionIndex()
 {
 	ULONGLONG idx = -1;
-	while (_emptyIndexStack.pop(&idx))
+	while (_emptyIndexStack->pop(&idx))
 		break;
 
 	return idx;
@@ -233,20 +223,18 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			return 0;
 		}
 
-		/*if (((MYOVERLAPPED*)&pOverlapped)->ulSessionID != ptr->ulSessionID)
-			continue;*/
-
 		InterlockedIncrement(&ptr->dwIOCount);
 		if (ptr->bReleaseFlag == TRUE)
 		{
-			if (!thisPtr->DecrementIOCount(ptr))
-				goto DecRef;
+			continue;
 		}
 
 		if (retval == 0 || cbTransferred == 0)
 		{
-			if (!thisPtr->DecrementIOCount(ptr))
-				goto DecRef;
+			thisPtr->DecrementIOCount(ptr);
+			thisPtr->DecrementIOCount(ptr);
+
+			continue;
 		}
 
 		if (pOverlapped == &ptr->recvOverlapped)
@@ -254,13 +242,13 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			if (!thisPtr->RecvProc_Net(ptr, cbTransferred))
 			{
 				if (!thisPtr->DecrementIOCount(ptr))
-					goto DecRef;
+					continue;
 			}
 			
 			if (!thisPtr->SetWSARecv(ptr))
 			{
 				if (!thisPtr->DecrementIOCount(ptr))
-					goto DecRef;
+					continue;
 			}
 		}
 		else
@@ -279,7 +267,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 				{
 					InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 					if (!thisPtr->DecrementIOCount(ptr))
-						goto DecRef;
+						continue;
 				}
 			}
 			else
@@ -287,7 +275,23 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 				// 한 번 더 실제로 head가 비었는지 체크
 				if (ptr->sendBuf->Empty())
 				{
-					InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
+					// 내가 SendFlag를 바꿨다. 당연한거긴함
+					if (InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE) == TRUE)
+					{
+						if (!ptr->sendBuf->Empty())
+						{
+							if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+							{
+								if (!thisPtr->SetWSASend(ptr))
+								{
+									InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+
+									if (!thisPtr->DecrementIOCount(ptr))
+										continue;
+								}
+							}
+						}
+					}
 				}
 				else
 				{
@@ -300,7 +304,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 					{
 						InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 						if (!thisPtr->DecrementIOCount(ptr))
-							goto DecRef;
+							continue;
 					}
 				}
 			}
@@ -308,7 +312,6 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 
 		// 완료 통지에 대한 IO차감
 		thisPtr->DecrementIOCount(ptr);
-	DecRef:
 		// 여긴 세션 참조에 대한 IO차감
 		thisPtr->DecrementIOCount(ptr);
 	}
@@ -325,7 +328,7 @@ void CNetServer::InitializeSessions(ULONG maxConnection)
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(15000);
 
-		_emptyIndexStack.push(i);
+		_emptyIndexStack->push(i);
 	}
 }
 
@@ -609,7 +612,7 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 
 	ptr->dwIOCount = 0;
 	closesocket(ptr->sock);
-	_emptyIndexStack.push(idx);
+	_emptyIndexStack->push(idx);
 
 	// 인덱스를 아직 ID에 넣지 않음
 	InterlockedDecrement((LONG*)&_iSessionCount);

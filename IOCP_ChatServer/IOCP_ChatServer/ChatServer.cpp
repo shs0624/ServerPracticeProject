@@ -1,13 +1,7 @@
 #pragma once
-#include <process.h>
-#include <winsock2.h>
-#include <Windows.h>
-#include "RefCountPointer.h"
-#include "LockFreeQueue.h"
+#include "Includes.h"
 #include "NetServer.h"
 #include "ChatServer.h"
-#include "ProcademyProfiler.h"
-#include <conio.h>
 #include "CommonProtocol.h"
 
 int main()
@@ -44,7 +38,7 @@ void ChatServer::OnRelease(ULONGLONG SessionID)
 
 void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
 {
-	_MessageQueue->Enqueue(cPacket);
+	_MessageQ->Enqueue(cPacket);
 }
 
 void ChatServer::OnError(int errorcode, WCHAR* message)
@@ -54,11 +48,11 @@ void ChatServer::OnError(int errorcode, WCHAR* message)
 
 void ChatServer::MessageProc()
 {
-	int loopCnt = _MessageQueue->Size();
+	int loopCnt = _MessageQ->Size();
 	for (int i = 0; i < loopCnt; i++)
 	{
 		RefCountPointer cPacket;
-		if (!_MessageQueue->Dequeue(cPacket))
+		if (!_MessageQ->Dequeue(cPacket))
 		{
 			DebugBreak();
 		}
@@ -87,12 +81,22 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 {
 	ChatServer* thisPtr = (ChatServer*)arg;
 
+	HANDLE hHandleArr[3] = { thisPtr->_hQuitEvent, thisPtr->_hMessageQueueEvent, thisPtr->_hTimeoutEvent};
+
+	DWORD ret = 0;
 	while (1)
 	{
-		while (thisPtr->Skip())
+		// 프레임은 없어야 한다. 일이 있을때만 꺠어나서, 메세지를 처리해야 한다.
+		ret = WaitForMultipleObjects(3, hHandleArr, FALSE, INFINITE);
+		if (ret == WAIT_OBJECT_0)
 		{
-			thisPtr->Update();
+			// 서버 종료
 		}
+		else if (ret == _hMessageQueueEvent)
+		{
+
+		}
+		// 그 외에는 메세지가 있어서 깨어난거임.
 
 		// 메세지 큐에서 Dequeue후 작업
 		thisPtr->MessageProc();

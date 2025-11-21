@@ -142,8 +142,10 @@
     <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="CSerializationBuffer.h" />
     <ClInclude Include="DebugLog.h" />
+    <ClInclude Include="Includes.h" />
     <ClInclude Include="LockFreeQueue.h" />
     <ClInclude Include="LockFreeStack_Re.h" />
+    <ClInclude Include="MessageDefine.h" />
     <ClInclude Include="NetServer.h" />
     <ClInclude Include="ProcademyProfiler.h" />
     <ClInclude Include="RefCountPointer.h" />

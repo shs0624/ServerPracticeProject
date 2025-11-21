@@ -34,7 +34,7 @@ void CPacket::Initialize(int iBufferSize, int iHeaderSize = 0)
 #pragma warning(disable:26495)
 CPacket::CPacket()
 {
-	
+
 }
 #pragma warning(default:26495)
 
@@ -46,7 +46,8 @@ void CPacket::SetCheckSum()
 	unsigned long sum = 0;
 	while (payloadPtr != tailPtr)
 	{
-		sum += (unsigned char)*(_iBuffer + _iHeaderSize) + 1;
+		//sum += (unsigned char)*(_iBuffer + _iHeaderSize) + 1;
+		sum += (unsigned char)*payloadPtr;
 		payloadPtr++;
 	}
 
@@ -62,7 +63,7 @@ unsigned char CPacket::GetCheckSum()
 	unsigned long sum = 0;
 	while (payloadPtr != tailPtr)
 	{
-		sum += (unsigned char)*(_iBuffer + _iHeaderSize) + 1;
+		sum += (unsigned char)*payloadPtr;
 		payloadPtr++;
 	}
 

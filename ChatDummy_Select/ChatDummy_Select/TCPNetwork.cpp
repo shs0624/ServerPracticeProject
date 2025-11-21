@@ -264,12 +264,12 @@ void TCPNetworkController::netProc_Recv(SOCKET socket)
 		(*csPacket)->MoveReadPos(sizeof(st_NetHeader));
 
 		//@@TODO : 인코딩 잠시 비활성화
-		//if (!(*csPacket)->Decode(FIXED_KEY, header.RandKey))
-		//{
-		//	InterlockedIncrement(&LogController::_LogController._dwResponseFailCount);
-		//	(*csPacket)->Clear();
-		//	continue;
-		//}
+		if (!(*csPacket)->Decode(FIXED_KEY, header.RandKey))
+		{
+			InterlockedIncrement(&LogController::_LogController._dwResponseFailCount);
+			(*csPacket)->Clear();
+			continue;
+		}
 
 		_dummyHandler->OnRecv(pSession->sessionID, csPacket);
 		(*csPacket)->Clear();
@@ -377,9 +377,8 @@ void TCPNetworkController::SendPacket(DWORD sessionID, RefCountPointer& cPacket,
 	
 	//@@TODO : 인코딩 잠시 비활성화
 	// 여기서 체크섬까지 다 넣고 인코딩해줌
-	//(*cPacket)->Encode(FIXED_KEY);	
 	(*cPacket)->PushHeader((char*)&header, sizeof(st_NetHeader));
-	(*cPacket)->SetCheckSum();
+	(*cPacket)->Encode(FIXED_KEY);
 
 	for (int i = 0; i < repeat; i++)
 	{

@@ -1,6 +1,8 @@
 #pragma once
 #define dfSECTOR_MAX_Y 32
 #define dfSECTOR_MAX_X 32
+#define dfTIMEOUT_SESSION 3000
+#define dfTIMEOUT_USER 40000
 
 struct st_CHARACTER
 {
@@ -49,7 +51,7 @@ public:
 	virtual void OnError(int errorcode, WCHAR* message);
 private:
 	// time 측정을 위한 Update
-	void Update();
+	void TimeCheck();
 
 	// 프레임 스킵 함수
 	bool Skip();
@@ -67,10 +69,12 @@ private:
 	HANDLE _ContentsThreadHandle;
 	unsigned int _ContentsThreadID;
 
+	HANDLE _hQuitEvent;
+	HANDLE _hTimeoutEvent;
 	HANDLE _hMessageQueueEvent;
-	LockFreeQueue<RefCountPointer>* _MessageQueue;
+	LockFreeQueue<RefCountPointer>* _MessageQ;
 
-
+	std::queue<st_CHARACTER*> _TimeoutQ;
 
 	// 섹터 관리
 	vector<st_CHARACTER*> m_Sector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];

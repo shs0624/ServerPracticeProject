@@ -1,9 +1,4 @@
 #pragma once
-#include "CSerializationBuffer.h"
-#include "RefCountPointer.h"
-#include "CRingBuffer.h"
-#include "LockFreeQueue.h"
-#include "LockFreeStack_Re.h"
 #define PROTOCOL_MAX_SIZE 156
 #define SERVERPORT	6000
 #define PROTOCOL_SIZE 10
@@ -40,6 +35,8 @@ struct st_Session
 class CNetServer
 {
 public:
+	CNetServer() {};
+
 	bool StartNetServer(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection);
 	virtual void QuitServer();
 
@@ -75,7 +72,7 @@ protected:
 	ULONG _threadID = 1;
 	st_Session* _sessionArr;
 
-	LockFreeStack<ULONGLONG> _emptyIndexStack;
+	LockFreeStack<ULONGLONG>* _emptyIndexStack;
 
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);

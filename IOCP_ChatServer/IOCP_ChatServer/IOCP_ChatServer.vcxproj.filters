@@ -95,5 +95,11 @@
     <ClInclude Include="ChatServer.h">
       <Filter>ChatServer</Filter>
     </ClInclude>
+    <ClInclude Include="MessageDefine.h">
+      <Filter>NetServer</Filter>
+    </ClInclude>
+    <ClInclude Include="Includes.h">
+      <Filter>NetServer</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
