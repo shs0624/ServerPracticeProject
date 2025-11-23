@@ -1,15 +1,18 @@
 #pragma once
 #pragma comment(lib,"ws2_32")
+#pragma comment(lib,"winmm.lib")
 #include <iostream>
 #include <process.h>
 #include <winsock2.h>
 #include <Windows.h>
 #include <crtdbg.h>
 #include <minidumpapiset.h>
+#include <unordered_map>
 #include <vector>
 #include <queue>
 #include <conio.h>
 
+#include "CFreeList.h"
 #include "ProcademyProfiler.h"
 #include "CSerializationBuffer.h"
 #include "RefCountPointer.h"

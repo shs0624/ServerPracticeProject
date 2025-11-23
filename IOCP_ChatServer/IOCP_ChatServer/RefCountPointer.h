@@ -87,9 +87,6 @@ public:
 
 		InterlockedIncrement((LONG*)_iRefCount);
 	}*/
-private:
-	CPacket* ptr;
-	long* _iRefCount;
 
 	void IncRefCount()
 	{
@@ -111,6 +108,31 @@ private:
 		/*if (*_iRefCount < 0)
 			DebugBreak();*/
 	}
+
+private:
+	CPacket* ptr;
+	long* _iRefCount;
+
+	//void IncRefCount()
+	//{
+	//	InterlockedIncrement((LONG*)_iRefCount);
+	//}
+
+	//void DecRefCount()
+	//{
+	//	if (*_iRefCount < 0)
+	//		DebugBreak();
+
+	//	if (InterlockedDecrement((LONG*)_iRefCount) == 0)
+	//	{
+	//		//Profiler("Free");
+	//		delete(_iRefCount);
+	//		CPacket::_CPacketPool.Free(ptr);
+	//	}
+
+	//	/*if (*_iRefCount < 0)
+	//		DebugBreak();*/
+	//}
 
 	friend class CNetServer;
 };

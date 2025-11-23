@@ -3,9 +3,13 @@
 #include "NetServer.h"
 #include "ChatServer.h"
 #include "CommonProtocol.h"
+#include "CFreeList.h"
+#include "LogManager.h"
 
 int main()
 {
+	LogController::_LogController.Init();
+
 	ChatServer* _chatServer = new ChatServer(INADDR_ANY, SERVERPORT, true, 500);
 
 	char ch;
@@ -28,53 +32,54 @@ int main()
 
 bool ChatServer::OnAccept(ULONGLONG SessionID)
 {
+	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
+	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
+
+	WORD workType = en_WORK_ACCEPT;
+	(*cPacket)->PutData((char*)&workType, sizeof(workType));
+	(*cPacket)->PutData((char*)&SessionID, sizeof(ULONGLONG));
+
+	// 세션 Accept
+	_MessageQ->Enqueue(cPacket);
 	return true;
 }
 
 void ChatServer::OnRelease(ULONGLONG SessionID)
 {
+	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
+	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
 
+	WORD workType = en_WORK_RELEASE;
+	(*cPacket)->PutData((char*)&workType, sizeof(workType));
+	(*cPacket)->PutData((char*)&SessionID, sizeof(ULONGLONG));
+
+	// 세션 Release
+	_MessageQ->Enqueue(cPacket);
 }
 
 void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
 {
-	_MessageQ->Enqueue(cPacket);
+	RefCountPointer contentsPacket = RefCountPointer::MakeSharedPtr();
+	(*contentsPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
+	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
+
+	WORD workType = en_WORK_PACKET;
+	(*contentsPacket)->PutData((char*)&workType, sizeof(workType));
+	(*contentsPacket)->PutData((char*)&SessionID, sizeof(SessionID));
+	(*contentsPacket)->PutData((char*)(*cPacket)->GetHeadPtr(), (*cPacket)->GetDataSize());
+
+	cPacket.DecRefCount();
+	InterlockedDecrement(&LogController::_LogController._dwPacketPoolUse);
+
+	_MessageQ->Enqueue(contentsPacket);
+	SetEvent(_hMessageQueueEvent);
 }
 
 void ChatServer::OnError(int errorcode, WCHAR* message)
 {
 
-}
-
-void ChatServer::MessageProc()
-{
-	int loopCnt = _MessageQ->Size();
-	for (int i = 0; i < loopCnt; i++)
-	{
-		RefCountPointer cPacket;
-		if (!_MessageQ->Dequeue(cPacket))
-		{
-			DebugBreak();
-		}
-
-		// 메세지가 끊어진 유저의 것인지 체크 필요
-
-		WORD type;
-		(**cPacket) >> type;
-
-		// enum에 따라 다른 메세지 처리 ... 추가 예정
-		switch ((en_PACKET_TYPE)type)
-		{
-		case en_PACKET_CS_CHAT_REQ_LOGIN:
-			break;
-		case en_PACKET_CS_CHAT_REQ_SECTOR_MOVE:
-			break;
-		case en_PACKET_CS_CHAT_REQ_MESSAGE:
-			break;
-		case en_PACKET_CS_CHAT_REQ_HEARTBEAT:
-			break;
-		}
-	}
 }
 
 unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
@@ -86,25 +91,22 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 	DWORD ret = 0;
 	while (1)
 	{
+		LogController::_LogController._dwUpdateTPS++;
+
+		DWORD sleepTime = dfSLEEPTIME;
+
+		// 메세지 큐에서 Dequeue후 작업
+		thisPtr->MessageProc();
+
+		thisPtr->TimeCheck(sleepTime);
+
 		// 프레임은 없어야 한다. 일이 있을때만 꺠어나서, 메세지를 처리해야 한다.
 		ret = WaitForMultipleObjects(3, hHandleArr, FALSE, INFINITE);
 		if (ret == WAIT_OBJECT_0)
 		{
 			// 서버 종료
-		}
-		else if (ret == WAIT_OBJECT_0 + 1)
-		{
-			thisPtr->MessageProc();
-		}
-		else
-		{
-			//타임아웃 관리
+			return 0;
 		}
 		// 그 외에는 메세지가 있어서 깨어난거임.
-
-		// 메세지 큐에서 Dequeue후 작업
-		thisPtr->MessageProc();
-
-		thisPtr->DisconnectDeletedSession();
 	}
 }

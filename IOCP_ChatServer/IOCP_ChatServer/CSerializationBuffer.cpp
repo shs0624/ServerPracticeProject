@@ -2,7 +2,7 @@
 
 //procademy::CMemoryPool_LockFree<CPacket> CPacket::_CPacketPool(0, true, false);
 //TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 5, 5, true, false);
-procademy::MemoryPool_TLS<CPacket> CPacket::_CPacketPool(500, true);
+procademy::MemoryPool_TLS<CPacket> CPacket::_CPacketPool(5000, true);
 DWORD CPacket::_iLogFreeIdx;
 LPVOID CPacket::_freeLog[CPACKET_LOGSIZE];
 DWORD CPacket::_iLogAllocIdx;
@@ -71,9 +71,8 @@ unsigned char CPacket::GetCheckSum()
 	return checkSum;
 }
 
-void CPacket::Encode(unsigned char K)
+void CPacket::Encode(unsigned char K, unsigned char RK)
 {
-	unsigned char RK = rand();
 	SetCheckSum();
 
 	unsigned char* cursorPtr = (unsigned char*)GetCheckSumPtr();
@@ -124,7 +123,7 @@ bool CPacket::Decode(unsigned char K, unsigned char RK)
 	}
 
 	unsigned char checkSum = GetCheckSum();
-	if (checkSum != *GetCheckSumPtr())
+	if (checkSum != (unsigned char)*GetCheckSumPtr())
 		return false;
 
 	return true;

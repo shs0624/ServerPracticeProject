@@ -1,9 +1,10 @@
 #pragma once
-#define PROTOCOL_MAX_SIZE 156
-#define SERVERPORT	6000
+#define PROTOCOL_MAX_SIZE 500
+#define SERVERPORT	10004
 #define PROTOCOL_SIZE 10
 #define PROTOCOL_NUMSIZE 8
-#define FIXED_KEY 0xa9
+#define FIXED_KEY 0x32
+#define PROGRAM_KEY 0x77
 
 #pragma pack(1)
 struct st_NetHeader
@@ -15,7 +16,7 @@ struct st_NetHeader
 };
 #pragma pack(pop)
 
-struct st_Session
+struct st_NetSession
 {
 	OVERLAPPED sendOverlapped;
 	OVERLAPPED recvOverlapped;
@@ -40,17 +41,17 @@ public:
 	bool StartNetServer(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection);
 	virtual void QuitServer();
 
-	bool DecrementIOCount(st_Session* ptr);
+	bool DecrementIOCount(st_NetSession* ptr);
 	bool Disconnect(ULONGLONG sessionID);
 
-	bool SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket);
-	bool SendPacket_MultiCast(ULONGLONG sessionID, RefCountPointer& cPacket);
+	bool SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
+	bool SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCountPointer& cPacket);
 
 	int getAcceptTPS() { return _iAcceptTPS; }
 	int getRecvMessageTPS() { return _iRecvMessageTPS; }
 	int getSendMessageTPS() { return _iSendMessageTPS; }
 
-	virtual bool OnConnectionRequest(ULONG ip, LONG port) = 0;
+	//virtual bool OnConnectionRequest(ULONG ip, LONG port) = 0;
 
 	virtual bool OnAccept(ULONGLONG sessionID) = 0;
 
@@ -70,7 +71,7 @@ protected:
 	HANDLE _hTPSUpdateEvent;
 
 	ULONG _threadID = 1;
-	st_Session* _sessionArr;
+	st_NetSession* _sessionArr;
 
 	LockFreeStack<ULONGLONG>* _emptyIndexStack;
 
@@ -79,7 +80,7 @@ protected:
 	bool Init(int maxConnection);
 
 	int FindUsableSessionIndex();
-	void FindSession(ULONGLONG sessionID, st_Session** ptr);
+	void FindSession(ULONGLONG sessionID, st_NetSession** ptr);
 
 	// 스레드 함수들
 	static unsigned int WINAPI TPSThread(LPVOID arg);
@@ -88,9 +89,9 @@ protected:
 
 	// 메세지 처리를 위한 함수
 	bool AcceptProc(CNetServer* thisPtr);
-	bool SetWSARecv(st_Session* ptr);
-	bool SetWSASend(st_Session* ptr);
-	bool RecvProc_Net(st_Session* ptr, DWORD cbTransferred);
+	bool SetWSARecv(st_NetSession* ptr);
+	bool SetWSASend(st_NetSession* ptr);
+	bool RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred);
 	void ReleaseSession(ULONGLONG ulSessionID);
 	void ResetTPS();
 };

@@ -1,7 +1,12 @@
 //#ifndef __GODDAMNBUG_ONLINE_PROTOCOL__
 //#define __GODDAMNBUG_ONLINE_PROTOCOL__
 
-
+enum en_WORK_TYPE
+{
+	en_WORK_PACKET = 0,
+	en_WORK_ACCEPT,
+	en_WORK_RELEASE
+};
 
 enum en_PACKET_TYPE
 {

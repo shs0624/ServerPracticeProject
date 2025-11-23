@@ -25,6 +25,9 @@
     <Filter Include="ChatServer">
       <UniqueIdentifier>{6680643d-ed17-41b2-918a-cb43857f2d45}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Log">
+      <UniqueIdentifier>{85330ff5-c003-4c61-b973-5f8ed23ab15c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NetServer.cpp">
@@ -50,6 +53,15 @@
     </ClCompile>
     <ClCompile Include="ChatServer_Timer.cpp">
       <Filter>ChatServer</Filter>
+    </ClCompile>
+    <ClCompile Include="ChatServer_Message.cpp">
+      <Filter>ChatServer</Filter>
+    </ClCompile>
+    <ClCompile Include="ChatServer_MakePacket.cpp">
+      <Filter>ChatServer</Filter>
+    </ClCompile>
+    <ClCompile Include="LogManager.cpp">
+      <Filter>Log</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -86,9 +98,6 @@
     <ClInclude Include="TLS_MemoryPool.h">
       <Filter>Lib</Filter>
     </ClInclude>
-    <ClInclude Include="CFreeList_LockFree.h">
-      <Filter>Lib</Filter>
-    </ClInclude>
     <ClInclude Include="CommonProtocol.h">
       <Filter>NetServer</Filter>
     </ClInclude>
@@ -100,6 +109,15 @@
     </ClInclude>
     <ClInclude Include="Includes.h">
       <Filter>NetServer</Filter>
+    </ClInclude>
+    <ClInclude Include="CFreeList.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="CFreeList_LockFree.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="LogManager.h">
+      <Filter>Log</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

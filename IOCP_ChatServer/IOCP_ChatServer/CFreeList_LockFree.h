@@ -16,8 +16,7 @@
 
 
 ----------------------------------------------------------------*/
-#ifndef  __PROCADEMY_MEMORY_POOL__
-#define  __PROCADEMY_MEMORY_POOL__
+#pragma once
 #define DEFAULTSIZE 500
 #include <new.h>
 #include <Windows.h>
@@ -268,4 +267,3 @@ namespace procademy
 		DWORD _logIdx = 0;
 	};
 }
-#endif

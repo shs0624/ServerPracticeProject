@@ -4,6 +4,7 @@
 #ifndef _CPACKET_
 #define _CPACKET_
 #include <Windows.h>
+//#include "CFreeList_LockFree.h"
 #include "TLS_MemoryPool.h"
 //#include "TLSMemoryPool.h"
 #define CPACKET_LOGSIZE 10000
@@ -54,7 +55,7 @@ public:
 	// Parameters: 고정키, 랜덤키.
 	// Return: 없음
 	//////////////////////////////////////////////////////////////////////////
-	void Encode(unsigned char K);
+	void Encode(unsigned char K, unsigned char RK);
 
 
 	//////////////////////////////////////////////////////////////////////////
@@ -152,6 +153,17 @@ public:
 		return *this;
 	}
 
+	/*CPacket& operator << (const WORD dwValue)
+	{
+		if (_tail + sizeof(WORD) > _iBufferSize)
+			return *this;
+
+		*(int*)(_iBuffer + _tail) = dwValue;
+		_tail += sizeof(WORD);
+		_iDataSize += sizeof(WORD);
+		return *this;
+	}*/
+
 	CPacket& operator << (const DWORD dwValue)
 	{
 		if (_tail + sizeof(DWORD) > _iBufferSize)
@@ -162,6 +174,7 @@ public:
 		_iDataSize += sizeof(DWORD);
 		return *this;
 	}
+
 	CPacket& operator << (const int iValue)
 	{
 		if (_tail + sizeof(int) > _iBufferSize)
@@ -214,6 +227,16 @@ public:
 		return *this;
 	}
 
+	CPacket& operator << (const ULONGLONG dValue)
+	{
+		if (_tail + sizeof(ULONGLONG) > _iBufferSize)
+			return *this;
+
+		*((ULONGLONG*)(_iBuffer + _tail)) = dValue;
+		_tail += sizeof(ULONGLONG);
+		_iDataSize += sizeof(ULONGLONG);
+		return *this;
+	}
 
 	//////////////////////////////////////////////////////////////////////////
 	// 빼기.	각 변수 타입마다 모두 만듬.
@@ -318,6 +341,18 @@ public:
 
 		_iDataSize -= sizeof(double);
 		_head += sizeof(double);
+		return *this;
+	}
+
+	CPacket& operator >> (ULONGLONG& dValue)
+	{
+		if (_iDataSize < sizeof(ULONGLONG))
+			return *this;
+
+		dValue = *((ULONGLONG*)(_iBuffer + _head));
+
+		_iDataSize -= sizeof(ULONGLONG);
+		_head += sizeof(ULONGLONG);
 		return *this;
 	}
 
