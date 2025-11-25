@@ -15,6 +15,7 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 		{
 			Disconnect(pSession->ulSessionID);
 			LogController::_LogController._dwTimeoutSessionTotal++;
+			continue;
 		}
 
 		if (timeDiff < sleepTime)
@@ -30,6 +31,7 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 		{
 			Disconnect(pUser->ulSessionID);
 			LogController::_LogController._dwTimeoutUserTotal++;
+			continue;
 		}
 
 		if (timeDiff < sleepTime)

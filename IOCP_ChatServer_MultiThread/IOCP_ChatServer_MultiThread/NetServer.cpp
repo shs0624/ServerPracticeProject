@@ -11,9 +11,6 @@ HANDLE _acceptThreadHandle;
 HANDLE _NetIOCPHandle;
 HANDLE _NetIOCPWorkerThreadHandleArr[50];
 
-HANDLE _EchoIOCPHandle;
-HANDLE _EchoIOCPWorkerHandle;
-
 DWORD _threadID = 0;
 DWORD _logID = 0;
 
@@ -273,7 +270,6 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			for (int i = 0; i < cnt; i++)
 			{
 				ptr->cPacketArr[i].DecRefCount();
-				InterlockedDecrement(&LogController::_LogController._dwPacketPoolUse);
 			}
 			ptr->dwSendCount = 0;
 
@@ -365,14 +361,6 @@ bool CNetServer::Init(int maxConnection)
 	_NetIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrentThread);
 	if (_NetIOCPHandle == NULL) return false;
 
-	_EchoIOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
-	if (_EchoIOCPHandle == NULL) return false;
-
-	/*_hTPSUpdateEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	_tpsThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TPSThread, this, 0, &_acceptThreadID);
-	if (_tpsThreadHandle == NULL)
-		return false;*/
-
 	_acceptThreadHandle = (HANDLE)_beginthreadex(NULL, 0, AcceptThread, this, 0, &_acceptThreadID);
 	if (_acceptThreadHandle == NULL)
 		return false;
@@ -415,9 +403,11 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			int peekRet = ptr->recvBuf->Peek((char*)(*csPacket)->GetBufferPtr(), sizeof(st_NetHeader));
 			if (peekRet != sizeof(st_NetHeader))
 			{
-				DebugBreak();
+				/*DebugBreak();
 				Disconnect(ptr->ulSessionID);
-				return false;
+				return false;*/
+				csPacket.DecRefCount();
+				break;
 			}
 			(*csPacket)->MoveWritePos(sizeof(st_NetHeader));
 
@@ -425,9 +415,11 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
 			if (useSize < sizeof(st_NetHeader) + len)
 			{
-				DebugBreak();
-				Disconnect(ptr->ulSessionID);
-				return false;
+				//DebugBreak();
+				//Disconnect(ptr->ulSessionID);
+				//return false;
+				csPacket.DecRefCount();
+				break;
 			}
 
 			ptr->recvBuf->MoveFront(sizeof(st_NetHeader));

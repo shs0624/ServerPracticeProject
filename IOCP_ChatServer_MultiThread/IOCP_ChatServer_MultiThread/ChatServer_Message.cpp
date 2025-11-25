@@ -5,135 +5,20 @@
 #include "CommonProtocol.h"
 #include "LogManager.h"
 
-void ChatServer::MessageProc()
-{
-	int loopCnt = _MessageQ->Size();
-	for (int i = 0; i < loopCnt; i++)
-	{
-		RefCountPointer cPacket;
-		_MessageQ->Dequeue(cPacket);
-
-		WORD workType;
-		(**cPacket) >> workType;
-		
-		if (workType == en_WORK_PACKET)
-		{
-			PacketProc(cPacket);
-		}
-		else
-		{
-			WorkProc(cPacket, workType);
-		}
-	}
-
-	int leftCnt = _MessageQ->Size();
-	LogController::_LogController._dwUpdateQSize = leftCnt;
-}
-
-void ChatServer::WorkProc(RefCountPointer& cPacket, WORD workType)
-{
-	ULONGLONG sessionID;
-	(**cPacket) >> sessionID;
-
-	if (workType == en_WORK_ACCEPT)
-	{
-		st_SESSION* pSession = _SessionPool->Alloc();
-
-		pSession->ulSessionID = sessionID;
-		pSession->bDeleted = FALSE;
-		pSession->dwLastRecvTime = timeGetTime();
-
-		_SessionMap.insert({ sessionID, pSession });
-		LogController::_LogController._dwSessionCount++;
-	}
-	else // en_WORK_RELEASE
-	{
-		auto itUser = _UserMap.find(sessionID);
-		if (itUser != _UserMap.end())
-		{
-			st_USER* pUser = (*itUser).second;
-
-			vector<st_USER*>& refSectorVector = _SectorVector[pUser->sectorY][pUser->sectorX];
-			for (int i = 0; i < refSectorVector.size(); i++)
-			{
-				if (refSectorVector[i]->ulSessionID == pUser->ulSessionID)
-				{
-					refSectorVector.erase(refSectorVector.begin() + i);
-					break;
-				}
-			}
-
-			_UserMap.erase(sessionID);
-			_UserPool->Free(pUser);
-
-			LogController::_LogController._dwUserCount--;
-			LogController::_LogController._dwPlayerPoolUse--;
-		}
-
-		auto itSession = _SessionMap.find(sessionID);
-		if (itSession != _SessionMap.end())
-		{
-			st_SESSION* pSession = (*itSession).second;
-
-			_SessionMap.erase(sessionID);
-			_SessionPool->Free(pSession);
-
-			LogController::_LogController._dwSessionCount--;
-		}
-	}
-
-	cPacket.DecRefCount();
-}
-
-
-void ChatServer::PacketProc(RefCountPointer& cPacket)
-{
-	ULONGLONG sessionID;
-	(**cPacket) >> sessionID;
-
-	WORD type;
-	(**cPacket) >> type;
-
-	INT64 AccountNo;
-	(**cPacket) >> AccountNo;
-
-
-	// enum에 따라 다른 메세지 처리 ... 추가 예정
-	switch ((en_PACKET_TYPE)type)
-	{
-	case en_PACKET_CS_CHAT_REQ_LOGIN:
-		MessageProc_Login(cPacket, AccountNo, sessionID);
-		break;
-	case en_PACKET_CS_CHAT_REQ_SECTOR_MOVE:
-		MessageProc_Move(cPacket, AccountNo, sessionID);
-		break;
-	case en_PACKET_CS_CHAT_REQ_MESSAGE:
-		MessageProc_Message(cPacket, AccountNo, sessionID);
-		break;
-	default:
-		cPacket.DecRefCount();
-		break;
-	}
-
-	// @@TODO : 없으면, 이상한건데 그거에 대한 처리
-	// unordered_map<INT64, st_CHARACTER*>::iterator
-	auto it = _UserMap.find(sessionID);
-	if (it == _UserMap.end())
-		DebugBreak();
-
-	(*it).second->dwLastRecvTime = timeGetTime();
-}
-
 void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
 {
 	BYTE status = TRUE;
+	AcquireSRWLockShared(&_UserMapLock);
 	auto it = _UserMap.find(sessionID);
 	if (it != _UserMap.end())
 	{
 		// @@TODO : 중복 로그인이니 둘 다 끊어야 한다.
+		ReleaseSRWLockShared(&_UserMapLock);
 		DebugBreak();
 		status = FALSE;
+		return;
 	}
+	ReleaseSRWLockShared(&_UserMapLock);
 
 	st_USER* userPtr = _UserPool->Alloc();
 	LogController::_LogController._dwPlayerPoolUse++;
@@ -148,14 +33,20 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	(*cPacket)->GetData((char*)userPtr->NickName, sizeof(userPtr->NickName));
 	(*cPacket)->GetData((char*)userPtr->SessionKey, sizeof(userPtr->SessionKey));
 
+	AcquireSRWLockExclusive(&_SessionMapLock);
 	auto itSession = _SessionMap.find(sessionID);
 	if (itSession != _SessionMap.end())
 	{
+		st_SESSION* ptr = (*itSession).second;
+
 		_SessionMap.erase(userPtr->ulSessionID);
-		_SessionPool->Free((*itSession).second);
+		_SessionPool->Free(ptr);
 	}
-	
+	ReleaseSRWLockExclusive(&_SessionMapLock);
+
+	AcquireSRWLockExclusive(&_UserMapLock);
 	_UserMap.insert({ userPtr->ulSessionID, userPtr });
+	ReleaseSRWLockExclusive(&_UserMapLock);
 
 	LogController::_LogController._dwSessionCount--;
 	LogController::_LogController._dwUserCount++;
@@ -166,6 +57,7 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 
 	RefCountPointer sendPacket = RefCountPointer::MakeSharedPtr();
 	(*sendPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
+	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
 
 	mpRESLogin(sendPacket, status, accountNum);
 
@@ -174,7 +66,10 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 
 void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
 {
+	AcquireSRWLockShared(&_UserMapLock);
 	auto it = _UserMap.find(sessionID);
+	ReleaseSRWLockShared(&_UserMapLock);
+
 	if (it == _UserMap.end())
 	{
 		// @@TODO : 없는 유저에 대한 메세지. 오류 로그를 남겨야 할듯
@@ -192,6 +87,8 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 
 	// 기존 벡터에서 삭제
 	vector<st_USER*>& refSectorVector = _SectorVector[sectorY][sectorX];
+
+	AcquireSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
 		if (refSectorVector[i]->AccountNum == (*it).second->AccountNum)
@@ -200,12 +97,16 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 			break;
 		}
 	}
+	ReleaseSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
 
 	(*it).second->sectorX = nSectorX;
 	(*it).second->sectorY = nSectorY;
 
-	// 추가
+	// @@TODO : 추가는 락이 필요할까?
+	AcquireSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
 	_SectorVector[nSectorY][nSectorX].push_back((*it).second);
+	ReleaseSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
+
 	if ((*it).second->bBatched == FALSE)
 		(*it).second->bBatched = TRUE;
 
@@ -216,6 +117,7 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 
 	RefCountPointer sendPacket = RefCountPointer::MakeSharedPtr();
 	(*sendPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
+	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
 
 	mpRESSectorMove(sendPacket, accountNum, nSectorX, nSectorY);
 
@@ -227,7 +129,10 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 	//@@TODO : 평균적인 수치 알아내서 크기 줄이기
 	ULONGLONG sessionIDArray[4000];
 
+	AcquireSRWLockShared(&_UserMapLock);
 	auto it = _UserMap.find(sessionID);
+	ReleaseSRWLockShared(&_UserMapLock);
+
 	if (it == _UserMap.end())
 	{
 		// @@TODO : 없는 유저에 대한 메세지. 오류 로그를 남겨야 할듯
@@ -281,6 +186,8 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 
 	RefCountPointer sendPacket = RefCountPointer::MakeSharedPtr();
 	(*sendPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
+	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
+
 	mpRESMessage(sendPacket, accountNum, id, nick, len, message);
 
 	SendPacket_MultiCast(sessionIDArray, idx, sendPacket);

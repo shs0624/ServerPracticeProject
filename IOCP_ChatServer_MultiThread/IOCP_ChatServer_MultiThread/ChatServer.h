@@ -1,7 +1,7 @@
 #pragma once
 #define dfSECTOR_MAX_Y 50
 #define dfSECTOR_MAX_X 50
-#define dfSLEEPTIME 500
+#define dfSLEEPTIME 1000
 #define dfTIMEOUT_SESSION 5000
 #define dfTIMEOUT_USER 40000
 
@@ -44,6 +44,8 @@ public:
 
 	ChatServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
 	{
+		InitChatServer();
+
 		SYSTEM_INFO si;
 		GetSystemInfo(&si);
 
@@ -54,9 +56,6 @@ public:
 
 		_UserPool = new procademy::CMemoryPool<st_USER>(10000, false, false);
 		_SessionPool = new procademy::CMemoryPool<st_SESSION>(12000, false, false);
-		_MessageQ = new LockFreeQueue<RefCountPointer>();
-
-		_ContentsThreadHandle = (HANDLE)_beginthreadex(NULL, 0, ContentsThread, this, 0, &_ContentsThreadID);
 	}
 
 	void QuitServer() override
@@ -66,9 +65,9 @@ public:
 	}
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port);
-	virtual bool OnAccept(ULONGLONG SessionID);
-	virtual void OnRelease(ULONGLONG SessionID);
-	virtual void OnRecv(ULONGLONG SessionID, RefCountPointer& cpacket);
+	virtual bool OnAccept(ULONGLONG sessionID);
+	virtual void OnRelease(ULONGLONG sessionID);
+	virtual void OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket);
 	virtual void OnError(int errorcode, WCHAR* message);
 private:
 	void InitChatServer();
@@ -79,8 +78,6 @@ private:
 	bool Skip();
 
 	void PacketProc(RefCountPointer& cPacket);
-
-	void WorkProc(RefCountPointer& cPacket, WORD workType);
 
 	void MessageProc();
 
@@ -98,28 +95,31 @@ private:
 
 	void DisconnectDeletedSession();
 
+	static unsigned int WINAPI TimerThread(LPVOID arg);
+
 	//void MoveSector(ULONGLONG ulSessionID);
 
 	//void SendAroundSector(ULONGLONG ulSessionID, RefCountPointer& cpacket);
 
-	static unsigned int WINAPI ContentsThread(LPVOID arg);
-
 	procademy::CMemoryPool<st_USER>* _UserPool;
 	procademy::CMemoryPool<st_SESSION>* _SessionPool;
 	
-	HANDLE _ContentsThreadHandle;
-	unsigned int _ContentsThreadID;
-
 	HANDLE _hQuitEvent;
 	HANDLE _hTimeoutEvent;
 	HANDLE _hMessageQueueEvent;
-	LockFreeQueue<RefCountPointer>* _MessageQ;
+
+	HANDLE _TimerThreadHandle;
+	unsigned int _TimerThreadID;
 
 	// AccountNum, 蜡历 备炼眉
 	unordered_map<ULONGLONG, st_USER*> _UserMap;
+	SRWLOCK _UserMapLock;
+
 	// SessionID, 技记 备炼眉
 	unordered_map<ULONGLONG, st_SESSION*> _SessionMap;
+	SRWLOCK _SessionMapLock;
 
 	// 冀磐 包府
 	vector<st_USER*> _SectorVector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
+	SRWLOCK _SectorLock[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
 };

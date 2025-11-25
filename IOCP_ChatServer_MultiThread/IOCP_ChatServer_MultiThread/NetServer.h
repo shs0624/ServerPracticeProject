@@ -53,12 +53,11 @@ public:
 	int getSendMessageTPS() { return _iSendMessageTPS; }
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port) = 0;
-
 	virtual bool OnAccept(ULONGLONG sessionID) = 0;
 
-	virtual void OnRelease(ULONGLONG SessionID) = 0;
+	virtual void OnRelease(ULONGLONG sessionID) = 0;
 
-	virtual void OnRecv(ULONGLONG SessionID, RefCountPointer& cpacket) = 0;
+	virtual void OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket) = 0;
 
 	virtual void OnError(int errorcode, WCHAR* message) = 0;
 protected:
@@ -84,7 +83,6 @@ protected:
 	void FindSession(ULONGLONG sessionID, st_NetSession** ptr);
 
 	// 스레드 함수들
-	static unsigned int WINAPI TPSThread(LPVOID arg);
 	static unsigned int WINAPI AcceptThread(LPVOID arg);
 	static unsigned int WINAPI IOCPWorkerThread(LPVOID arg);
 
@@ -94,5 +92,4 @@ protected:
 	bool SetWSASend(st_NetSession* ptr);
 	bool RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred);
 	void ReleaseSession(ULONGLONG ulSessionID);
-	void ResetTPS();
 };

@@ -10,7 +10,7 @@ int main()
 {
 	LogController::_LogController.Init();
 
-	ChatServer* _chatServer = new ChatServer(INADDR_ANY, SERVERPORT, true, 500);
+	ChatServer* _chatServer = new ChatServer(INADDR_ANY, SERVERPORT, true, 5000);
 
 	char ch;
 	while (1)
@@ -42,6 +42,7 @@ bool ChatServer::OnAccept(ULONGLONG SessionID)
 
 	// 技记 Accept
 	_MessageQ->Enqueue(cPacket);
+	SetEvent(_hMessageQueueEvent);
 	return true;
 }
 
@@ -57,6 +58,7 @@ void ChatServer::OnRelease(ULONGLONG SessionID)
 
 	// 技记 Release
 	_MessageQ->Enqueue(cPacket);
+	SetEvent(_hMessageQueueEvent);
 }
 
 void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
