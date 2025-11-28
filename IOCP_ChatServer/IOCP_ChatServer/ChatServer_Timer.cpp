@@ -14,7 +14,7 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 		if (timeDiff >= dfTIMEOUT_SESSION)
 		{
 			Disconnect(pSession->ulSessionID);
-			LogController::_LogController._dwTimeoutSessionTotal++;
+			_pLog._dwTimeoutSessionTotal++;
 			continue;
 		}
 
@@ -30,7 +30,7 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 		if (timeDiff >= dfTIMEOUT_USER)
 		{
 			Disconnect(pUser->ulSessionID);
-			LogController::_LogController._dwTimeoutUserTotal++;
+			_pLog._dwTimeoutUserTotal++;
 			continue;
 		}
 

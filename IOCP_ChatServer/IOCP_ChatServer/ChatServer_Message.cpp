@@ -14,7 +14,7 @@ void ChatServer::MessageProc()
 	{
 		RefCountPointer cPacket;
 		_MessageQ->Dequeue(cPacket);
-		InterlockedDecrement(&LogController::_LogController._dwUpdateQSize);			
+		_pLog._dwUpdateQSize--;
 
 		WORD workType;
 		(**cPacket) >> workType;
@@ -44,7 +44,7 @@ void ChatServer::WorkProc(RefCountPointer& cPacket, WORD workType)
 		pSession->dwLastRecvTime = timeGetTime();
 
 		_SessionMap.insert({ sessionID, pSession });
-		LogController::_LogController._dwSessionCount++;
+		_pLog._dwSessionCount++;
 	}
 	else // en_WORK_RELEASE
 	{
@@ -66,8 +66,8 @@ void ChatServer::WorkProc(RefCountPointer& cPacket, WORD workType)
 			_UserMap.erase(sessionID);
 			_UserPool->Free(pUser);
 
-			LogController::_LogController._dwUserCount--;
-			LogController::_LogController._dwPlayerPoolUse--;
+			_pLog._dwUserCount--;
+			_pLog._dwPlayerPoolUse--;
 		}
 
 		auto itSession = _SessionMap.find(sessionID);
@@ -78,7 +78,7 @@ void ChatServer::WorkProc(RefCountPointer& cPacket, WORD workType)
 			_SessionMap.erase(sessionID);
 			_SessionPool->Free(pSession);
 
-			LogController::_LogController._dwSessionCount--;
+			_pLog._dwSessionCount--;
 		}
 	}
 
@@ -128,7 +128,7 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	}
 
 	st_USER* userPtr = _UserPool->Alloc();
-	LogController::_LogController._dwPlayerPoolUse++;
+	_pLog._dwPlayerPoolUse++;
 	
 	userPtr->ulSessionID = sessionID;
 	userPtr->AccountNum = accountNum;
@@ -148,9 +148,9 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	
 	_UserMap.insert({ userPtr->ulSessionID, userPtr });
 
-	LogController::_LogController._dwSessionCount--;
-	LogController::_LogController._dwUserCount++;
-	LogController::_LogController._dwLoginMessageTPS++;
+	_pLog._dwSessionCount--;
+	_pLog._dwUserCount++;
+	_pLog._dwLoginMessageTPS++;
 
 	// LoginRES 보내기
 	cPacket.DecRefCount();
@@ -199,7 +199,7 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	// 추가
 	_SectorVector[nSectorY][nSectorX].push_back((*it).second);
 
-	LogController::_LogController._dwMoveMessageTPS++;
+	_pLog._dwMoveMessageTPS++;
 
 	// MoveRES 보내기
 	cPacket.DecRefCount();
@@ -273,7 +273,7 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 			}
 		}
 	}
-	LogController::_LogController._dwChatMessageTPS++;
+	_pLog._dwChatMessageTPS++;
 	sendPacket.DecRefCount();
 	//printf("\n\n--setTime : %d--refTime : %d--sendMultiTime:%d--\n\n", setTime, refCountTime, sendMultiTime);
 }

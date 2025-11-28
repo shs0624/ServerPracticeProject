@@ -131,7 +131,6 @@
     <ClCompile Include="CNetServer_Monitor.cpp" />
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
-    <ClCompile Include="LogManager.cpp" />
     <ClCompile Include="NetServer.cpp" />
     <ClCompile Include="ChatServer_Timer.cpp" />
     <ClCompile Include="ChatServer_Sector.cpp" />

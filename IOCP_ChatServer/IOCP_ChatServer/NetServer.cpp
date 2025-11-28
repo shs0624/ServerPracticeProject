@@ -26,6 +26,8 @@ unsigned int _NetIOCPWorkerThreadID[50];
 
 bool _bServerEnabled = true;
 
+thread_local stChatLog CNetServer::_pLog;
+
 // thread-safe 락프리 스택
 int CNetServer::FindUsableSessionIndex()
 {
@@ -110,6 +112,9 @@ unsigned int WINAPI CNetServer::AcceptThread(LPVOID arg)
 	SOCKET client_sock;
 	SOCKADDR_IN clientaddr;
 
+	// Accept스레드 로그 등록
+	LogController::GetInstance()->RegisterLogStruct(&_pLog);
+
 	while (1)
 	{
 		if (!_bServerEnabled)
@@ -142,8 +147,8 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 		err_display("accept()");
 		return false;
 	}
-	LogController::_LogController._dwAcceptTPS++;
-	LogController::_LogController._dwAcceptTotal++;
+	_pLog._dwAcceptTPS++;
+	_pLog._dwAcceptTotal++;
 
 	ULONGLONG idx;
 	// 비동기 입출력 시작
@@ -225,6 +230,9 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 	int retval;
 	CNetServer* thisPtr = (CNetServer*)arg;
 
+	// 내 스레드의 로그를 등록하고 시작
+	LogController::GetInstance()->RegisterLogStruct(&_pLog);
+
 	while (1)
 	{
 		DWORD cbTransferred = 0;
@@ -273,7 +281,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			for (int i = 0; i < cnt; i++)
 			{
 				ptr->cPacketArr[i].DecRefCount();
-				InterlockedDecrement(&LogController::_LogController._dwPacketPoolUse);
+				_pLog._dwPacketPoolUse--;
 			}
 			ptr->dwSendCount = 0;
 
@@ -408,7 +416,7 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 	{
 		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
 		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
-		InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
+		_pLog._dwPacketPoolUse++;
 
 		short len;
 		unsigned char RK;
@@ -460,7 +468,7 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 		// netHeader만큼 이동시키고, OnRecv
 		OnRecv(ptr->ulSessionID, csPacket);
 
-		InterlockedIncrement(&LogController::_LogController._dwRecvMessageTPS);
+		_pLog._dwRecvMessageTPS++;
 	}
 
 	return true;
@@ -534,7 +542,7 @@ bool CNetServer::PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool 
 	InterlockedIncrement(&ptr->dwIOCount);
 	PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, NULL);
 
-	InterlockedIncrement(&LogController::_LogController._dwSendMessageTPS);
+	_pLog._dwSendMessageTPS++;
 	DecrementIOCount(ptr);
 	return true;
 }
@@ -588,7 +596,7 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 		}
 	}
 
-	InterlockedIncrement(&LogController::_LogController._dwSendMessageTPS);
+	_pLog._dwSendMessageTPS++;
 	DecrementIOCount(ptr);
 	return true;
 }

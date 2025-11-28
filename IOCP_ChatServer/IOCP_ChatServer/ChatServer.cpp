@@ -8,7 +8,8 @@
 
 int main()
 {
-	LogController::_LogController.Init();
+	// 생성자 호출을 위한 GetInstance
+	LogController::GetInstance();
 
 	ChatServer* _chatServer = new ChatServer(INADDR_ANY, SERVERPORT, true, 5000);
 
@@ -34,7 +35,7 @@ bool ChatServer::OnAccept(ULONGLONG SessionID)
 {
 	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
 	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
-	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
+	_pLog._dwPacketPoolUse++;
 
 	WORD workType = en_WORK_ACCEPT;
 	(*cPacket)->PutData((char*)&workType, sizeof(workType));
@@ -43,7 +44,7 @@ bool ChatServer::OnAccept(ULONGLONG SessionID)
 	// 세션 Accept
 	_MessageQ->Enqueue(cPacket);
 	SetEvent(_hMessageQueueEvent);
-	InterlockedIncrement(&LogController::_LogController._dwUpdateQSize);
+	_pLog._dwUpdateQSize++;
 	return true;
 }
 
@@ -51,7 +52,7 @@ void ChatServer::OnRelease(ULONGLONG SessionID)
 {
 	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
 	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
-	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
+	_pLog._dwPacketPoolUse++;
 
 	WORD workType = en_WORK_RELEASE;
 	(*cPacket)->PutData((char*)&workType, sizeof(workType));
@@ -60,14 +61,14 @@ void ChatServer::OnRelease(ULONGLONG SessionID)
 	// 세션 Release
 	_MessageQ->Enqueue(cPacket);
 	SetEvent(_hMessageQueueEvent);
-	InterlockedIncrement(&LogController::_LogController._dwUpdateQSize);
+	_pLog._dwUpdateQSize++;
 }
 
 void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
 {
 	RefCountPointer contentsPacket = RefCountPointer::MakeSharedPtr();
 	(*contentsPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
-	InterlockedIncrement(&LogController::_LogController._dwPacketPoolUse);
+	_pLog._dwPacketPoolUse++;
 
 	WORD workType = en_WORK_PACKET;
 	(*contentsPacket)->PutData((char*)&workType, sizeof(workType));
@@ -75,11 +76,11 @@ void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
 	(*contentsPacket)->PutData((char*)(*cPacket)->GetHeadPtr(), (*cPacket)->GetDataSize());
 
 	cPacket.DecRefCount();
-	InterlockedDecrement(&LogController::_LogController._dwPacketPoolUse);
+	_pLog._dwPacketPoolUse--;
 
 	_MessageQ->Enqueue(contentsPacket);
 	SetEvent(_hMessageQueueEvent);
-	InterlockedIncrement(&LogController::_LogController._dwUpdateQSize);
+	_pLog._dwUpdateQSize++;
 }
 
 void ChatServer::OnError(int errorcode, WCHAR* message)
@@ -93,11 +94,14 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 
 	HANDLE hHandleArr[3] = { thisPtr->_hQuitEvent, thisPtr->_hMessageQueueEvent, thisPtr->_hTimeoutEvent};
 
+	// 컨텐츠 스레드 로그 등록
+	LogController::GetInstance()->RegisterLogStruct(&_pLog);
+
 	DWORD nowTime;
 	DWORD ret = 0;
 	while (1)
 	{
-		LogController::_LogController._dwUpdateTPS++;
+		_pLog._dwUpdateTPS++;
 
 		DWORD sleepTime = dfSLEEPTIME;
 
@@ -113,7 +117,7 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 		nowTime = timeGetTime();
 
 		ret = WaitForMultipleObjects(3, hHandleArr, FALSE, dfSLEEPTIME);
-		LogController::_LogController._dwUpdateThreadSleepTime += (timeGetTime() - nowTime);
+		_pLog._dwUpdateThreadSleepTime += (timeGetTime() - nowTime);
 
 		if (ret == WAIT_OBJECT_0)
 		{

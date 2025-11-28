@@ -60,9 +60,6 @@
     <ClCompile Include="ChatServer_MakePacket.cpp">
       <Filter>ChatServer</Filter>
     </ClCompile>
-    <ClCompile Include="LogManager.cpp">
-      <Filter>Log</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TLSMemoryPool.h">
