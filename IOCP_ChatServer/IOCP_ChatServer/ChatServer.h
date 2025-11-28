@@ -31,7 +31,6 @@ struct st_USER
 	// 타임아웃용 시간
 	DWORD dwLastRecvTime;
 	bool bDeleted;
-	bool bBatched;
 };
 
 class ChatServer : CNetServer
@@ -55,6 +54,10 @@ public:
 		_UserPool = new procademy::CMemoryPool<st_USER>(10000, false, false);
 		_SessionPool = new procademy::CMemoryPool<st_SESSION>(12000, false, false);
 		_MessageQ = new LockFreeQueue<RefCountPointer>();
+
+		_hMessageQueueEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+		_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+		_hTimeoutEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
 		_ContentsThreadHandle = (HANDLE)_beginthreadex(NULL, 0, ContentsThread, this, 0, &_ContentsThreadID);
 	}

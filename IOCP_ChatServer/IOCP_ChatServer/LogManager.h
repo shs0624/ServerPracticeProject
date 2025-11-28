@@ -15,6 +15,7 @@ public:
 	DWORD _dwAcceptTPS;
 	DWORD _dwUpdateTPS;
 	DWORD _dwUpdateQSize;
+	DWORD _dwUpdateThreadSleepTime;
 
 	DWORD _dwSessionCount;
 	DWORD _dwUserCount;

@@ -3,6 +3,7 @@
 #include "TLS_MemoryPool.h"
 //#include "CFreeList_LockFree.h"
 #define LOGARR_MAX 10000
+//#define LOGGING
 
 enum workType_Q
 {
@@ -125,13 +126,16 @@ public:
             {
                 if (InterlockedCompareExchangePointer((PVOID*)&tailPtr->next, EnqueueNode, NULL) == next)
                 {
+                    DWORD nSize = InterlockedIncrement(&_size);
+#ifdef LOGGING
                     DWORD logIdx = InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
                     _workArr[logIdx].type = workType_Q::Enqueue;
                     _workArr[logIdx].pNode = EnqueueNode;
                     _workArr[logIdx].head = _head;
                     _workArr[logIdx].tail = _tail;
-                    _workArr[logIdx]._dwsize = InterlockedIncrement(&_size);
+                    _workArr[logIdx]._dwsize = nSize;
                     _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
+#endif
 
                     InterlockedCompareExchangePointer((PVOID*)&_tail, EnqueueNode, tail);
                     break;
@@ -153,7 +157,7 @@ public:
             st_Node* next = headPtr->next;
 
             // 데이터 미리 뽑아두기
-           /* if(next != NULL)
+            /*if(next != NULL)
                 localData = ((st_Node*)(0x00007fffffffffff & (ULONGLONG)next))->data;*/
 
             if (next == NULL)
@@ -172,13 +176,16 @@ public:
                 st_Node* localNode = (st_Node*)(0x00007fffffffffff & (ULONGLONG)next);
                 localData = localNode->data;
 
+                DWORD nSize = InterlockedDecrement(&_size);
+#ifdef LOGGING
                 DWORD logIdx = InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
                 _workArr[logIdx].type = workType_Q::Dequeue;
                 _workArr[logIdx].pNode = head;
                 _workArr[logIdx].head = _head;
                 _workArr[logIdx].tail = _tail;
-                _workArr[logIdx]._dwsize = InterlockedDecrement(&_size);
+                _workArr[logIdx]._dwsize = nSize;
                 _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
+#endif
 
                 t = localData;
 

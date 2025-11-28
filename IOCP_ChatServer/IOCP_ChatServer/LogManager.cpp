@@ -24,6 +24,7 @@ unsigned int WINAPI LogController::LogingThread(LPVOID arg)
 		// TPS ÃÊ±âÈ­
 		thisPtr->_dwAcceptTPS = 0;
 		thisPtr->_dwUpdateTPS = 0;
+		thisPtr->_dwUpdateThreadSleepTime = 0;
 
 		thisPtr->_dwChatMessageTPS = 0;
 		thisPtr->_dwLoginMessageTPS = 0;
@@ -47,6 +48,7 @@ void LogController::PrintLog()
 	printf("==============================================================================\n");
 	printf("%-25s%5d\n", "Update TPS :", _dwUpdateTPS);
 	printf("%-25s%5d\n", "Update Q Size :", _dwUpdateQSize);
+	printf("%-25s%5d\n", "Update Thread SleepTime :", _dwUpdateThreadSleepTime);
 	printf("%-25s%5d\n", "Accept TPS : ", _dwAcceptTPS);
 	printf("%-25s%5d\n", "RecvPacket TPS : ", _dwRecvMessageTPS);
 	printf("%-25s%5d\n", "SendPacket TPS : ", _dwSendMessageTPS);

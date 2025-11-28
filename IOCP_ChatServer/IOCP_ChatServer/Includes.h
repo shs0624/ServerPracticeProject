@@ -25,5 +25,5 @@
 
 
 
-#define IOCP_THREADCOUNT 5
+#define IOCP_THREADCOUNT 10
 #define LOGCOUNT 10000

@@ -43,6 +43,7 @@ bool ChatServer::OnAccept(ULONGLONG SessionID)
 	// 세션 Accept
 	_MessageQ->Enqueue(cPacket);
 	SetEvent(_hMessageQueueEvent);
+	InterlockedIncrement(&LogController::_LogController._dwUpdateQSize);
 	return true;
 }
 
@@ -59,6 +60,7 @@ void ChatServer::OnRelease(ULONGLONG SessionID)
 	// 세션 Release
 	_MessageQ->Enqueue(cPacket);
 	SetEvent(_hMessageQueueEvent);
+	InterlockedIncrement(&LogController::_LogController._dwUpdateQSize);
 }
 
 void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
@@ -77,6 +79,7 @@ void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
 
 	_MessageQ->Enqueue(contentsPacket);
 	SetEvent(_hMessageQueueEvent);
+	InterlockedIncrement(&LogController::_LogController._dwUpdateQSize);
 }
 
 void ChatServer::OnError(int errorcode, WCHAR* message)
@@ -90,6 +93,7 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 
 	HANDLE hHandleArr[3] = { thisPtr->_hQuitEvent, thisPtr->_hMessageQueueEvent, thisPtr->_hTimeoutEvent};
 
+	DWORD nowTime;
 	DWORD ret = 0;
 	while (1)
 	{
@@ -97,18 +101,24 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 
 		DWORD sleepTime = dfSLEEPTIME;
 
+		DWORD checkTime;
+		//checkTime = timeGetTime();
 		// 메세지 큐에서 Dequeue후 작업
 		thisPtr->MessageProc();
+		//printf("\n\n-------ProcTime : %d--------\n\n", timeGetTime() - checkTime);
 
 		thisPtr->TimeCheck(sleepTime);
 
 		// 프레임은 없어야 한다. 일이 있을때만 꺠어나서, 메세지를 처리해야 한다.
-		ret = WaitForMultipleObjects(3, hHandleArr, FALSE, INFINITE);
+		nowTime = timeGetTime();
+
+		ret = WaitForMultipleObjects(3, hHandleArr, FALSE, dfSLEEPTIME);
+		LogController::_LogController._dwUpdateThreadSleepTime += (timeGetTime() - nowTime);
+
 		if (ret == WAIT_OBJECT_0)
 		{
 			// 서버 종료
 			return 0;
 		}
-		// 그 외에는 메세지가 있어서 깨어난거임.
 	}
 }

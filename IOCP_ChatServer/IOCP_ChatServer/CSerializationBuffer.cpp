@@ -1,4 +1,5 @@
 #include "CSerializationBuffer.h"
+//#define LOG_CPACKET
 
 //procademy::CMemoryPool_LockFree<CPacket> CPacket::_CPacketPool(0, true, false);
 //TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 5, 5, true, false);
@@ -26,9 +27,10 @@ void CPacket::Initialize(int iBufferSize, int iHeaderSize = 0)
 	if (_isUsing == TRUE)
 		DebugBreak();
 	_isUsing = TRUE;
-
+#ifdef LOG_CPACEKT
 	int idx = InterlockedIncrement(&_iLogAllocIdx) % CPACKET_LOGSIZE;
 	_allocLog[idx] = (LPVOID)this;
+#endif
 }
 
 #pragma warning(disable:26495)
@@ -175,8 +177,10 @@ void CPacket::Clear(void)
 
 CPacket::~CPacket()
 {
+#ifdef LOG_CPACEKT
 	int idx = InterlockedIncrement(&_iLogFreeIdx) % CPACKET_LOGSIZE;
 	_freeLog[idx] = (LPVOID)this;
+#endif
 
 	free(_iBuffer);
 	_iBuffer = nullptr;
