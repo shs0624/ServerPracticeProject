@@ -81,7 +81,7 @@ private:
 	// 프레임 스킵 함수
 	bool Skip();
 
-	void PacketProc(RefCountPointer& cPacket);
+	void PacketProc(RefCountPointer& cPacket, unordered_set<ULONGLONG>* pendingIDSet);
 
 	void WorkProc(RefCountPointer& cPacket, WORD workType);
 
@@ -89,9 +89,9 @@ private:
 
 	void MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID);
 
-	void MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID);
+	void MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID, unordered_set<ULONGLONG>* pendingIDSet);
 
-	void MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID);
+	void MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID, unordered_set<ULONGLONG>* pendingIDSet);
 
 	void mpRESLogin(RefCountPointer& cPacket, BYTE status, INT64 accountNum);
 

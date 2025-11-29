@@ -77,10 +77,10 @@ bool CNetServer::StartNetServer(ULONG ip, LONG port, int workerCount, int concur
 	if (lingerRet == SOCKET_ERROR)
 		err_quit("Linger()");
 
-	int optval = 0;
+	/*int optval = 0;
 	retval = setsockopt(_ListenSocket, SOL_SOCKET, SO_SNDBUF, (char*)&optval, sizeof(optval));
 	if (retval == SOCKET_ERROR)
-		err_quit("SO_SNDBUF()");
+		err_quit("SO_SNDBUF()");*/
 
 	// bind()
 	SOCKADDR_IN serveraddr;
@@ -181,7 +181,8 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	{
 		RefCountPointer cPacket;
 		ptr->sendBuf->Dequeue(cPacket);
-		cPacket.DecRefCount();
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
 	}
 	ptr->recvBuf->ClearBuffer();
 
@@ -280,8 +281,8 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
-				ptr->cPacketArr[i].DecRefCount();
-				_pLog._dwPacketPoolUse--;
+				if(!ptr->cPacketArr[i].DecRefCount())
+					_pLog._dwPacketPoolUse--;
 			}
 			ptr->dwSendCount = 0;
 
@@ -428,7 +429,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			int useSize = ptr->recvBuf->GetUseSize();
 			if (useSize < sizeof(st_NetHeader))
 			{
-				csPacket.DecRefCount();
+				if (!csPacket.DecRefCount())
+					_pLog._dwPacketPoolUse--;
 				break;
 			}
 
@@ -438,7 +440,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 				/*DebugBreak();
 				Disconnect(ptr->ulSessionID);
 				return false;*/
-				csPacket.DecRefCount();
+				if (!csPacket.DecRefCount())
+					_pLog._dwPacketPoolUse--;
 				break;
 			}
 			(*csPacket)->MoveWritePos(sizeof(st_NetHeader));
@@ -450,7 +453,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 				/*DebugBreak();
 				Disconnect(ptr->ulSessionID);
 				return false;*/
-				csPacket.DecRefCount();
+				if (!csPacket.DecRefCount())
+					_pLog._dwPacketPoolUse--;
 				break;
 			}
 
@@ -547,6 +551,83 @@ bool CNetServer::PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool 
 	return true;
 }
 
+// sendBuf에 Enqueue만 진행 -> 데이터를 모아놓기 위함
+bool CNetServer::EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
+{
+	st_NetSession* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+	{
+		return false;
+	}
+
+	InterlockedIncrement(&ptr->dwIOCount);
+	if (ptr->bReleaseFlag == 1)
+	{
+		if (!DecrementIOCount(ptr))
+			return false;
+	}
+
+	if (pushHeader)
+	{
+		short shSize = (*cPacket)->GetDataSize();
+
+		st_NetHeader netHeader;
+		netHeader.FixedKey = PROGRAM_KEY;
+		netHeader.RandKey = (unsigned char)rand() % 256;
+		netHeader.shLen = shSize;
+
+		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+		(*cPacket)->Encode(FIXED_KEY, netHeader.RandKey);
+	}
+
+	//cPacket.IncRefCount();
+	ptr->sendBuf->Enqueue(cPacket);
+
+	_pLog._dwSendMessageTPS++;
+	DecrementIOCount(ptr);
+	return true;
+}
+
+// sendBuf를 확인하고 전송하는 함수
+bool CNetServer::SendPost(ULONGLONG sessionID)
+{
+	st_NetSession* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+	{
+		return false;
+	}
+
+	InterlockedIncrement(&ptr->dwIOCount);
+	if (ptr->bReleaseFlag == 1)
+	{
+		if (!DecrementIOCount(ptr))
+			return false;
+	}
+
+	if (!ptr->sendBuf->Empty())
+	{
+		if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+		{
+			if (!SetWSASend(ptr))
+			{
+				InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+
+				DecrementIOCount(ptr);
+				DecrementIOCount(ptr);
+				return false;
+			}
+
+			if (ptr->bCanceled)
+				DebugBreak();
+		}
+	}
+
+	DecrementIOCount(ptr);
+	return true;
+}
+
 bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
 {
 	st_NetSession* ptr;
@@ -601,6 +682,7 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	return true;
 }
 
+// 여러 인원에게 보낼때, WSASend의 호출이 너무 많아 무거운 함수. 일단 살려는 놓음
 bool CNetServer::SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCountPointer& cPacket)
 {
 	// 메세지를 먼저 생성, 인코딩하기
@@ -616,15 +698,15 @@ bool CNetServer::SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCo
 	for (int i = 0; i < count; i++)
 	{
 		cPacket.IncRefCount();
-		//@@TODO : 보내기 싫패하면 끊어야 할듯.
-		if (!PostPacket(sessionIDArr[i], cPacket, false))
-			cPacket.DecRefCount();
-		/*if (!SendPacket_UniCast(sessionIDArr[i], cPacket, false))
+		/*if (!PostPacket(sessionIDArr[i], cPacket, false))
 			cPacket.DecRefCount();*/
+		if (!SendPacket_UniCast(sessionIDArr[i], cPacket, false))
+			cPacket.DecRefCount();
 	}
 	
 	// 자신 포함해서 다 보냈으니 1을 줄여야 짝이 맞는다.
-	cPacket.DecRefCount();
+	if (!cPacket.DecRefCount())
+		_pLog._dwPacketPoolUse--;
 	return true;
 }
 
@@ -685,8 +767,6 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 
 	RefCountPointer cpacket;
 	int loopCnt = ptr->sendBuf->Size();
-	if (loopCnt >= 200)
-		DebugBreak();
 
 	for (int i = 0; i < loopCnt; i++)
 	{
@@ -739,7 +819,8 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	{
 		RefCountPointer cPacket;
 		ptr->sendBuf->Dequeue(cPacket);
-		cPacket.DecRefCount();
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
 	}
 
 	ptr->dwIOCount = 0;

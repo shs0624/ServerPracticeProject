@@ -8,8 +8,9 @@
 
 void ChatServer::MessageProc()
 {
+	unordered_set<ULONGLONG> pendingSessionIDSet;
+
 	int loopCnt = _MessageQ->Size();
-	//printf("\n\n LoopCnt : %d\n\n", loopCnt);
 	for (int i = 0; i < loopCnt; i++)
 	{
 		RefCountPointer cPacket;
@@ -21,12 +22,17 @@ void ChatServer::MessageProc()
 		
 		if (workType == en_WORK_PACKET)
 		{
-			PacketProc(cPacket);
+			PacketProc(cPacket, &pendingSessionIDSet);
 		}
 		else
 		{
 			WorkProc(cPacket, workType);
 		}
+	}
+
+	for(auto it = pendingSessionIDSet.begin(); it != pendingSessionIDSet.end(); it++)
+	{
+		SendPost((*it));
 	}
 }
 
@@ -82,11 +88,12 @@ void ChatServer::WorkProc(RefCountPointer& cPacket, WORD workType)
 		}
 	}
 
-	cPacket.DecRefCount();
+	if (!cPacket.DecRefCount())
+		_pLog._dwPacketPoolUse--;
 }
 
 
-void ChatServer::PacketProc(RefCountPointer& cPacket)
+void ChatServer::PacketProc(RefCountPointer& cPacket, unordered_set<ULONGLONG>* pendingIDSet)
 {
 	ULONGLONG sessionID;
 	(**cPacket) >> sessionID;
@@ -102,13 +109,13 @@ void ChatServer::PacketProc(RefCountPointer& cPacket)
 	switch ((en_PACKET_TYPE)type)
 	{
 	case en_PACKET_CS_CHAT_REQ_MESSAGE:
-		MessageProc_Message(cPacket, AccountNo, sessionID);
+		MessageProc_Message(cPacket, AccountNo, sessionID, pendingIDSet);
 		break;
 	case en_PACKET_CS_CHAT_REQ_LOGIN:
 		MessageProc_Login(cPacket, AccountNo, sessionID);
 		break;
 	case en_PACKET_CS_CHAT_REQ_SECTOR_MOVE:
-		MessageProc_Move(cPacket, AccountNo, sessionID);
+		MessageProc_Move(cPacket, AccountNo, sessionID, pendingIDSet);
 		break;
 	default:
 		cPacket.DecRefCount();
@@ -153,17 +160,14 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	_pLog._dwLoginMessageTPS++;
 
 	// LoginRES 보내기
-	cPacket.DecRefCount();
+	//cPacket.DecRefCount();
+	(*cPacket)->Clear(sizeof(st_NetHeader));
+	mpRESLogin(cPacket, status, accountNum);
 
-	RefCountPointer sendPacket = RefCountPointer::MakeSharedPtr();
-	(*sendPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
-
-	mpRESLogin(sendPacket, status, accountNum);
-
-	PostPacket(sessionID, sendPacket);
+	SendPacket_UniCast(sessionID, cPacket);
 }
 
-void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
+void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID, unordered_set<ULONGLONG>* pendingIDSet)
 {
 	auto it = _UserMap.find(sessionID);
 	if (it == _UserMap.end())
@@ -202,19 +206,21 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	_pLog._dwMoveMessageTPS++;
 
 	// MoveRES 보내기
-	cPacket.DecRefCount();
+	(*cPacket)->Clear(sizeof(st_NetHeader));
+	mpRESSectorMove(cPacket, accountNum, nSectorX, nSectorY);
 
-	RefCountPointer sendPacket = RefCountPointer::MakeSharedPtr();
-	(*sendPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
-
-	mpRESSectorMove(sendPacket, accountNum, nSectorX, nSectorY);
-
-	PostPacket(sessionID, sendPacket);
+	//PostPacket(sessionID, cPacket);
+	if (!EnqueueSendBuffer(sessionID, cPacket))
+	{
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+	}
+	else
+		pendingIDSet->insert(sessionID);
 }
 
-void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
+void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID, unordered_set<ULONGLONG>* pendingIDSet)
 {
-	//@@TODO : 평균적인 수치 알아내서 크기 줄이기
 	auto it = _UserMap.find(sessionID);
 	if (it == _UserMap.end())
 	{
@@ -235,22 +241,20 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 	(**cPacket) >> len;
 	(*cPacket)->GetData((char*)message, sizeof(WCHAR) * len);
 
-	cPacket.DecRefCount();
+	// 메세지를 초기화해서 재사용, 인코딩하기
+	(*cPacket)->Clear(sizeof(st_NetHeader));
+	mpRESMessage(cPacket, accountNum, (*it).second->ID, (*it).second->NickName, len, message);
 
-	RefCountPointer sendPacket = RefCountPointer::MakeSharedPtr();
-	(*sendPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
-	mpRESMessage(sendPacket, accountNum, (*it).second->ID, (*it).second->NickName, len, message);
-
-	// 메세지를 먼저 생성, 인코딩하기
 	st_NetHeader netHeader;
 	netHeader.FixedKey = PROGRAM_KEY;
 	netHeader.RandKey = (unsigned char)rand() % 256;
-	netHeader.shLen = (*sendPacket)->GetDataSize();
+	netHeader.shLen = (*cPacket)->GetDataSize();
 
-	(*sendPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
-	(*sendPacket)->Encode(FIXED_KEY, netHeader.RandKey);
+	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+	(*cPacket)->Encode(FIXED_KEY, netHeader.RandKey);
 
 	// 자신도 포함해서 주변 섹터의 ulSessionID 배열에 추가
+	int sendCount = 0;
 	for (int iY = -1; iY <= 1; iY++)
 	{
 		if (sectorY + iY < 0 || sectorY + iY >= dfSECTOR_MAX_Y)
@@ -264,16 +268,21 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 			vector<st_USER*>& refSectorVector = _SectorVector[sectorY + iY][sectorX + iX];
 			for (int i = 0; i < refSectorVector.size(); i++)
 			{
-				sendPacket.IncRefCount();
+				cPacket.IncRefCount();
 				//@@TODO : 보내기 싫패하면 끊어야 할듯.
-				if (!PostPacket(refSectorVector[i]->ulSessionID, sendPacket, false))
-					sendPacket.DecRefCount();
-				/*if (!SendPacket_UniCast(refSectorVector[i]->ulSessionID, sendPacket, false))
-					sendPacket.DecRefCount();*/
+				if (!EnqueueSendBuffer(refSectorVector[i]->ulSessionID, cPacket, false))
+				{
+					if (!cPacket.DecRefCount())
+						_pLog._dwPacketPoolUse--;
+				}
+				else
+					pendingIDSet->insert(refSectorVector[i]->ulSessionID);
 			}
 		}
 	}
+
 	_pLog._dwChatMessageTPS++;
-	sendPacket.DecRefCount();
+	if (!cPacket.DecRefCount())
+		_pLog._dwPacketPoolUse--;
 	//printf("\n\n--setTime : %d--refTime : %d--sendMultiTime:%d--\n\n", setTime, refCountTime, sendMultiTime);
 }

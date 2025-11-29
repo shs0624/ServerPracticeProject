@@ -175,6 +175,14 @@ void CPacket::Clear(void)
 	_iDataSize = 0;
 }
 
+void CPacket::Clear(int iHeaderSize)
+{
+	_head = iHeaderSize;
+	_tail = iHeaderSize;
+	_iDataSize = 0;
+	_iHeaderSize = iHeaderSize;
+}
+
 CPacket::~CPacket()
 {
 #ifdef LOG_CPACEKT

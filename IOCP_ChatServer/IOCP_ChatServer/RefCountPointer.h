@@ -93,7 +93,7 @@ public:
 		InterlockedIncrement((LONG*)_iRefCount);
 	}
 
-	void DecRefCount()
+	bool DecRefCount()
 	{
 		if (*_iRefCount < 0)
 			DebugBreak();
@@ -103,8 +103,10 @@ public:
 			//Profiler("Free");
 			delete(_iRefCount);
 			CPacket::_CPacketPool.Free(ptr);
+			return false;
 		}
 
+		return true;
 		/*if (*_iRefCount < 0)
 			DebugBreak();*/
 	}

@@ -67,7 +67,7 @@ void ChatServer::OnRelease(ULONGLONG SessionID)
 void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
 {
 	RefCountPointer contentsPacket = RefCountPointer::MakeSharedPtr();
-	(*contentsPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
+	(*contentsPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
 	_pLog._dwPacketPoolUse++;
 
 	WORD workType = en_WORK_PACKET;
@@ -75,8 +75,8 @@ void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
 	(*contentsPacket)->PutData((char*)&SessionID, sizeof(SessionID));
 	(*contentsPacket)->PutData((char*)(*cPacket)->GetHeadPtr(), (*cPacket)->GetDataSize());
 
-	cPacket.DecRefCount();
-	_pLog._dwPacketPoolUse--;
+	if(!cPacket.DecRefCount());
+		_pLog._dwPacketPoolUse--;
 
 	_MessageQ->Enqueue(contentsPacket);
 	SetEvent(_hMessageQueueEvent);
@@ -101,6 +101,17 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 	DWORD ret = 0;
 	while (1)
 	{
+		// 프레임은 없어야 한다. 일이 있을때만 꺠어나서, 메세지를 처리해야 한다.
+		nowTime = timeGetTime();
+		ret = WaitForMultipleObjects(3, hHandleArr, FALSE, dfSLEEPTIME);
+		_pLog._dwUpdateThreadSleepTime += (timeGetTime() - nowTime);
+
+		if (ret == WAIT_OBJECT_0)
+		{
+			// 서버 종료
+			return 0;
+		}
+
 		_pLog._dwUpdateTPS++;
 
 		DWORD sleepTime = dfSLEEPTIME;
@@ -112,17 +123,5 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 		//printf("\n\n-------ProcTime : %d--------\n\n", timeGetTime() - checkTime);
 
 		thisPtr->TimeCheck(sleepTime);
-
-		// 프레임은 없어야 한다. 일이 있을때만 꺠어나서, 메세지를 처리해야 한다.
-		nowTime = timeGetTime();
-
-		ret = WaitForMultipleObjects(3, hHandleArr, FALSE, dfSLEEPTIME);
-		_pLog._dwUpdateThreadSleepTime += (timeGetTime() - nowTime);
-
-		if (ret == WAIT_OBJECT_0)
-		{
-			// 서버 종료
-			return 0;
-		}
 	}
 }
