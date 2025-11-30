@@ -1,7 +1,6 @@
 #pragma once
 #include "CSerializationBuffer.h"
 #include "ProcademyProfiler.h"
-#include "LogManager.h"
 #include <Windows.h>
 
 class RefCountPointer
@@ -94,7 +93,7 @@ public:
 		InterlockedIncrement((LONG*)_iRefCount);
 	}
 
-	void DecRefCount()
+	bool DecRefCount()
 	{
 		if (*_iRefCount < 0)
 			DebugBreak();
@@ -102,13 +101,16 @@ public:
 		if (InterlockedDecrement((LONG*)_iRefCount) == 0)
 		{
 			//Profiler("Free");
-			InterlockedDecrement(&LogController::_LogController._dwPacketPoolUse);
 			delete(_iRefCount);
+			ptr->Clear();
 			CPacket::_CPacketPool.Free(ptr);
+
+			return false;
 		}
 
 		/*if (*_iRefCount < 0)
 			DebugBreak();*/
+		return true;
 	}
 
 private:

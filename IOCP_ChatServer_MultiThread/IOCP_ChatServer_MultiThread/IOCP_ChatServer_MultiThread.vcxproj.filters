@@ -86,9 +86,6 @@
     <ClCompile Include="CSerializationBuffer.cpp">
       <Filter>Lib</Filter>
     </ClCompile>
-    <ClCompile Include="LogManager.cpp">
-      <Filter>Log</Filter>
-    </ClCompile>
     <ClCompile Include="NetServer.cpp">
       <Filter>NetServer</Filter>
     </ClCompile>

@@ -7,6 +7,8 @@ unsigned int WINAPI ChatServer::TimerThread(LPVOID arg)
 {
 	ChatServer* thisPtr = (ChatServer*)arg;
 
+	LogController::GetInstance()->RegisterLogStruct(&_pLog);
+
 	HANDLE hHandleArr[2] = { thisPtr->_hQuitEvent, thisPtr->_hTimeoutEvent };
 
 	DWORD ret = 0;
@@ -38,7 +40,7 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 			ReleaseSRWLockShared(&_SessionMapLock);
 			Disconnect(pSession->ulSessionID);
 			AcquireSRWLockShared(&_SessionMapLock);
-			LogController::_LogController._dwTimeoutSessionTotal++;
+			_pLog._dwTimeoutSessionTotal++;
 			continue;
 		}
 
@@ -57,7 +59,7 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 			ReleaseSRWLockShared(&_UserMapLock);
 			Disconnect(pUser->ulSessionID);
 			AcquireSRWLockShared(&_UserMapLock);
-			LogController::_LogController._dwTimeoutUserTotal++;
+			_pLog._dwTimeoutUserTotal++;
 			continue;
 		}
 

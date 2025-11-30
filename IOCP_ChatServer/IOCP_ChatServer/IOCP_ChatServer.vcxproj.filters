@@ -42,9 +42,6 @@
     <ClCompile Include="CRingBuffer.cpp">
       <Filter>Lib</Filter>
     </ClCompile>
-    <ClCompile Include="CNetServer_Monitor.cpp">
-      <Filter>NetServer</Filter>
-    </ClCompile>
     <ClCompile Include="ChatServer.cpp">
       <Filter>ChatServer</Filter>
     </ClCompile>

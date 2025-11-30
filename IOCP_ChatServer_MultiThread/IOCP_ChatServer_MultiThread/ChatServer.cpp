@@ -8,7 +8,7 @@
 
 int main()
 {
-	LogController::_LogController.Init();
+	LogController::GetInstance();
 
 	ChatServer* _chatServer = new ChatServer(INADDR_ANY, SERVERPORT, true, 5000);
 
@@ -61,7 +61,7 @@ bool ChatServer::OnAccept(ULONGLONG sessionID)
 	_SessionMap.insert({ sessionID, pSession });
 	ReleaseSRWLockExclusive(&_SessionMapLock);
 
-	LogController::_LogController._dwSessionCount++;
+	_pLog._dwSessionCount++;
 
 	return true;
 }
@@ -95,8 +95,8 @@ void ChatServer::OnRelease(ULONGLONG sessionID)
 
 		_UserPool->Free(pUser);
 
-		LogController::_LogController._dwUserCount--;
-		LogController::_LogController._dwPlayerPoolUse--;
+		_pLog._dwUserCount--;
+		_pLog._dwPlayerPoolUse--;
 	}
 
 	AcquireSRWLockShared(&_SessionMapLock);
@@ -112,9 +112,8 @@ void ChatServer::OnRelease(ULONGLONG sessionID)
 		ReleaseSRWLockExclusive(&_SessionMapLock);
 
 		_SessionPool->Free(pSession);
-		LogController::_LogController._dwSessionCount--;
+		_pLog._dwSessionCount--;
 	}
-	
 }
 
 void ChatServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
@@ -138,20 +137,10 @@ void ChatServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 		MessageProc_Message(cPacket, AccountNo, sessionID);
 		break;
 	default:
-		cPacket.DecRefCount();
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
 		break;
 	}
-
-	// @@TODO : 없으면, 이상한건데 그거에 대한 처리
-	// unordered_map<INT64, st_CHARACTER*>::iterator
-	AcquireSRWLockShared(&_UserMapLock);
-	auto it = _UserMap.find(sessionID);
-	ReleaseSRWLockShared(&_UserMapLock);
-
-	if (it == _UserMap.end())
-		DebugBreak();
-
-	(*it).second->dwLastRecvTime = timeGetTime();
 }
 
 void ChatServer::OnError(int errorcode, WCHAR* message)

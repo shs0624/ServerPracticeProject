@@ -5,6 +5,7 @@
 #define PROTOCOL_NUMSIZE 8
 #define FIXED_KEY 0x32
 #define PROGRAM_KEY 0x77
+#include "LogManager.h"
 
 #pragma pack(1)
 struct st_NetHeader
@@ -67,6 +68,11 @@ protected:
 	int _iAcceptTPS;
 	int _iRecvMessageTPS;
 	int _iSendMessageTPS;
+
+	// 비정적 멤버는 인스턴스마다 다른 메모리를 가지는데, thread_local은
+	// 인스턴스마다가 아니라, 스레드 마다 같은 메모리를 가지니 의미가 충돌한다.
+	// 그래서 static으로 선언해야 한다.
+	static thread_local stChatLog _pLog;
 
 	HANDLE _hTPSUpdateEvent;
 

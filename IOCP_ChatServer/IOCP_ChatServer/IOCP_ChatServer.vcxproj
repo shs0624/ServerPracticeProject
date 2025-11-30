@@ -128,7 +128,6 @@
     <ClCompile Include="ChatServer.cpp" />
     <ClCompile Include="ChatServer_MakePacket.cpp" />
     <ClCompile Include="ChatServer_Message.cpp" />
-    <ClCompile Include="CNetServer_Monitor.cpp" />
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
     <ClCompile Include="NetServer.cpp" />

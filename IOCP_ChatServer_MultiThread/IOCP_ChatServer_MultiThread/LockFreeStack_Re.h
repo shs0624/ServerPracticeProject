@@ -6,6 +6,7 @@
 #include <unordered_map>
 using namespace std;
 #define LOGARR_MAX 10000
+//#define LOG_LOCKFREESTACK
 
 enum workType
 {
@@ -47,9 +48,11 @@ public:
 		if (InterlockedCompareExchange64((__int64*)&_TopNode, (__int64)newNode, (__int64)oldTop) == (__int64)oldTop)
 		{
 			// 로그 남기기용
+#ifdef LOG_LOCKFREESTACK
 			unsigned long idx = InterlockedIncrement(&_logIdx) - 1;
 			idx = idx % LOGARR_MAX;
 			_workArr[idx] = { PUSH, newNode };
+#endif
 
 			InterlockedIncrement(&cnt);
 			return true;
@@ -74,9 +77,11 @@ public:
 		if (InterlockedCompareExchange64((__int64*)&_TopNode, (__int64)newNode, (__int64)oldTop) == (__int64)oldTop)
 		{
 			// 로그 남기기용
+#ifdef LOG_LOCKFREESTACK
 			unsigned long idx = _InterlockedIncrement(&_logIdx) - 1;
 			idx = idx % LOGARR_MAX;
 			_workArr[idx] = { POP, oldTop };
+#endif
 
 			*output = topPtr->value;
 			//*deletePtr = topPtr;

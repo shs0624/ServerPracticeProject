@@ -93,6 +93,12 @@ private:
 
 	void mpRESMessage(RefCountPointer& cPacket, INT64 accountNum, WCHAR* id, WCHAR* nick, WORD len, WCHAR* message);
 
+	void SendPacket_Sector(RefCountPointer& cPacket, WORD sectorX, WORD sectorY);
+
+	void LockSectorMove(WORD sectorX, WORD sectorY, WORD nSectorX, WORD nSectorY);
+	
+	void UnLockSectorMove(WORD sectorX, WORD sectorY, WORD nSectorX, WORD nSectorY);
+
 	void DisconnectDeletedSession();
 
 	static unsigned int WINAPI TimerThread(LPVOID arg);

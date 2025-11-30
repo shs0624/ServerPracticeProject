@@ -9,6 +9,7 @@
 #include <crtdbg.h>
 #include <minidumpapiset.h>
 #include <unordered_map>
+#include <mutex>
 #include <vector>
 #include <queue>
 #include <conio.h>
