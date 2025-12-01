@@ -81,7 +81,7 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	WORD sectorY = (*it).second->sectorY;
 
 	// 기존 벡터에서 삭제
-	vector<st_USER*>& refSectorVector = _SectorVector[sectorY][sectorX];
+	vector<ULONGLONG>& refSectorVector = _SectorVector[sectorY][sectorX];
 
 	// 이동할 때 이동 대상이 사라지는 타이밍을 막을 필요가 있음.
 	// 숫자가 작은 순서대로 락을 걸게 만들자. A->B, B->A 둘 다 A먼저 락을 걸게 만드는 것.
@@ -90,7 +90,7 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	// 기존 섹터에서의 제거
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
-		if (refSectorVector[i]->AccountNum == (*it).second->AccountNum)
+		if (refSectorVector[i] == (*it).second->ulSessionID)
 		{
 			refSectorVector.erase(refSectorVector.begin() + i);
 			break;
@@ -101,7 +101,7 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	(*it).second->sectorY = nSectorY;
 	(*it).second->dwLastRecvTime = timeGetTime();
 
-	_SectorVector[nSectorY][nSectorX].push_back((*it).second);
+	_SectorVector[nSectorY][nSectorX].push_back((*it).second->ulSessionID);
 
 	UnLockSectorMove(sectorX, sectorY, nSectorX, nSectorY);
 
@@ -185,13 +185,13 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 void ChatServer::SendPacket_Sector(RefCountPointer& cPacket, WORD sectorX, WORD sectorY)
 {
 	AcquireSRWLockShared(&_SectorLock[sectorY][sectorX]);
-	vector<st_USER*>& refSectorVector = _SectorVector[sectorY][sectorX];
+	vector<ULONGLONG>& refSectorVector = _SectorVector[sectorY][sectorX];
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
 		cPacket.IncRefCount();
 		// @@TODO : 이걸 보내다가 중간에 연결이 끊길 수 있는데, 그럼 벡터 이터레이터가 무너짐.
 		// 추가로 데드락도 발생 가능하다. OnRelease에서 섹터 락을 잡으니까. 암튼 여기서 삭제하면 안됨.
-		if (!SendPacket_UniCast(refSectorVector[i]->ulSessionID, cPacket, false))
+		if (!SendPacket_UniCast(refSectorVector[i], cPacket, false))
 		{
 			if (!cPacket.DecRefCount())
 				_pLog._dwPacketPoolUse--;

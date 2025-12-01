@@ -77,11 +77,11 @@ void ChatServer::OnRelease(ULONGLONG sessionID)
 	{
 		st_USER* pUser = (*itUser).second;
 
-		vector<st_USER*>& refSectorVector = _SectorVector[pUser->sectorY][pUser->sectorX];
+		vector<ULONGLONG>& refSectorVector = _SectorVector[pUser->sectorY][pUser->sectorX];
 		AcquireSRWLockExclusive(&_SectorLock[pUser->sectorY][pUser->sectorX]);
 		for (int i = 0; i < refSectorVector.size(); i++)
 		{
-			if (refSectorVector[i]->ulSessionID == pUser->ulSessionID)
+			if (refSectorVector[i] == pUser->ulSessionID)
 			{
 				refSectorVector.erase(refSectorVector.begin() + i);
 				break;

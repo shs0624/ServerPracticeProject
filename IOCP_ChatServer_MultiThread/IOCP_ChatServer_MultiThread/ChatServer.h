@@ -118,6 +118,10 @@ private:
 	unsigned int _TimerThreadID;
 
 	// AccountNum, 유저 구조체
+	unordered_map<ULONGLONG, st_USER*> _AccountNumUserMap;
+	SRWLOCK _AccountNumUserMapLock;
+
+	// SessionID, 유저 구조체
 	unordered_map<ULONGLONG, st_USER*> _UserMap;
 	SRWLOCK _UserMapLock;
 
@@ -125,7 +129,7 @@ private:
 	unordered_map<ULONGLONG, st_SESSION*> _SessionMap;
 	SRWLOCK _SessionMapLock;
 
-	// 섹터 관리
-	vector<st_USER*> _SectorVector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
+	// 섹터 관리 - sessionID
+	vector<ULONGLONG> _SectorVector[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
 	SRWLOCK _SectorLock[dfSECTOR_MAX_Y][dfSECTOR_MAX_X];
 };

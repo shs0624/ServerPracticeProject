@@ -434,7 +434,10 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 
 		// 디코딩, 체크섬 검사
 		if (!(*csPacket)->Decode(FIXED_KEY, RK))
+		{
 			Disconnect(ptr->ulSessionID);
+			return false;
+		}
 
 		// netHeader만큼 이동시키고, OnRecv
 		OnRecv(ptr->ulSessionID, csPacket);
@@ -472,6 +475,10 @@ bool CNetServer::Disconnect(ULONGLONG sessionID)
 
 	// @@TODO : 미흡한 처리를 보완해야함. CancelIO 이후 IOCP에 새 입출력이 들어갈 수도 있다.
 	CancelIoEx((HANDLE)ptr->sock, NULL);
+
+	// 이미 IO에 들어간 상태면 자연스럽게 Release를 타지 않을까?
+	if (ptr->dwIOCount > 0)
+		return false;
 
 	ReleaseSession(sessionID);
 
@@ -512,6 +519,11 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
+		if (ptr->bCanceled)
+		{
+			return false;
+		}
+
 		if (!SetWSASend(ptr))
 		{
 			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
@@ -520,9 +532,6 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 			DecrementIOCount(ptr);
 			return false;
 		}
-
-		if (ptr->bCanceled)
-			DebugBreak();
 	}
 
 	_pLog._dwSendMessageTPS++;
