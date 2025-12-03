@@ -245,6 +245,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			return 0;
 		}
 
+		// Release 작업 진행
 		if (pOverlapped == &(thisPtr->_ReleaseOverlapped))
 		{
 			thisPtr->ReleaseSession(ptr->ulSessionID);

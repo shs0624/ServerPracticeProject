@@ -182,8 +182,6 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 		}
 	}
 
-	//SendPacket_UniCast(sessionID, cPacket, false);
-
 	// 자신 포함해서 다 보냈으니 1을 줄여야 짝이 맞는다.
 	if (!cPacket.DecRefCount())
 		_pLog._dwPacketPoolUse--;
@@ -194,20 +192,12 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 // 함수 내부적으로 공유 락을 걸고있음.
 void ChatServer::SendPacket_Sector(RefCountPointer& cPacket, WORD sectorX, WORD sectorY)
 {
-	unordered_set<ULONGLONG> pendingSessionIDSet;
-
 	AcquireSRWLockShared(&_SectorLock[sectorY][sectorX]);
 	vector<ULONGLONG>& refSectorVector = _SectorVector[sectorY][sectorX];
 	for (int i = 0; i < refSectorVector.size(); i++)
 	{
 		cPacket.IncRefCount();
-		// @@TODO : 이걸 보내다가 중간에 연결이 끊길 수 있는데, 그럼 벡터 이터레이터가 무너짐.
-		// 추가로 데드락도 발생 가능하다. OnRelease에서 섹터 락을 잡으니까. 암튼 여기서 삭제하면 안됨.
-		if (!SendPacket_UniCast(refSectorVector[i], cPacket, false))
-		{
-			/*if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;*/
-		}
+		SendPacket_UniCast(refSectorVector[i], cPacket, false);
 	}
 	ReleaseSRWLockShared(&_SectorLock[sectorY][sectorX]);
 }

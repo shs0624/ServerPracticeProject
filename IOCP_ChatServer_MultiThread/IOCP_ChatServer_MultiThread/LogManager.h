@@ -69,6 +69,7 @@ public:
 			_stPrintLog._dwUserCount += _LogStructArr[i]->_dwUserCount;
 			_stPrintLog._dwSessionCount += _LogStructArr[i]->_dwSessionCount;
 			_stPrintLog._dwAcceptTotal += _LogStructArr[i]->_dwAcceptTotal;
+			_stPrintLog._dwAcceptTPS += _LogStructArr[i]->_dwAcceptTPS;
 			_stPrintLog._dwUpdateQSize += _LogStructArr[i]->_dwUpdateQSize;
 			_stPrintLog._dwUpdateThreadSleepTime += _LogStructArr[i]->_dwUpdateThreadSleepTime;
 			_stPrintLog._dwRecvMessageTPS += _LogStructArr[i]->_dwRecvMessageTPS;
