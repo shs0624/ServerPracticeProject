@@ -52,7 +52,7 @@ public:
 		_emptyIndexStack = new LockFreeStack<ULONGLONG>();
 
 		int workCount = (int)si.dwNumberOfProcessors * 2;
-		StartNetServer(ip, port, workCount, workCount - 2, true, 5000);
+		StartNetServer(ip, port, workCount, workCount - 2, true, 8000);
 
 		_UserPool = new procademy::CMemoryPool<st_USER>(10000, false, false);
 		_SessionPool = new procademy::CMemoryPool<st_SESSION>(12000, false, false);

@@ -245,6 +245,12 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			return 0;
 		}
 
+		if (pOverlapped == &(thisPtr->_ReleaseOverlapped))
+		{
+			thisPtr->ReleaseSession(ptr->ulSessionID);
+			continue;
+		}
+
 		InterlockedIncrement(&ptr->dwIOCount);
 		if (ptr->bReleaseFlag == TRUE)
 		{
@@ -441,7 +447,6 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 
 		// netHeader만큼 이동시키고, OnRecv
 		OnRecv(ptr->ulSessionID, csPacket);
-
 		_pLog._dwRecvMessageTPS++;
 	}
 
@@ -450,13 +455,16 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 
 bool CNetServer::DecrementIOCount(st_NetSession* ptr)
 {
-	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+	LONG result = InterlockedDecrement((LONG*)&(ptr->dwIOCount));
+	if (result == 0)
 	{
 		// 일단 CancelIO 한 번
 		//CancelIoEx((HANDLE)ptr->sock, NULL);
 
 		// 연결 끊기
-		ReleaseSession(ptr->ulSessionID);
+		//ReleaseSession(ptr->ulSessionID);
+
+		PostRelease(ptr);
 		return false;
 	}
 
@@ -483,6 +491,13 @@ bool CNetServer::Disconnect(ULONGLONG sessionID)
 	ReleaseSession(sessionID);
 
 	return true;
+}
+
+void CNetServer::PostRelease(st_NetSession* ptr)
+{
+	// 일부러 -1이 되게 Post
+	//InterlockedIncrement(&ptr->dwIOCount);
+	PostQueuedCompletionStatus(_NetIOCPHandle, 0, (ULONG_PTR)ptr, &_ReleaseOverlapped);
 }
 
 bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
@@ -521,6 +536,7 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	{
 		if (ptr->bCanceled)
 		{
+			DecrementIOCount(ptr);
 			return false;
 		}
 
@@ -577,7 +593,7 @@ bool CNetServer::SetWSARecv(st_NetSession* ptr)
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
 	WSABUF recvWsa[200];
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
-	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
+	//ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
 
 	if (ptr->bCanceled)
 		return false;
@@ -651,9 +667,9 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 	if (retval == SOCKET_ERROR)
 	{
 		int err = WSAGetLastError();
-		if (err != WSA_IO_PENDING && err != 10054)
+		if (err != WSA_IO_PENDING)
 		{
-			printf("WSASend Fail! : %d\n", err);
+			//printf("WSASend Fail! : %d\n", err);
 			//DebugBreak();
 			return false;
 		}
@@ -685,6 +701,14 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 			_pLog._dwPacketPoolUse--;
 	}
 
+	int cnt = ptr->dwSendCount;
+	for (int i = 0; i < cnt; i++)
+	{
+		if (!ptr->cPacketArr[i].DecRefCount())
+			_pLog._dwPacketPoolUse--;
+	}
+
+	ptr->dwSendCount = 0;
 	ptr->dwIOCount = 0;
 	closesocket(ptr->sock);
 

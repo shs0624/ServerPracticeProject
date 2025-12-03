@@ -3,7 +3,7 @@
 #include "TLS_MemoryPool.h"
 //#include "CFreeList_LockFree.h"
 #define LOGARR_MAX 10000
-//#define LOGGING
+#define LOGGING
 
 enum workType_Q
 {
