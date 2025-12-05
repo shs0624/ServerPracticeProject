@@ -70,6 +70,8 @@ void ChatServer::WorkProc(RefCountPointer& cPacket, WORD workType)
 			}
 
 			_UserMap.erase(sessionID);
+			_AccountNumUserMap.erase(pUser->AccountNum);
+
 			_UserPool->Free(pUser);
 
 			_pLog._dwUserCount--;
@@ -118,7 +120,8 @@ void ChatServer::PacketProc(RefCountPointer& cPacket, unordered_set<ULONGLONG>* 
 		MessageProc_Move(cPacket, AccountNo, sessionID, pendingIDSet);
 		break;
 	default:
-		cPacket.DecRefCount();
+		if(!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
 		break;
 	}
 }
@@ -126,12 +129,24 @@ void ChatServer::PacketProc(RefCountPointer& cPacket, unordered_set<ULONGLONG>* 
 void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
 {
 	BYTE status = TRUE;
-	auto it = _UserMap.find(sessionID);
-	if (it != _UserMap.end())
+	auto it = _AccountNumUserMap.find(accountNum);
+	if (it != _AccountNumUserMap.end())
 	{
 		// @@TODO : 중복 로그인이니 둘 다 끊어야 한다.
-		DebugBreak();
+		_pLog._dwDuplicatedLoginTotal++;
+		Disconnect((*it).second->ulSessionID);
 		status = FALSE;
+
+		(*cPacket)->Clear(sizeof(st_NetHeader));
+		mpRESLogin(cPacket, status, accountNum);
+
+		if (!SendPacket_UniCast(sessionID, cPacket))
+		{
+			if (!cPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+		}
+		Disconnect(sessionID);
+		return;
 	}
 
 	st_USER* userPtr = _UserPool->Alloc();
@@ -141,6 +156,7 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	userPtr->AccountNum = accountNum;
 	userPtr->dwLastRecvTime = timeGetTime();
 	userPtr->bDeleted = FALSE;
+	userPtr->bBatched = FALSE;
 	
 	(*cPacket)->GetData((char*)userPtr->ID, sizeof(userPtr->ID));
 	(*cPacket)->GetData((char*)userPtr->NickName, sizeof(userPtr->NickName));
@@ -154,17 +170,21 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	}
 	
 	_UserMap.insert({ userPtr->ulSessionID, userPtr });
+	_AccountNumUserMap.insert({ userPtr->AccountNum, userPtr });
 
 	_pLog._dwSessionCount--;
 	_pLog._dwUserCount++;
 	_pLog._dwLoginMessageTPS++;
 
 	// LoginRES 보내기
-	//cPacket.DecRefCount();
 	(*cPacket)->Clear(sizeof(st_NetHeader));
 	mpRESLogin(cPacket, status, accountNum);
 
-	SendPacket_UniCast(sessionID, cPacket);
+	if (!SendPacket_UniCast(sessionID, cPacket))
+	{
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+	}
 }
 
 void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID, unordered_set<ULONGLONG>* pendingIDSet)
@@ -172,7 +192,8 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	auto it = _UserMap.find(sessionID);
 	if (it == _UserMap.end())
 	{
-		// @@TODO : 없는 유저에 대한 메세지. 오류 로그를 남겨야 할듯
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
 		return;
 	}
 
@@ -182,20 +203,28 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	(**cPacket) >> nSectorX;
 	(**cPacket) >> nSectorY;
 
-	WORD sectorX = (*it).second->sectorX;
-	WORD sectorY = (*it).second->sectorY;
-
-	// 기존 벡터에서 삭제
-	vector<st_USER*>& refSectorVector = _SectorVector[sectorY][sectorX];
-	for (int i = 0; i < refSectorVector.size(); i++)
+	// 첫 Move 호출은 섹터에 넣기만
+	if ((*it).second->bBatched == FALSE)
 	{
-		if (refSectorVector[i]->AccountNum == (*it).second->AccountNum)
+		(*it).second->bBatched = TRUE;
+	}
+	else
+	{
+		WORD sectorX = (*it).second->sectorX;
+		WORD sectorY = (*it).second->sectorY;
+
+		// 기존 벡터에서 삭제
+		vector<st_USER*>& refSectorVector = _SectorVector[sectorY][sectorX];
+		for (int i = 0; i < refSectorVector.size(); i++)
 		{
-			refSectorVector.erase(refSectorVector.begin() + i);
-			break;
+			if (refSectorVector[i]->AccountNum == (*it).second->AccountNum)
+			{
+				refSectorVector.erase(refSectorVector.begin() + i);
+				break;
+			}
 		}
 	}
-
+	
 	(*it).second->sectorX = nSectorX;
 	(*it).second->sectorY = nSectorY;
 	(*it).second->dwLastRecvTime = timeGetTime();
@@ -224,7 +253,8 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 	auto it = _UserMap.find(sessionID);
 	if (it == _UserMap.end())
 	{
-		// @@TODO : 없는 유저에 대한 메세지. 오류 로그를 남겨야 할듯
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
 		return;
 	}
 
@@ -269,7 +299,6 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 			for (int i = 0; i < refSectorVector.size(); i++)
 			{
 				cPacket.IncRefCount();
-				//@@TODO : 보내기 싫패하면 끊어야 할듯.
 				if (!EnqueueSendBuffer(refSectorVector[i]->ulSessionID, cPacket, false))
 				{
 					if (!cPacket.DecRefCount())

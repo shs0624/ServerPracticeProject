@@ -31,6 +31,7 @@ struct st_USER
 	// 타임아웃용 시간
 	DWORD dwLastRecvTime;
 	bool bDeleted;
+	bool bBatched;
 };
 
 class ChatServer : CNetServer
@@ -119,6 +120,8 @@ private:
 	LockFreeQueue<RefCountPointer>* _MessageQ;
 
 	// AccountNum, 유저 구조체
+	unordered_map<ULONGLONG, st_USER*> _AccountNumUserMap;
+	// SessionID, 유저 구조체
 	unordered_map<ULONGLONG, st_USER*> _UserMap;
 	// SessionID, 세션 구조체
 	unordered_map<ULONGLONG, st_SESSION*> _SessionMap;

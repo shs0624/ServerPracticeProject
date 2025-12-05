@@ -77,10 +77,10 @@ bool CNetServer::StartNetServer(ULONG ip, LONG port, int workerCount, int concur
 	if (lingerRet == SOCKET_ERROR)
 		err_quit("Linger()");
 
-	/*int optval = 0;
+	int optval = 0;
 	retval = setsockopt(_ListenSocket, SOL_SOCKET, SO_SNDBUF, (char*)&optval, sizeof(optval));
 	if (retval == SOCKET_ERROR)
-		err_quit("SO_SNDBUF()");*/
+		err_quit("SO_SNDBUF()");
 
 	// bind()
 	SOCKADDR_IN serveraddr;
@@ -164,13 +164,16 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 
 	st_NetSession* ptr = &_sessionArr[idx];
 
+	// 다른 곳에서 Send후 Dec로 해제되는 걸 막기위해 먼저 Inc
+	ptr->dwIOCount = 0;
+	InterlockedIncrement(&ptr->dwIOCount);
+
 	// 수정이 필요함
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
 	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
 	ULONGLONG ulIdx = (idx << 48);
 	ptr->ulSessionID = (ulIdx | id);
-	ptr->dwIOCount = 0;
 	ptr->bReleaseFlag = false;
 	ptr->bSendFlag = false;
 	ptr->bCanceled = false;
@@ -188,17 +191,6 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
 	InterlockedIncrement((LONG*)&_iSessionCount);
-
-	InterlockedIncrement(&ptr->dwIOCount);
-	if (ptr->bReleaseFlag == 1)
-	{
-		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
-		{
-			// 연결 끊기
-			ReleaseSession(ptr->ulSessionID);
-		}
-		return false;
-	}
 
 	if (!OnAccept(ptr->ulSessionID))
 		return false;
@@ -298,39 +290,20 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			}
 			else
 			{
+				InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
+
 				// 한 번 더 실제로 head가 비었는지 체크
-				if (ptr->sendBuf->Empty())
+				if (ptr->sendBuf->Size() > 0)
 				{
-					// 내가 SendFlag를 바꿨다. 당연한거긴함
-					if (InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE) == TRUE)
+					if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 					{
-						if (!ptr->sendBuf->Empty())
+						if (!thisPtr->SetWSASend(ptr))
 						{
-							if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
-							{
-								if (!thisPtr->SetWSASend(ptr))
-								{
-									InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+							InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 
-									if (!thisPtr->DecrementIOCount(ptr))
-										continue;
-								}
-							}
+							if (!thisPtr->DecrementIOCount(ptr))
+								continue;
 						}
-					}
-				}
-				else
-				{
-					while (ptr->sendBuf->Size() <= 0)
-					{
-						Sleep(0);
-					}
-
-					if (!thisPtr->SetWSASend(ptr))
-					{
-						InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
-						if (!thisPtr->DecrementIOCount(ptr))
-							continue;
 					}
 				}
 			}
@@ -416,7 +389,7 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 	while (1)
 	{
 		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
-		(*csPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
+		(*csPacket)->Initialize(sizeof(st_NetHeader));
 		_pLog._dwPacketPoolUse++;
 
 		short len;
@@ -424,8 +397,6 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 
 		// csPacket 초기화 후 ptr->recvBuf에서 Dequeue
 		{
-			(*csPacket)->Clear();
-
 			int useSize = ptr->recvBuf->GetUseSize();
 			if (useSize < sizeof(st_NetHeader))
 			{
@@ -437,22 +408,15 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			int peekRet = ptr->recvBuf->Peek((char*)(*csPacket)->GetBufferPtr(), sizeof(st_NetHeader));
 			if (peekRet != sizeof(st_NetHeader))
 			{
-				/*DebugBreak();
-				Disconnect(ptr->ulSessionID);
-				return false;*/
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
 				break;
 			}
-			(*csPacket)->MoveWritePos(sizeof(st_NetHeader));
 
 			len = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->shLen;
 			RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
 			if (useSize < sizeof(st_NetHeader) + len)
 			{
-				/*DebugBreak();
-				Disconnect(ptr->ulSessionID);
-				return false;*/
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
 				break;
@@ -462,16 +426,21 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			ptr->recvBuf->Dequeue((*csPacket)->GetTailPtr(), len);
 
 			(*csPacket)->MoveWritePos(len);
-			(*csPacket)->MoveReadPos(sizeof(st_NetHeader));
 		}
 
 		// 디코딩, 체크섬 검사
 		if (!(*csPacket)->Decode(FIXED_KEY, RK))
+		{
 			Disconnect(ptr->ulSessionID);
+			_pLog._dwDecodeDisconnectTotal++;
+			if (!csPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+
+			break;
+		}
 
 		// netHeader만큼 이동시키고, OnRecv
 		OnRecv(ptr->ulSessionID, csPacket);
-
 		_pLog._dwRecvMessageTPS++;
 	}
 
@@ -500,10 +469,12 @@ bool CNetServer::Disconnect(ULONGLONG sessionID)
 	if (ptr == NULL)
 		return false;
 
+	if (sessionID != ptr->ulSessionID)
+		return false;
+
 	ptr->bCanceled = true;
 	ptr->bDeleted = true;
 
-	// @@TODO : 미흡한 처리를 보완해야함. CancelIO 이후 IOCP에 새 입출력이 들어갈 수도 있다.
 	CancelIoEx((HANDLE)ptr->sock, NULL);
 
 	ReleaseSession(sessionID);
@@ -525,6 +496,12 @@ bool CNetServer::PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool 
 	{
 		if (!DecrementIOCount(ptr))
 			return false;
+	}
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
 	}
 
 	if (pushHeader)
@@ -568,6 +545,12 @@ bool CNetServer::EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket
 			return false;
 	}
 
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
 	if (pushHeader)
 	{
 		short shSize = (*cPacket)->GetDataSize();
@@ -604,6 +587,12 @@ bool CNetServer::SendPost(ULONGLONG sessionID)
 	{
 		if (!DecrementIOCount(ptr))
 			return false;
+	}
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
 	}
 
 	if (!ptr->sendBuf->Empty())
@@ -791,8 +780,14 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 		int err = WSAGetLastError();
 		if (err != WSA_IO_PENDING)
 		{
-			printf("WSASend Fail! : %d\n", err);
-			//DebugBreak();
+			// 전송이 실패했으니, 여기서 다시 제거
+			int cnt = ptr->dwSendCount;
+			for (int i = 0; i < cnt; i++)
+			{
+				if (!ptr->cPacketArr[i].DecRefCount())
+					_pLog._dwPacketPoolUse--;
+			}
+			ptr->dwSendCount = 0;
 			return false;
 		}
 	}
@@ -823,6 +818,14 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 			_pLog._dwPacketPoolUse--;
 	}
 
+	int cnt = ptr->dwSendCount;
+	for (int i = 0; i < cnt; i++)
+	{
+		if (!ptr->cPacketArr[i].DecRefCount())
+			_pLog._dwPacketPoolUse--;
+	}
+
+	ptr->dwSendCount = 0;
 	ptr->dwIOCount = 0;
 	closesocket(ptr->sock);
 

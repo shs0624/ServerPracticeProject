@@ -34,7 +34,7 @@ int main()
 bool ChatServer::OnAccept(ULONGLONG SessionID)
 {
 	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
+	(*cPacket)->Initialize(0);
 	_pLog._dwPacketPoolUse++;
 
 	WORD workType = en_WORK_ACCEPT;
@@ -51,7 +51,7 @@ bool ChatServer::OnAccept(ULONGLONG SessionID)
 void ChatServer::OnRelease(ULONGLONG SessionID)
 {
 	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-	(*cPacket)->Initialize(PROTOCOL_MAX_SIZE, 0);
+	(*cPacket)->Initialize(0);
 	_pLog._dwPacketPoolUse++;
 
 	WORD workType = en_WORK_RELEASE;
@@ -67,7 +67,7 @@ void ChatServer::OnRelease(ULONGLONG SessionID)
 void ChatServer::OnRecv(ULONGLONG SessionID, RefCountPointer& cPacket)
 {
 	RefCountPointer contentsPacket = RefCountPointer::MakeSharedPtr();
-	(*contentsPacket)->Initialize(PROTOCOL_MAX_SIZE, sizeof(st_NetHeader));
+	(*contentsPacket)->Initialize(0);
 	_pLog._dwPacketPoolUse++;
 
 	WORD workType = en_WORK_PACKET;
@@ -116,12 +116,10 @@ unsigned int WINAPI ChatServer::ContentsThread(LPVOID arg)
 
 		DWORD sleepTime = dfSLEEPTIME;
 
-		DWORD checkTime;
-		//checkTime = timeGetTime();
 		// 메세지 큐에서 Dequeue후 작업
 		thisPtr->MessageProc();
-		//printf("\n\n-------ProcTime : %d--------\n\n", timeGetTime() - checkTime);
 
-		thisPtr->TimeCheck(sleepTime);
+		// 타이머 비활성화
+		//thisPtr->TimeCheck(sleepTime);
 	}
 }

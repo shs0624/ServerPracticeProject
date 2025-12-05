@@ -23,6 +23,9 @@ struct stChatLog
 	LONG _dwChatMessageTPS;
 	LONG _dwLoginMessageTPS;
 
+	LONG _dwDuplicatedLoginTotal;
+	LONG _dwDecodeDisconnectTotal;
+
 	LONG _dwTimeoutSessionTotal;
 	LONG _dwTimeoutUserTotal;
 };
@@ -67,6 +70,7 @@ public:
 			_stPrintLog._dwUserCount += _LogStructArr[i]->_dwUserCount;
 			_stPrintLog._dwSessionCount += _LogStructArr[i]->_dwSessionCount;
 			_stPrintLog._dwAcceptTotal += _LogStructArr[i]->_dwAcceptTotal;
+			_stPrintLog._dwAcceptTPS += _LogStructArr[i]->_dwAcceptTPS;
 			_stPrintLog._dwUpdateTPS += _LogStructArr[i]->_dwUpdateTPS;
 			_stPrintLog._dwUpdateQSize += _LogStructArr[i]->_dwUpdateQSize;
 			_stPrintLog._dwUpdateThreadSleepTime += _LogStructArr[i]->_dwUpdateThreadSleepTime;
@@ -75,6 +79,8 @@ public:
 			_stPrintLog._dwLoginMessageTPS += _LogStructArr[i]->_dwLoginMessageTPS;
 			_stPrintLog._dwMoveMessageTPS += _LogStructArr[i]->_dwMoveMessageTPS;
 			_stPrintLog._dwChatMessageTPS += _LogStructArr[i]->_dwChatMessageTPS;
+			_stPrintLog._dwDuplicatedLoginTotal += _LogStructArr[i]->_dwDuplicatedLoginTotal;
+			_stPrintLog._dwDecodeDisconnectTotal += _LogStructArr[i]->_dwDecodeDisconnectTotal;
 			_stPrintLog._dwTimeoutSessionTotal += _LogStructArr[i]->_dwTimeoutSessionTotal;
 			_stPrintLog._dwTimeoutUserTotal += _LogStructArr[i]->_dwTimeoutUserTotal;
 			_stPrintLog._dwPacketPoolUse += _LogStructArr[i]->_dwPacketPoolUse;
@@ -100,6 +106,9 @@ public:
 		printf("%-25s%5d\n", "Contents - Login TPS :", _stPrintLog._dwLoginMessageTPS);
 		printf("%-25s%5d\n", "Contents - Move  TPS :", _stPrintLog._dwMoveMessageTPS);
 		printf("%-25s%5d\n", "Contents - Chat  TPS :", _stPrintLog._dwChatMessageTPS);
+		printf("==============================================================================\n");
+		printf("%-25s%5d\n", "Duplicated Login Total :", _stPrintLog._dwDuplicatedLoginTotal);
+		printf("%-25s%5d\n", "Decode Disconnect Total :", _stPrintLog._dwDecodeDisconnectTotal);
 		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "Timeout_Session :", _stPrintLog._dwTimeoutSessionTotal);
 		printf("%-25s%5d\n", "Timeout_User   :", _stPrintLog._dwTimeoutUserTotal);

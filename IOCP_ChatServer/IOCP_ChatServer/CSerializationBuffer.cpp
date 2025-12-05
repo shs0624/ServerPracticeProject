@@ -1,15 +1,15 @@
 #include "CSerializationBuffer.h"
-//#define LOG_CPACKET
 
 //procademy::CMemoryPool_LockFree<CPacket> CPacket::_CPacketPool(0, true, false);
 //TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 5, 5, true, false);
-procademy::MemoryPool_TLS<CPacket> CPacket::_CPacketPool(5000, true);
+procademy::MemoryPool_TLS<CPacket> CPacket::_CPacketPool(5000, false);
 DWORD CPacket::_iLogFreeIdx;
 LPVOID CPacket::_freeLog[CPACKET_LOGSIZE];
 DWORD CPacket::_iLogAllocIdx;
 LPVOID CPacket::_allocLog[CPACKET_LOGSIZE];
 
-// 직렬화버퍼 초기화. 호출 필수적. 헤더를 넣었다면 헤더 사이즈도 설정
+// 직렬화버퍼 초기화. 동적으로 사용을 원하면 사용. 헤더를 넣었다면 헤더 사이즈도 설정
+#ifdef MALLOC_ON_CALL
 void CPacket::Initialize(int iBufferSize, int iHeaderSize = 0)
 {
 	_iBufferSize = iBufferSize;
@@ -32,11 +32,39 @@ void CPacket::Initialize(int iBufferSize, int iHeaderSize = 0)
 	_allocLog[idx] = (LPVOID)this;
 #endif
 }
+#endif
+
+// 미리 생성해놓는 경우 사용할 Initialize
+#ifndef MALLOC_ON_CALL
+void CPacket::Initialize(int iHeaderSize = 0)
+{
+	_head = iHeaderSize;
+	_tail = iHeaderSize;
+	_iDataSize = 0;
+	_iHeaderSize = iHeaderSize;
+
+#ifdef LOG_CPACEKT
+	int idx = InterlockedIncrement(&_iLogAllocIdx) % CPACKET_LOGSIZE;
+	_allocLog[idx] = (LPVOID)this;
+#endif
+}
+#endif
+
 
 #pragma warning(disable:26495)
 CPacket::CPacket()
 {
-
+	_iBufferSize = PROTOCOL_MAX_SIZE;
+	_head = 0;
+	_tail = 0;
+	_iDataSize = 0;
+	_iHeaderSize = 0;
+	_iBuffer = (char*)malloc(_iBufferSize);
+	if (_iBuffer == nullptr)
+	{
+		DebugBreak();
+		return;
+	}
 }
 #pragma warning(default:26495)
 
@@ -173,6 +201,7 @@ void CPacket::Clear(void)
 	_head = 0;
 	_tail = 0;
 	_iDataSize = 0;
+	_iHeaderSize = 0;
 }
 
 void CPacket::Clear(int iHeaderSize)
@@ -183,6 +212,17 @@ void CPacket::Clear(int iHeaderSize)
 	_iHeaderSize = iHeaderSize;
 }
 
+#ifndef MALLOC_ON_CALL
+CPacket::~CPacket()
+{
+#ifdef LOG_CPACEKT
+	int idx = InterlockedIncrement(&_iLogFreeIdx) % CPACKET_LOGSIZE;
+	_freeLog[idx] = (LPVOID)this;
+#endif
+}
+#endif
+
+#ifdef MALLOC_ON_CALL
 CPacket::~CPacket()
 {
 #ifdef LOG_CPACEKT
@@ -192,11 +232,8 @@ CPacket::~CPacket()
 
 	free(_iBuffer);
 	_iBuffer = nullptr;
-
-	if (_isUsing == FALSE)
-		DebugBreak();
-	_isUsing = FALSE;
 }
+#endif
 
 void CPacket::PushHeader(char* header, int headerSize)
 {

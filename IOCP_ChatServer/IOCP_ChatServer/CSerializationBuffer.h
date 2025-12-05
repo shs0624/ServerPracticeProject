@@ -1,6 +1,5 @@
 #pragma once
 
-
 #ifndef _CPACKET_
 #define _CPACKET_
 #include <Windows.h>
@@ -8,6 +7,9 @@
 #include "TLS_MemoryPool.h"
 //#include "TLSMemoryPool.h"
 #define CPACKET_LOGSIZE 10000
+#define PROTOCOL_MAX_SIZE 500
+
+//#define MALLOC_ON_CALL
 
 enum en_PACKET
 {
@@ -68,7 +70,8 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	bool Decode(unsigned char K, unsigned char RK);
 
-	void Initialize(int iBufferSize, int iHeaderSize);
+	//void Initialize(int iBufferSize, int iHeaderSize);
+	void Initialize(int iHeaderSize);
 
 	//////////////////////////////////////////////////////////////////////////
 	// 버퍼 포인터 얻기.
