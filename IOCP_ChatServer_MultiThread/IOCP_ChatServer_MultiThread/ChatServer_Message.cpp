@@ -8,17 +8,31 @@
 void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
 {
 	BYTE status = TRUE;
-	AcquireSRWLockShared(&_UserMapLock);
-	auto it = _UserMap.find(sessionID);
-	if (it != _UserMap.end())
+	AcquireSRWLockShared(&_AccountNumUserMapLock);
+	auto it = _AccountNumUserMap.find(accountNum);
+	if (it != _AccountNumUserMap.end())
 	{
 		// @@TODO : 중복 로그인이니 둘 다 끊어야 한다.
-		ReleaseSRWLockShared(&_UserMapLock);
-		DebugBreak();
+		_pLog._dwDuplicatedLoginTotal++;
+		ReleaseSRWLockShared(&_AccountNumUserMapLock);
+
+		Disconnect((*it).second->ulSessionID);
 		status = FALSE;
+
+		// status False 반환
+		(*cPacket)->Clear(sizeof(st_NetHeader));
+		mpRESLogin(cPacket, status, accountNum);
+
+		if (!SendPacket_UniCast(sessionID, cPacket))
+		{
+			if (!cPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+		}
+
+		Disconnect(sessionID);
 		return;
 	}
-	ReleaseSRWLockShared(&_UserMapLock);
+	ReleaseSRWLockShared(&_AccountNumUserMapLock);
 
 	st_USER* userPtr = _UserPool->Alloc();
 	_pLog._dwPlayerPoolUse++;
@@ -47,6 +61,10 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	AcquireSRWLockExclusive(&_UserMapLock);
 	_UserMap.insert({ userPtr->ulSessionID, userPtr });
 	ReleaseSRWLockExclusive(&_UserMapLock);
+
+	AcquireSRWLockExclusive(&_AccountNumUserMapLock);
+	_AccountNumUserMap.insert({ userPtr->AccountNum, userPtr });
+	ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
 
 	_pLog._dwSessionCount--;
 	_pLog._dwUserCount++;

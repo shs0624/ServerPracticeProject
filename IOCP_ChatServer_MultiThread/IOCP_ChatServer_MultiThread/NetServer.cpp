@@ -162,18 +162,9 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 
 	st_NetSession* ptr = &_sessionArr[idx];
 
-	// 수정이 필요함
-	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
-	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
-	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
-	ULONGLONG ulIdx = (idx << 48);
-	ptr->ulSessionID = (ulIdx | id);
+	// 다른 곳에서 Send후 Dec로 해제되는 걸 막기위해 먼저 Inc
 	ptr->dwIOCount = 0;
-	ptr->bReleaseFlag = false;
-	ptr->bSendFlag = false;
-	ptr->bCanceled = false;
-	ptr->bDeleted = false;
-	ptr->sock = client_sock;
+	InterlockedIncrement(&ptr->dwIOCount);
 
 	while (!ptr->sendBuf->Empty())
 	{
@@ -184,19 +175,31 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	}
 	ptr->recvBuf->ClearBuffer();
 
+	// 수정이 필요함
+	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
+	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
+	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
+	ULONGLONG ulIdx = (idx << 48);
+	ptr->ulSessionID = (ulIdx | id);
+	ptr->bReleaseFlag = false;
+	ptr->bSendFlag = false;
+	ptr->bCanceled = false;
+	ptr->bDeleted = false;
+	ptr->sock = client_sock;
+
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
 	InterlockedIncrement((LONG*)&_iSessionCount);
 
-	InterlockedIncrement(&ptr->dwIOCount);
-	if (ptr->bReleaseFlag == 1)
-	{
-		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
-		{
-			// 연결 끊기
-			ReleaseSession(ptr->ulSessionID);
-		}
-		return false;
-	}
+	//InterlockedIncrement(&ptr->dwIOCount);
+	//if (ptr->bReleaseFlag == 1)
+	//{
+	//	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+	//	{
+	//		// 연결 끊기
+	//		ReleaseSession(ptr->ulSessionID);
+	//	}
+	//	return false;
+	//}
 
 	if (!OnAccept(ptr->ulSessionID))
 		return false;
@@ -302,39 +305,20 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			}
 			else
 			{
+				InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
+
 				// 한 번 더 실제로 head가 비었는지 체크
-				if (ptr->sendBuf->Empty())
+				if (ptr->sendBuf->Size() > 0)
 				{
-					// 내가 SendFlag를 바꿨다. 당연한거긴함
-					if (InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE) == TRUE)
+					if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 					{
-						if (!ptr->sendBuf->Empty())
+						if (!thisPtr->SetWSASend(ptr))
 						{
-							if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
-							{
-								if (!thisPtr->SetWSASend(ptr))
-								{
-									InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+							InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 
-									if (!thisPtr->DecrementIOCount(ptr))
-										continue;
-								}
-							}
+							if (!thisPtr->DecrementIOCount(ptr))
+								continue;
 						}
-					}
-				}
-				else
-				{
-					while (ptr->sendBuf->Size() <= 0)
-					{
-						Sleep(0);
-					}
-
-					if (!thisPtr->SetWSASend(ptr))
-					{
-						InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
-						if (!thisPtr->DecrementIOCount(ptr))
-							continue;
 					}
 				}
 			}
@@ -462,9 +446,6 @@ bool CNetServer::DecrementIOCount(st_NetSession* ptr)
 		// 일단 CancelIO 한 번
 		//CancelIoEx((HANDLE)ptr->sock, NULL);
 
-		// 연결 끊기
-		//ReleaseSession(ptr->ulSessionID);
-
 		PostRelease(ptr);
 		return false;
 	}
@@ -478,6 +459,11 @@ bool CNetServer::Disconnect(ULONGLONG sessionID)
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 		return false;
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		return false;
+	}
 
 	ptr->bCanceled = true;
 	ptr->bDeleted = true;
@@ -515,6 +501,12 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	{
 		if (!DecrementIOCount(ptr))
 			return false;
+	}
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
 	}
 
 	if (pushHeader)
@@ -670,8 +662,14 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 		int err = WSAGetLastError();
 		if (err != WSA_IO_PENDING)
 		{
-			//printf("WSASend Fail! : %d\n", err);
-			//DebugBreak();
+			// 전송이 실패했으니, 여기서 다시 제거
+			int cnt = ptr->dwSendCount;
+			for (int i = 0; i < cnt; i++)
+			{
+				if (!ptr->cPacketArr[i].DecRefCount())
+					_pLog._dwPacketPoolUse--;
+			}
+			ptr->dwSendCount = 0;
 			return false;
 		}
 	}

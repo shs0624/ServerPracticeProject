@@ -46,7 +46,7 @@ void ChatServer::InitChatServer()
 	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
 
-	_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
+	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 }
 
 bool ChatServer::OnAccept(ULONGLONG sessionID)
@@ -92,6 +92,11 @@ void ChatServer::OnRelease(ULONGLONG sessionID)
 		AcquireSRWLockExclusive(&_UserMapLock);
 		_UserMap.erase(sessionID);
 		ReleaseSRWLockExclusive(&_UserMapLock);
+
+		AcquireSRWLockShared(&_AccountNumUserMapLock);
+		auto itUser = _AccountNumUserMap.find(pUser->AccountNum);
+		_AccountNumUserMap.erase(pUser->AccountNum);
+		ReleaseSRWLockShared(&_AccountNumUserMapLock);
 
 		_UserPool->Free(pUser);
 

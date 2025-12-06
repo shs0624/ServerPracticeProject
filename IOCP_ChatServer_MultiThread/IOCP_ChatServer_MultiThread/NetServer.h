@@ -46,6 +46,9 @@ public:
 	bool DecrementIOCount(st_NetSession* ptr);
 	bool Disconnect(ULONGLONG sessionID);
 
+	bool SendPost(ULONGLONG sessionID);
+	bool EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
+	bool PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
 	bool SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
 	bool SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCountPointer& cPacket);
 
