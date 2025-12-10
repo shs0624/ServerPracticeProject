@@ -12,7 +12,6 @@ struct st_SESSION
 
 	// 타임아웃용 시간
 	DWORD dwLastRecvTime;
-	bool bDeleted;
 };
 
 // 로그인 한 유저
@@ -30,7 +29,6 @@ struct st_USER
 
 	// 타임아웃용 시간
 	DWORD dwLastRecvTime;
-	bool bDeleted;
 	bool bBatched;
 };
 
@@ -39,24 +37,10 @@ class ChatServer : CNetServer
 public:
 	ChatServer()
 	{
-		
+
 	}
 
-	ChatServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
-	{
-		InitChatServer();
-
-		SYSTEM_INFO si;
-		GetSystemInfo(&si);
-
-		_emptyIndexStack = new LockFreeStack<ULONGLONG>();
-
-		int workCount = (int)si.dwNumberOfProcessors * 2;
-		StartNetServer(ip, port, workCount, workCount - 2, true, 8000);
-
-		_UserPool = new procademy::CMemoryPool<st_USER>(10000, false, false);
-		_SessionPool = new procademy::CMemoryPool<st_SESSION>(12000, false, false);
-	}
+	void InitChatServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection);
 
 	void QuitServer() override
 	{
@@ -70,16 +54,11 @@ public:
 	virtual void OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket);
 	virtual void OnError(int errorcode, WCHAR* message);
 private:
-	void InitChatServer();
 	// time 측정을 위한 Update
 	void TimeCheck(DWORD& sleepTime);
 
 	// 프레임 스킵 함수
 	bool Skip();
-
-	void PacketProc(RefCountPointer& cPacket);
-
-	void MessageProc();
 
 	void MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID);
 
@@ -99,16 +78,10 @@ private:
 	
 	void UnLockSectorMove(WORD sectorX, WORD sectorY, WORD nSectorX, WORD nSectorY);
 
-	void DisconnectDeletedSession();
-
 	static unsigned int WINAPI TimerThread(LPVOID arg);
 
-	//void MoveSector(ULONGLONG ulSessionID);
-
-	//void SendAroundSector(ULONGLONG ulSessionID, RefCountPointer& cpacket);
-
-	procademy::CMemoryPool<st_USER>* _UserPool;
-	procademy::CMemoryPool<st_SESSION>* _SessionPool;
+	procademy::CMemoryPool_LockFree<st_USER>* _UserPool;
+	procademy::CMemoryPool_LockFree<st_SESSION>* _SessionPool;
 	
 	HANDLE _hQuitEvent;
 	HANDLE _hTimeoutEvent;

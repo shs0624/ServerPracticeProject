@@ -8,18 +8,20 @@
 void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
 {
 	BYTE status = TRUE;
-	AcquireSRWLockShared(&_AccountNumUserMapLock);
+	AcquireSRWLockExclusive(&_AccountNumUserMapLock);
 	auto it = _AccountNumUserMap.find(accountNum);
 	if (it != _AccountNumUserMap.end())
 	{
-		// @@TODO : 중복 로그인이니 둘 다 끊어야 한다.
-		_pLog._dwDuplicatedLoginTotal++;
-		ReleaseSRWLockShared(&_AccountNumUserMapLock);
+		// 둘 다 끊어버리겠다.
+		ULONGLONG _aliveSessionID = (*it).second->ulSessionID;
+		ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
 
-		Disconnect((*it).second->ulSessionID);
+		_pLog._dwDuplicatedLoginTotal++;
+		Disconnect(_aliveSessionID);
+
 		status = FALSE;
 
-		// status False 반환
+		// 새로운 유저 - status False 반환
 		(*cPacket)->Clear(sizeof(st_NetHeader));
 		mpRESLogin(cPacket, status, accountNum);
 
@@ -32,15 +34,15 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 		Disconnect(sessionID);
 		return;
 	}
-	ReleaseSRWLockShared(&_AccountNumUserMapLock);
+	ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
 
 	st_USER* userPtr = _UserPool->Alloc();
+
 	_pLog._dwPlayerPoolUse++;
 	
 	userPtr->ulSessionID = sessionID;
 	userPtr->AccountNum = accountNum;
 	userPtr->dwLastRecvTime = timeGetTime();
-	userPtr->bDeleted = FALSE;
 	userPtr->bBatched = FALSE;
 	
 	(*cPacket)->GetData((char*)userPtr->ID, sizeof(userPtr->ID));
@@ -53,7 +55,7 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	{
 		st_SESSION* ptr = (*itSession).second;
 
-		_SessionMap.erase(userPtr->ulSessionID);
+		_SessionMap.erase(sessionID);
 		_SessionPool->Free(ptr);
 	}
 	ReleaseSRWLockExclusive(&_SessionMapLock);
@@ -85,11 +87,11 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 {
 	AcquireSRWLockShared(&_UserMapLock);
 	auto it = _UserMap.find(sessionID);
-	ReleaseSRWLockShared(&_UserMapLock);
-
 	if (it == _UserMap.end())
 	{
-		// @@TODO : 없는 유저에 대한 메세지. 오류 로그를 남겨야 할듯
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
 		return;
 	}
 
@@ -99,37 +101,52 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	(**cPacket) >> nSectorX;
 	(**cPacket) >> nSectorY;
 
-	WORD sectorX = (*it).second->sectorX;
-	WORD sectorY = (*it).second->sectorY;
-
-	// 기존 벡터에서 삭제
-	vector<ULONGLONG>& refSectorVector = _SectorVector[sectorY][sectorX];
-
-	// 이동할 때 이동 대상이 사라지는 타이밍을 막을 필요가 있음.
-	// 숫자가 작은 순서대로 락을 걸게 만들자. A->B, B->A 둘 다 A먼저 락을 걸게 만드는 것.
-	LockSectorMove(sectorX, sectorY, nSectorX, nSectorY);
-
-	// 기존 섹터에서의 제거
-	for (int i = 0; i < refSectorVector.size(); i++)
-	{
-		if (refSectorVector[i] == (*it).second->ulSessionID)
-		{
-			refSectorVector.erase(refSectorVector.begin() + i);
-			break;
-		}
-	}
-
-	(*it).second->sectorX = nSectorX;
-	(*it).second->sectorY = nSectorY;
-	(*it).second->dwLastRecvTime = timeGetTime();
-
-	_SectorVector[nSectorY][nSectorX].push_back((*it).second->ulSessionID);
-
-	UnLockSectorMove(sectorX, sectorY, nSectorX, nSectorY);
-
 	if ((*it).second->bBatched == FALSE)
+	{
 		(*it).second->bBatched = TRUE;
 
+		(*it).second->sectorX = nSectorX;
+		(*it).second->sectorY = nSectorY;
+		(*it).second->dwLastRecvTime = timeGetTime();
+
+		AcquireSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
+		_SectorVector[nSectorY][nSectorX].push_back((*it).second->ulSessionID);
+		ReleaseSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
+	}
+	else
+	{
+		WORD sectorX = (*it).second->sectorX;
+		WORD sectorY = (*it).second->sectorY;
+
+		// 이동할 때 이동 대상이 사라지는 타이밍을 막을 필요가 있음.
+		// 숫자가 작은 순서대로 락을 걸게 만들자. A->B, B->A 둘 다 A먼저 락을 걸게 만드는 것.
+		LockSectorMove(sectorX, sectorY, nSectorX, nSectorY);
+
+		// 기존 벡터에서 삭제
+		vector<ULONGLONG>& refSectorVector = _SectorVector[sectorY][sectorX];
+		bool bFlag = false;
+		for (int i = 0; i < refSectorVector.size(); i++)
+		{
+			if (refSectorVector[i] == (*it).second->ulSessionID)
+			{
+				refSectorVector.erase(refSectorVector.begin() + i);
+				bFlag = true;
+				break;
+			}
+		}
+		if (bFlag == false)
+			DebugBreak();
+
+		(*it).second->sectorX = nSectorX;
+		(*it).second->sectorY = nSectorY;
+		(*it).second->dwLastRecvTime = timeGetTime();
+
+		_SectorVector[nSectorY][nSectorX].push_back((*it).second->ulSessionID);
+
+		UnLockSectorMove(sectorX, sectorY, nSectorX, nSectorY);
+	}
+
+	ReleaseSRWLockShared(&_UserMapLock);
 	_pLog._dwMoveMessageTPS++;
 
 	// MoveRES 보내기
@@ -150,16 +167,13 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 
 	AcquireSRWLockShared(&_UserMapLock);
 	auto it = _UserMap.find(sessionID);
-	ReleaseSRWLockShared(&_UserMapLock);
-
 	if (it == _UserMap.end())
 	{
-		// @@TODO : 없는 유저에 대한 메세지. 오류 로그를 남겨야 할듯
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
 		return;
 	}
-
-	if ((*it).second->bBatched == FALSE)
-		DebugBreak();
 
 	(*it).second->dwLastRecvTime = timeGetTime();
 	WORD sectorX = (*it).second->sectorX;
@@ -175,7 +189,9 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 
 	(*cPacket)->Clear(sizeof(st_NetHeader));
 	mpRESMessage(cPacket, accountNum, (*it).second->ID, (*it).second->NickName, len, message);
-	
+
+	ReleaseSRWLockShared(&_UserMapLock);
+
 	// 메세지를 먼저 생성, 인코딩하기
 	st_NetHeader netHeader;
 	netHeader.FixedKey = PROGRAM_KEY;

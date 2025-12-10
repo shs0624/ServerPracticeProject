@@ -3,7 +3,7 @@
 #include "TLS_MemoryPool.h"
 //#include "CFreeList_LockFree.h"
 #define LOGARR_MAX 10000
-//#define LOGGING
+//#define LOG_LOCKFREEQUEUE
 
 enum workType_Q
 {
@@ -19,7 +19,7 @@ private:
     DWORD _dwCount;
     DWORD _dwLogCount;
     DWORD _dwTailLogCount;
-    DWORD _dwAllocCount;
+    DWORD64 _EndPointNode;
 
     struct st_Node
     {
@@ -27,6 +27,7 @@ private:
         st_Node* next;
     };
 
+#ifdef LOG_LOCKFREEQUEUE
     struct st_LOG
     {
         alignas(8) workType_Q type;
@@ -36,12 +37,12 @@ private:
         DWORD64 _dwsize;
         DWORD64 _dwThreadID;
     };
+    st_LOG _workArr[LOGARR_MAX];
+#endif
 
     st_Node* _head;        // 시작노드를 포인트한다.
     st_Node* _tail;        // 마지막노드를 포인트한다.
 
-    st_LOG _workArr[LOGARR_MAX];
-    st_Node* _allocArr[LOGARR_MAX];
     static procademy::MemoryPool_TLS<st_Node> _NodePool;
     //static procademy::MemoryPool_TLS<st_Node>* _NodePool;
     //procademy::CMemoryPool_LockFree<st_Node>* _NodePool;
@@ -52,9 +53,11 @@ public:
     //LockFreeQueue() :_NodePool(new TLSMemoryPoolManager<st_Node>(500, 5, 10))
     LockFreeQueue()// : _NodePool(new procademy::MemoryPool_TLS<st_Node>(500, false))
     {
+        _EndPointNode = (DWORD64)&_EndPointNode;
+
         _size = 0;
         _head = _NodePool.Alloc();
-        _head->next = NULL;
+        _head->next = (st_Node*)_EndPointNode;
         _tail = _head;
     }
 
@@ -62,20 +65,13 @@ public:
     {
         _size = 0;
 
-        /*
-        st_Node* _headP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
-        while (_headP->next != NULL)
-        {
-            _NodePool->Free(_headP);
-            _headP = _headP->next;
-        }*/
         while (!Empty())
         {
             Pop_Front();
         }
 
         st_Node* _headP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
-        _headP->next = NULL;
+        _headP->next = (st_Node*)_EndPointNode;
         _tail = _head;
     }
 
@@ -87,7 +83,7 @@ public:
     bool Empty()
     {
         st_Node* _headP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
-        if (_headP->next == NULL)
+        if (_headP->next == (st_Node*)_EndPointNode)
             return true;
 
         return false;
@@ -97,10 +93,7 @@ public:
     {
         st_Node* node = _NodePool.Alloc();
         node->data = t;
-        node->next = NULL;
-
-        DWORD allocIdx = InterlockedIncrement(&_dwAllocCount) % LOGARR_MAX;
-        _allocArr[allocIdx] = node;
+        node->next = (st_Node*)_EndPointNode;
 
         DWORD localCnt = InterlockedIncrement(&_dwCount);
         st_Node* EnqueueNode = (st_Node*)((ULONGLONG)node | (ULONGLONG)localCnt << 47);
@@ -109,7 +102,7 @@ public:
         // tail을 밀어줘야 한다.
         st_Node* _t = _tail;
         st_Node* _tailP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_t);
-        if (_tailP->next != NULL)
+        if (_tailP->next != (st_Node*)_EndPointNode)
         {
             InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
         }
@@ -122,12 +115,12 @@ public:
             st_Node* tailPtr = (st_Node*)(0x00007fffffffffff & (ULONGLONG)tail);
             st_Node* next = tailPtr->next;
 
-            if (next == NULL)
+            if (next == (st_Node*)_EndPointNode)
             {
-                if (InterlockedCompareExchangePointer((PVOID*)&tailPtr->next, EnqueueNode, NULL) == next)
+                if (InterlockedCompareExchangePointer((PVOID*)&tailPtr->next, EnqueueNode, (st_Node*)_EndPointNode) == next)
                 {
                     DWORD nSize = InterlockedIncrement(&_size);
-#ifdef LOGGING
+#ifdef LOG_LOCKFREEQUEUE
                     DWORD logIdx = InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
                     _workArr[logIdx].type = workType_Q::Enqueue;
                     _workArr[logIdx].pNode = EnqueueNode;
@@ -156,17 +149,13 @@ public:
             st_Node* headPtr = (st_Node*)(0x00007fffffffffff & (ULONGLONG)head);
             st_Node* next = headPtr->next;
 
-            // 데이터 미리 뽑아두기
-            /*if(next != NULL)
-                localData = ((st_Node*)(0x00007fffffffffff & (ULONGLONG)next))->data;*/
-
-            if (next == NULL)
+            if (next == (st_Node*)_EndPointNode)
                 continue;
 
             // tail을 밀어줘야 하는지 체크
             st_Node* _t = _tail;
             st_Node* _tailP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_t);
-            if (_tailP->next != NULL)
+            if (_tailP->next != (st_Node*)_EndPointNode)
             {
                 InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
             }
@@ -177,7 +166,7 @@ public:
                 localData = localNode->data;
 
                 DWORD nSize = InterlockedDecrement(&_size);
-#ifdef LOGGING
+#ifdef LOG_LOCKFREEQUEUE
                 DWORD logIdx = InterlockedIncrement(&_dwLogCount) % LOGARR_MAX;
                 _workArr[logIdx].type = workType_Q::Dequeue;
                 _workArr[logIdx].pNode = head;

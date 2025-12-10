@@ -164,9 +164,10 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 
 	// 다른 곳에서 Send후 Dec로 해제되는 걸 막기위해 먼저 Inc
 	ptr->dwIOCount = 0;
-	InterlockedIncrement(&ptr->dwIOCount);
+	if (InterlockedIncrement(&ptr->dwIOCount) != 1)
+		DebugBreak();
 
-	while (!ptr->sendBuf->Empty())
+	while (ptr->sendBuf->Size() > 0)
 	{
 		RefCountPointer cPacket;
 		ptr->sendBuf->Dequeue(cPacket);
@@ -305,34 +306,68 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			}
 			else
 			{
-				InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
+				//InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
 
-				// 한 번 더 실제로 head가 비었는지 체크
-				if (ptr->sendBuf->Size() > 0)
+				//// 한 번 더 실제로 head가 비었는지 체크
+				//if (ptr->sendBuf->Size() > 0)
+				//{
+				//	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+				//	{
+				//		if (!thisPtr->SetWSASend(ptr))
+				//		{
+				//			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+
+				//			if (!thisPtr->DecrementIOCount(ptr))
+				//				continue;
+				//		}
+				//	}
+				//}
+
+				if (ptr->sendBuf->Empty())
 				{
-					if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+					if (InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE) == TRUE)
 					{
-						if (!thisPtr->SetWSASend(ptr))
+						if (ptr->sendBuf->Size() > 0)
 						{
-							InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+							if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+							{
+								if (!thisPtr->SetWSASend(ptr))
+								{
+									InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 
-							if (!thisPtr->DecrementIOCount(ptr))
-								continue;
+									if (!thisPtr->DecrementIOCount(ptr))
+										continue;
+								}
+							}
 						}
+					}
+				}
+				else
+				{
+					if (!thisPtr->SetWSASend(ptr))
+					{
+						InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+
+						if (!thisPtr->DecrementIOCount(ptr))
+							continue;
 					}
 				}
 			}
 		}
 
 		// 완료 통지에 대한 IO차감
-		thisPtr->DecrementIOCount(ptr);
+		if (!thisPtr->DecrementIOCount(ptr))
+			continue;
 		// 여긴 세션 참조에 대한 IO차감
-		thisPtr->DecrementIOCount(ptr);
+		if (!thisPtr->DecrementIOCount(ptr))
+			continue;
 	}
 }
 
 void CNetServer::InitializeSessions(ULONG maxConnection)
 {
+	_emptyIndexStack = new LockFreeStack<ULONGLONG>();
+
 	_sessionArr = (st_NetSession*)malloc(sizeof(st_NetSession) * maxConnection);
 	_iSessionCount = 0;
 
@@ -355,7 +390,7 @@ bool CNetServer::Init(int maxConnection)
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
-	int concurrentThread = si.dwNumberOfProcessors - 4;
+	int concurrentThread = si.dwNumberOfProcessors - 2;
 	if (concurrentThread <= 0)
 		concurrentThread = si.dwNumberOfProcessors - 1;
 
@@ -443,9 +478,6 @@ bool CNetServer::DecrementIOCount(st_NetSession* ptr)
 	LONG result = InterlockedDecrement((LONG*)&(ptr->dwIOCount));
 	if (result == 0)
 	{
-		// 일단 CancelIO 한 번
-		//CancelIoEx((HANDLE)ptr->sock, NULL);
-
 		PostRelease(ptr);
 		return false;
 	}
@@ -499,8 +531,8 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	InterlockedIncrement(&ptr->dwIOCount);
 	if (ptr->bReleaseFlag == 1)
 	{
-		if (!DecrementIOCount(ptr))
-			return false;
+		DecrementIOCount(ptr);
+		return false;
 	}
 
 	if (sessionID != ptr->ulSessionID)
@@ -529,6 +561,8 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	{
 		if (ptr->bCanceled)
 		{
+			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+
 			DecrementIOCount(ptr);
 			return false;
 		}
@@ -692,7 +726,7 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	OnRelease(ptr->ulSessionID);
 
 	ptr->recvBuf->ClearBuffer();
-	while (!ptr->sendBuf->Empty())
+	while (ptr->sendBuf->Size() > 0)
 	{
 		RefCountPointer cPacket;
 		ptr->sendBuf->Dequeue(cPacket);

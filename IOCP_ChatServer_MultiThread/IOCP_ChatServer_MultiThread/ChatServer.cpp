@@ -3,35 +3,19 @@
 #include "NetServer.h"
 #include "ChatServer.h"
 #include "CommonProtocol.h"
-#include "CFreeList.h"
+#include "CFreeList_LockFree.h"
 #include "LogManager.h"
 
-int main()
+
+
+void ChatServer::InitChatServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
 {
-	LogController::GetInstance();
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
 
-	ChatServer* _chatServer = new ChatServer(INADDR_ANY, SERVERPORT, true, 5000);
+	int workCount = (int)si.dwNumberOfProcessors * 2;
+	StartNetServer(ip, port, workCount, workCount - 2, true, 8000);
 
-	char ch;
-	while (1)
-	{
-		// 컨트롤?
-		ch = _getch();
-		if (ch == 'Q' || ch == 'q')
-		{
-			_chatServer->QuitServer();
-			//break;
-		}
-		if (ch == 'P' || ch == 'p')
-		{
-			ProfileDataOutText("ProfileData.txt");
-		}
-
-	}
-}
-
-void ChatServer::InitChatServer()
-{
 	InitializeSRWLock(&_UserMapLock);
 	InitializeSRWLock(&_SessionMapLock);
 
@@ -46,6 +30,9 @@ void ChatServer::InitChatServer()
 	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
 
+	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(8000, false, false);
+	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(8000, false, false);
+
 	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 }
 
@@ -54,7 +41,6 @@ bool ChatServer::OnAccept(ULONGLONG sessionID)
 	st_SESSION* pSession = _SessionPool->Alloc();
 
 	pSession->ulSessionID = sessionID;
-	pSession->bDeleted = FALSE;
 	pSession->dwLastRecvTime = timeGetTime();
 
 	AcquireSRWLockExclusive(&_SessionMapLock);
@@ -69,56 +55,56 @@ bool ChatServer::OnAccept(ULONGLONG sessionID)
 void ChatServer::OnRelease(ULONGLONG sessionID)
 {
 	// 세션 Release
-	AcquireSRWLockShared(&_UserMapLock);
+	AcquireSRWLockExclusive(&_UserMapLock);
 	auto itUser = _UserMap.find(sessionID);
-	ReleaseSRWLockShared(&_UserMapLock);
-
 	if (itUser != _UserMap.end())
 	{
 		st_USER* pUser = (*itUser).second;
 
-		vector<ULONGLONG>& refSectorVector = _SectorVector[pUser->sectorY][pUser->sectorX];
-		AcquireSRWLockExclusive(&_SectorLock[pUser->sectorY][pUser->sectorX]);
-		for (int i = 0; i < refSectorVector.size(); i++)
+		if (pUser->bBatched != FALSE)
 		{
-			if (refSectorVector[i] == pUser->ulSessionID)
+			AcquireSRWLockExclusive(&_SectorLock[pUser->sectorY][pUser->sectorX]);
+			vector<ULONGLONG>& refSectorVector = _SectorVector[pUser->sectorY][pUser->sectorX];
+			for (int i = 0; i < refSectorVector.size(); i++)
 			{
-				refSectorVector.erase(refSectorVector.begin() + i);
-				break;
+				if (refSectorVector[i] == pUser->ulSessionID)
+				{
+					refSectorVector.erase(refSectorVector.begin() + i);
+					break;
+				}
 			}
+			ReleaseSRWLockExclusive(&_SectorLock[pUser->sectorY][pUser->sectorX]);
 		}
-		ReleaseSRWLockExclusive(&_SectorLock[pUser->sectorY][pUser->sectorX]);
 
-		AcquireSRWLockExclusive(&_UserMapLock);
 		_UserMap.erase(sessionID);
 		ReleaseSRWLockExclusive(&_UserMapLock);
 
-		AcquireSRWLockShared(&_AccountNumUserMapLock);
-		auto itUser = _AccountNumUserMap.find(pUser->AccountNum);
+		AcquireSRWLockExclusive(&_AccountNumUserMapLock);
 		_AccountNumUserMap.erase(pUser->AccountNum);
-		ReleaseSRWLockShared(&_AccountNumUserMapLock);
+		ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
 
 		_UserPool->Free(pUser);
 
 		_pLog._dwUserCount--;
 		_pLog._dwPlayerPoolUse--;
 	}
+	else
+		ReleaseSRWLockExclusive(&_UserMapLock);
 
-	AcquireSRWLockShared(&_SessionMapLock);
+	AcquireSRWLockExclusive(&_SessionMapLock);
 	auto itSession = _SessionMap.find(sessionID);
-	ReleaseSRWLockShared(&_SessionMapLock);
-
 	if (itSession != _SessionMap.end())
 	{
 		st_SESSION* pSession = (*itSession).second;
-
-		AcquireSRWLockExclusive(&_SessionMapLock);
 		_SessionMap.erase(sessionID);
+		_SessionPool->Free(pSession);
+
 		ReleaseSRWLockExclusive(&_SessionMapLock);
 
-		_SessionPool->Free(pSession);
 		_pLog._dwSessionCount--;
 	}
+	else
+		ReleaseSRWLockExclusive(&_SessionMapLock);
 }
 
 void ChatServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)

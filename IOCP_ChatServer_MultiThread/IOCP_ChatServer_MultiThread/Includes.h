@@ -14,7 +14,7 @@
 #include <queue>
 #include <conio.h>
 
-#include "CFreeList.h"
+#include "CFreeList_LockFree.h"
 #include "ProcademyProfiler.h"
 #include "CSerializationBuffer.h"
 #include "RefCountPointer.h"
@@ -25,5 +25,5 @@
 #include "CCrashDump.h"
 #include "DebugLog.h"
 
-#define IOCP_THREADCOUNT 10
+#define IOCP_THREADCOUNT 20
 #define LOGCOUNT 10000

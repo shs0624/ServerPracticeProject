@@ -107,5 +107,8 @@
     <ClCompile Include="ChatServer_Timer.cpp">
       <Filter>ChatServer</Filter>
     </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>리소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
