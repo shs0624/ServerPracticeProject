@@ -9,9 +9,6 @@ struct stChatLog
 
 	LONG _dwAcceptTotal;
 	LONG _dwAcceptTPS;
-	LONG _dwUpdateTPS;
-	LONG _dwUpdateQSize;
-	LONG _dwUpdateThreadSleepTime;
 
 	LONG _dwSessionCount;
 	LONG _dwUserCount;
@@ -26,6 +23,7 @@ struct stChatLog
 	LONG _dwDuplicatedLoginTotal;
 	LONG _dwDecodeDisconnectTotal;
 	LONG _dwNotCorrectAccountNumTotal;
+	LONG _dwRedisCertificationFailTotal;
 
 	LONG _dwTimeoutSessionTotal;
 	LONG _dwTimeoutUserTotal;
@@ -72,9 +70,6 @@ public:
 			_stPrintLog._dwSessionCount += _LogStructArr[i]->_dwSessionCount;
 			_stPrintLog._dwAcceptTotal += _LogStructArr[i]->_dwAcceptTotal;
 			_stPrintLog._dwAcceptTPS += _LogStructArr[i]->_dwAcceptTPS;
-			_stPrintLog._dwUpdateTPS += _LogStructArr[i]->_dwUpdateTPS;
-			_stPrintLog._dwUpdateQSize += _LogStructArr[i]->_dwUpdateQSize;
-			_stPrintLog._dwUpdateThreadSleepTime += _LogStructArr[i]->_dwUpdateThreadSleepTime;
 			_stPrintLog._dwRecvMessageTPS += _LogStructArr[i]->_dwRecvMessageTPS;
 			_stPrintLog._dwSendMessageTPS += _LogStructArr[i]->_dwSendMessageTPS;
 			_stPrintLog._dwLoginMessageTPS += _LogStructArr[i]->_dwLoginMessageTPS;
@@ -83,6 +78,7 @@ public:
 			_stPrintLog._dwDuplicatedLoginTotal += _LogStructArr[i]->_dwDuplicatedLoginTotal;
 			_stPrintLog._dwDecodeDisconnectTotal += _LogStructArr[i]->_dwDecodeDisconnectTotal;
 			_stPrintLog._dwNotCorrectAccountNumTotal += _LogStructArr[i]->_dwNotCorrectAccountNumTotal;
+			_stPrintLog._dwRedisCertificationFailTotal += _LogStructArr[i]->_dwRedisCertificationFailTotal;
 			_stPrintLog._dwTimeoutSessionTotal += _LogStructArr[i]->_dwTimeoutSessionTotal;
 			_stPrintLog._dwTimeoutUserTotal += _LogStructArr[i]->_dwTimeoutUserTotal;
 			_stPrintLog._dwPacketPoolUse += _LogStructArr[i]->_dwPacketPoolUse;
@@ -109,6 +105,7 @@ public:
 		printf("%-25s%5d\n", "Duplicated Login Total :", _stPrintLog._dwDuplicatedLoginTotal);
 		printf("%-25s%5d\n", "Decode Disconnect Total :", _stPrintLog._dwDecodeDisconnectTotal);
 		printf("%-25s%5d\n", "Not Correct AccountNum Total :", _stPrintLog._dwNotCorrectAccountNumTotal);
+		printf("%-25s%5d\n", "Redis Certification Fail Total :", _stPrintLog._dwRedisCertificationFailTotal);
 		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "Timeout_Session :", _stPrintLog._dwTimeoutSessionTotal);
 		printf("%-25s%5d\n", "Timeout_User   :", _stPrintLog._dwTimeoutUserTotal);
@@ -137,8 +134,6 @@ private:
 		for (int i = 1; i <= _dwLogArrIdx; i++)
 		{
 			_LogStructArr[i]->_dwAcceptTPS = 0;
-			_LogStructArr[i]->_dwUpdateTPS = 0;
-			_LogStructArr[i]->_dwUpdateThreadSleepTime = 0;
 
 			_LogStructArr[i]->_dwChatMessageTPS = 0;
 			_LogStructArr[i]->_dwLoginMessageTPS = 0;

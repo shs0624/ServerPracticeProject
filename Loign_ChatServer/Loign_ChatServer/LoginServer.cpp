@@ -1,0 +1,139 @@
+#pragma once
+#include "Includes.h"
+#include "NetServer.h"
+#include "LoginServer.h"
+#include "CommonProtocol_Login.h"
+#include "CFreeList_LockFree.h"
+#include "LogManager.h"
+
+
+void LoginServer::InitLoginServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
+{
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+
+	int workCount = (int)si.dwNumberOfProcessors * 2;
+	int concurrentCount = ((int)si.dwNumberOfProcessors / 2) - 1;
+	StartNetServer(ip, port, workCount, concurrentCount, true, maxConnection);
+
+	InitializeSRWLock(&_SessionMapLock);
+
+	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
+
+	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
+
+	_pRedisClient = new cpp_redis::client();
+	_pRedisClient->connect();
+	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
+}
+
+bool LoginServer::OnAccept(ULONGLONG sessionID)
+{
+	st_SESSION* pSession = _SessionPool->Alloc();
+
+	pSession->ulSessionID = sessionID;
+	pSession->dwLastRecvTime = timeGetTime();
+
+	AcquireSRWLockExclusive(&_SessionMapLock);
+	_SessionMap.insert({ sessionID, pSession });
+	ReleaseSRWLockExclusive(&_SessionMapLock);
+
+	_pLog._dwSessionCount++;
+
+	return true;
+}
+
+void LoginServer::OnRelease(ULONGLONG sessionID)
+{
+	// 세션 Release
+	AcquireSRWLockExclusive(&_SessionMapLock);
+	auto itSession = _SessionMap.find(sessionID);
+	if (itSession != _SessionMap.end())
+	{
+		st_SESSION* pSession = (*itSession).second;
+		_SessionMap.erase(sessionID);
+		_SessionPool->Free(pSession);
+
+		ReleaseSRWLockExclusive(&_SessionMapLock);
+
+		_pLog._dwSessionCount--;
+	}
+	else
+		ReleaseSRWLockExclusive(&_SessionMapLock);
+}
+
+void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
+{
+	BYTE status = 1;
+
+	// 무조건 로그인 요청만 들어옴.
+	WORD type;
+	(**cPacket) >> type;
+
+	INT64 AccountNo;
+	(**cPacket) >> AccountNo;
+
+	char sessionKey[64];
+	(*cPacket)->GetData(sessionKey, sizeof(sessionKey));
+
+	// @@TODO: DB에 전송할 때 여기에 넣기
+	Sleep(5);
+
+	// Redis에 넣기.
+	_pRedisClient->setex(std::to_string(AccountNo), 5, sessionKey);
+	_pRedisClient->sync_commit();
+
+	// 패킷 전송 준비
+	(*cPacket)->Clear(sizeof(st_NetHeader));
+
+	WCHAR ID[20];
+	WCHAR Nickname[20];
+
+	std::wstring wsID = L"ID_" + std::to_wstring(AccountNo);
+	wcsncpy_s(ID, wsID.c_str(), sizeof(WCHAR) * 20);
+
+	std::wstring wsNick = L"NICK_" + std::to_wstring(AccountNo);
+	wcsncpy_s(Nickname, wsNick.c_str(), sizeof(WCHAR) * 20);
+
+	en_PACKET_TYPE packetType = en_PACKET_CS_LOGIN_RES_LOGIN;
+
+	(**cPacket) << (WORD)packetType;
+	(**cPacket) << AccountNo;
+	(**cPacket) << status;
+
+	(*cPacket)->PutData((char*)ID, sizeof(WCHAR) * 20);
+	(*cPacket)->PutData((char*)Nickname, sizeof(WCHAR) * 20);
+
+	WCHAR gameServerIP[16];
+	WCHAR chatServerIP[16];
+	WCHAR clientAddr[16];
+	GetClientAddr(sessionID, clientAddr, 16);
+
+	if (wcscmp(clientAddr, L"10.0.1.2") == 0)
+	{
+		wcsncpy_s(chatServerIP, _countof(chatServerIP), L"10.0.1.1", sizeof(WCHAR) * 16);
+	}
+	else if (wcscmp(clientAddr, L"10.0.2.2") == 0)
+	{
+		wcsncpy_s(chatServerIP, _countof(chatServerIP), L"10.0.2.1", sizeof(WCHAR) * 16);
+	}
+	else
+	{
+		status = false;
+	}
+
+	wcsncpy_s(gameServerIP, _countof(gameServerIP), dfGAMESERVER_IP, sizeof(WCHAR) * 16);
+
+	(*cPacket)->PutData((char*)gameServerIP, sizeof(WCHAR) * 16);
+	(**cPacket) << (USHORT)dfGAMESERVER_PORT;
+	(*cPacket)->PutData((char*)chatServerIP, sizeof(WCHAR) * 16);
+	(**cPacket) << (USHORT)dfCHATSERVER_PORT;
+
+	SendPacket_UniCast(sessionID, cPacket);
+}
+
+void LoginServer::OnError(int errorcode, WCHAR* message)
+{
+
+}

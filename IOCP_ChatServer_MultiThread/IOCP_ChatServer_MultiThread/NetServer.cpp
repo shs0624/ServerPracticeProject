@@ -86,7 +86,7 @@ bool CNetServer::StartNetServer(ULONG ip, LONG port, int workerCount, int concur
 	serveraddr.sin_family = AF_INET;
 	serveraddr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
 	serveraddr.sin_port = htons(SERVERPORT);
-	retval = bind(_ListenSocket, (SOCKADDR*)&serveraddr, sizeof(serveraddr));
+	retval = ::bind(_ListenSocket, (SOCKADDR*)&serveraddr, sizeof(serveraddr));
 	if (retval == SOCKET_ERROR)
 		err_quit("bind()");
 
@@ -97,6 +97,9 @@ bool CNetServer::StartNetServer(ULONG ip, LONG port, int workerCount, int concur
 
 	if (!Init(maxConnection))
 		return false;
+
+	_pRedisClient = new cpp_redis::client();
+	_pRedisClient->connect();
 
 	printf("\n[TCP 서버] 시작\n");
 }
@@ -181,6 +184,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
 	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
 	ULONGLONG ulIdx = (idx << 48);
+	ptr->clientAddr = clientaddr;
 	ptr->ulSessionID = (ulIdx | id);
 	ptr->bReleaseFlag = false;
 	ptr->bSendFlag = false;
@@ -510,6 +514,38 @@ bool CNetServer::Disconnect(ULONGLONG sessionID)
 	ReleaseSession(sessionID);
 
 	return true;
+}
+
+bool CNetServer::GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len)
+{
+	st_NetSession* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+	{
+		return false;
+	}
+
+	InterlockedIncrement(&ptr->dwIOCount);
+	if (ptr->bReleaseFlag == 1)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (InetNtop(AF_INET, &ptr->clientAddr.sin_addr, buffer, len)) {
+		DecrementIOCount(ptr);
+		return true;
+	}
+
+	DecrementIOCount(ptr);
+	return false;
+
 }
 
 void CNetServer::PostRelease(st_NetSession* ptr)

@@ -7,6 +7,11 @@
 #define PROGRAM_KEY 0x77
 #include "LogManager.h"
 
+#include <cpp_redis/cpp_redis>
+#include <tacopie/tacopie>
+#pragma comment(lib, "cpp_redis.lib")
+#pragma comment(lib, "tacopie.lib")
+
 #pragma pack(1)
 struct st_NetHeader
 {
@@ -23,6 +28,7 @@ struct st_NetSession
 	OVERLAPPED recvOverlapped;
 	ULONGLONG ulSessionID;
 	SOCKET sock;
+	SOCKADDR_IN clientAddr;
 	LockFreeQueue<RefCountPointer>* sendBuf;
 	CRingBuffer* recvBuf;
 	RefCountPointer cPacketArr[200];
@@ -45,6 +51,7 @@ public:
 
 	bool DecrementIOCount(st_NetSession* ptr);
 	bool Disconnect(ULONGLONG sessionID);
+	bool GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len);
 
 	bool SendPost(ULONGLONG sessionID);
 	bool EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
@@ -85,6 +92,8 @@ protected:
 	st_NetSession* _sessionArr;
 
 	LockFreeStack<ULONGLONG>* _emptyIndexStack;
+
+	cpp_redis::client* _pRedisClient;
 
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);
