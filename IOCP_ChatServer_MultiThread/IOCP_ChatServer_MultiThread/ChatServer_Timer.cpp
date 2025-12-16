@@ -68,9 +68,3 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 	}
 	ReleaseSRWLockShared(&_UserMapLock);
 }
-
-// 프레임 스킵 함수
-bool ChatServer::Skip()
-{
-
-}

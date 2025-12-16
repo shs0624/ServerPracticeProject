@@ -9,6 +9,7 @@
 struct st_SESSION
 {
 	ULONGLONG ulSessionID;
+	SOCKADDR_IN ClientAddr;
 
 	// 타임아웃용 시간
 	DWORD dwLastRecvTime;
@@ -19,6 +20,7 @@ struct st_USER
 {
 	ULONGLONG ulSessionID;
 	INT64 AccountNum;
+	SOCKADDR_IN ClientAddr;
 
 	WCHAR ID[20];
 	WCHAR NickName[20];
@@ -49,7 +51,7 @@ public:
 	}
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port);
-	virtual bool OnAccept(ULONGLONG sessionID);
+	virtual bool OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr);
 	virtual void OnRelease(ULONGLONG sessionID);
 	virtual void OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket);
 	virtual void OnError(int errorcode, WCHAR* message);
@@ -57,8 +59,7 @@ private:
 	// time 측정을 위한 Update
 	void TimeCheck(DWORD& sleepTime);
 
-	// 프레임 스킵 함수
-	bool Skip();
+	cpp_redis::client& GetTLSRedisClient();
 
 	void MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID);
 

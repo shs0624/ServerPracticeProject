@@ -64,7 +64,7 @@ public:
 	int getSendMessageTPS() { return _iSendMessageTPS; }
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port) = 0;
-	virtual bool OnAccept(ULONGLONG sessionID) = 0;
+	virtual bool OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr) = 0;
 
 	virtual void OnRelease(ULONGLONG sessionID) = 0;
 
@@ -93,7 +93,7 @@ protected:
 
 	LockFreeStack<ULONGLONG>* _emptyIndexStack;
 
-	cpp_redis::client* _pRedisClient;
+	//cpp_redis::client* _pRedisClient;
 
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);

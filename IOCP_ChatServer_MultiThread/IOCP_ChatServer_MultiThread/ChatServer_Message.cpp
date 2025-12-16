@@ -38,33 +38,69 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 
 	WCHAR tempID[20];
 	WCHAR tempNickname[20];
-	CHAR tempSessionKey[20];
+	CHAR tempSessionKey[64];
 
 	(*cPacket)->GetData((char*)tempID, sizeof(tempID));
 	(*cPacket)->GetData((char*)tempNickname, sizeof(tempNickname));
 	(*cPacket)->GetData((char*)tempSessionKey, sizeof(tempSessionKey));
 
 	// Redis 검증
-	std::future<cpp_redis::reply> sessionKey = _pRedisClient->get(std::to_string(accountNum));
-	_pRedisClient->get(std::to_string(accountNum), [&](cpp_redis::reply& reply) {
-		if (strcmp(tempSessionKey, reply.as_string().c_str()) != 0)
+	cpp_redis::client& _redisClient = GetTLSRedisClient();
+	//cpp_redis::client* _redisClient = _pRedisClient;
+
+	cpp_redis::reply reply;
+	try {
+		auto fut = _redisClient.get(std::to_string(accountNum));
+		_redisClient.sync_commit();       
+		reply = fut.get();                // future_error 가능
+	}
+	catch (const std::exception& e) {
+		// Redis 통신 실패 처리
+		(*cPacket)->Clear(sizeof(st_NetHeader));
+		mpRESLogin(cPacket, status, accountNum);
+
+		if (!SendPacket_UniCast(sessionID, cPacket))
 		{
-			// 검증 실패
-			(*cPacket)->Clear(sizeof(st_NetHeader));
-			mpRESLogin(cPacket, status, accountNum);
-
-			if (!SendPacket_UniCast(sessionID, cPacket))
-			{
-				if (!cPacket.DecRefCount())
-					_pLog._dwPacketPoolUse--;
-			}
-
-			_pLog._dwRedisCertificationFailTotal++;
-			Disconnect(sessionID);
-			return;
+			if (!cPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
 		}
-	});
 
+		_pLog._dwRedisCertificationFailTotal++;
+		Disconnect(sessionID);
+		return;
+	}
+
+	if (!reply.is_string()) {
+		(*cPacket)->Clear(sizeof(st_NetHeader));
+		mpRESLogin(cPacket, status, accountNum);
+
+		if (!SendPacket_UniCast(sessionID, cPacket))
+		{
+			if (!cPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+		}
+
+		_pLog._dwRedisCertificationFailTotal++;
+		Disconnect(sessionID);
+		return;
+	}
+
+	if (strncmp(tempSessionKey, reply.as_string().c_str(), 64) != 0)// 요청 전송
+	{
+		// 검증 실패
+		(*cPacket)->Clear(sizeof(st_NetHeader));
+		mpRESLogin(cPacket, status, accountNum);
+
+		if (!SendPacket_UniCast(sessionID, cPacket))
+		{
+			if (!cPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+		}
+
+		_pLog._dwRedisCertificationFailTotal++;
+		Disconnect(sessionID);
+		return;
+	}
 
 	st_USER* userPtr = _UserPool->Alloc();
 
@@ -76,7 +112,7 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	userPtr->bBatched = FALSE;
 	wcsncpy_s(userPtr->ID, tempID, sizeof(WCHAR) * 20);
 	wcsncpy_s(userPtr->NickName, tempNickname, sizeof(WCHAR) * 20);
-	strcpy_s(userPtr->SessionKey, sizeof(userPtr->SessionKey), tempSessionKey);
+	memcpy_s(userPtr->SessionKey, sizeof(userPtr->SessionKey), tempSessionKey, sizeof(tempSessionKey));
 
 	AcquireSRWLockExclusive(&_SessionMapLock);
 	auto itSession = _SessionMap.find(sessionID);
@@ -84,6 +120,7 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	{
 		st_SESSION* ptr = (*itSession).second;
 
+		userPtr->ClientAddr = ptr->ClientAddr;
 		_SessionMap.erase(sessionID);
 		_SessionPool->Free(ptr);
 	}

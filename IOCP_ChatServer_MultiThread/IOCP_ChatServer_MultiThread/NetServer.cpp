@@ -98,8 +98,8 @@ bool CNetServer::StartNetServer(ULONG ip, LONG port, int workerCount, int concur
 	if (!Init(maxConnection))
 		return false;
 
-	_pRedisClient = new cpp_redis::client();
-	_pRedisClient->connect();
+	/*_pRedisClient = new cpp_redis::client();
+	_pRedisClient->connect();*/
 
 	printf("\n[TCP 서버] 시작\n");
 }
@@ -206,7 +206,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	//	return false;
 	//}
 
-	if (!OnAccept(ptr->ulSessionID))
+	if (!OnAccept(ptr->ulSessionID, clientaddr))
 		return false;
 
 	// 소켓을 IOCP에 등록

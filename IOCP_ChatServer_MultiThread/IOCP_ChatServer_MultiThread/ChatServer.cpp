@@ -36,11 +36,27 @@ void ChatServer::InitChatServer(ULONG ip, LONG port, bool bNagleEnabled, int max
 	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 }
 
-bool ChatServer::OnAccept(ULONGLONG sessionID)
+// 필요할 때 초기화 해서 사용할 수 있는 함수
+cpp_redis::client& ChatServer::GetTLSRedisClient()
+{
+	thread_local cpp_redis::client client;
+	thread_local bool connected = false;
+
+	if (!connected) {
+		client.connect();
+		connected = true;
+	}
+
+	return client;
+}
+
+
+bool ChatServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 {
 	st_SESSION* pSession = _SessionPool->Alloc();
 
 	pSession->ulSessionID = sessionID;
+	pSession->ClientAddr = clientAddr;
 	pSession->dwLastRecvTime = timeGetTime();
 
 	AcquireSRWLockExclusive(&_SessionMapLock);
