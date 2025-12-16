@@ -17,7 +17,7 @@ struct stChatLog
 
 	LONG _dwDuplicatedLoginTotal;
 	LONG _dwDecodeDisconnectTotal;
-	LONG _dwNotCorrectAccountNumTotal;
+	LONG _dwInetNtoPError;
 
 	LONG _dwTimeoutSessionTotal;
 	LONG _dwTimeoutUserTotal;
@@ -67,7 +67,7 @@ public:
 			_stPrintLog._dwSendMessageTPS += _LogStructArr[i]->_dwSendMessageTPS;
 			_stPrintLog._dwDuplicatedLoginTotal += _LogStructArr[i]->_dwDuplicatedLoginTotal;
 			_stPrintLog._dwDecodeDisconnectTotal += _LogStructArr[i]->_dwDecodeDisconnectTotal;
-			_stPrintLog._dwNotCorrectAccountNumTotal += _LogStructArr[i]->_dwNotCorrectAccountNumTotal;
+			_stPrintLog._dwInetNtoPError += _LogStructArr[i]->_dwInetNtoPError;
 			_stPrintLog._dwTimeoutSessionTotal += _LogStructArr[i]->_dwTimeoutSessionTotal;
 			_stPrintLog._dwTimeoutUserTotal += _LogStructArr[i]->_dwTimeoutUserTotal;
 			_stPrintLog._dwPacketPoolUse += _LogStructArr[i]->_dwPacketPoolUse;
@@ -88,7 +88,7 @@ public:
 		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "Duplicated Login Total :", _stPrintLog._dwDuplicatedLoginTotal);
 		printf("%-25s%5d\n", "Decode Disconnect Total :", _stPrintLog._dwDecodeDisconnectTotal);
-		printf("%-25s%5d\n", "Not Correct AccountNum Total :", _stPrintLog._dwNotCorrectAccountNumTotal);
+		printf("%-25s%5d\n", "InetNtoP Error Total :", _stPrintLog._dwInetNtoPError);
 		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "Timeout_Session :", _stPrintLog._dwTimeoutSessionTotal);
 		printf("%-25s%5d\n", "Timeout_User   :", _stPrintLog._dwTimeoutUserTotal);

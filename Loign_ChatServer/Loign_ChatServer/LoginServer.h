@@ -12,10 +12,11 @@
 //#define dfCHATSERVER_IP L"127.0.0.1"
 #define dfCHATSERVER_PORT 10004
 
-// 로그인 하지 않은 세션
+// 세션
 struct st_SESSION
 {
 	ULONGLONG ulSessionID;
+	SOCKADDR_IN ClientAddr;
 	INT64 AccountNum;
 
 	// 내가 임의로 설정해서 넘길거임.
@@ -45,7 +46,7 @@ public:
 	}
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port);
-	virtual bool OnAccept(ULONGLONG sessionID);
+	virtual bool OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr);
 	virtual void OnRelease(ULONGLONG sessionID);
 	virtual void OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket);
 	virtual void OnError(int errorcode, WCHAR* message);
@@ -53,11 +54,11 @@ private:
 	// time 측정을 위한 Update
 	void TimeCheck(DWORD& sleepTime);
 
+	cpp_redis::client& GetTLSRedisClient();
+
 	static unsigned int WINAPI TimerThread(LPVOID arg);
 
 	procademy::CMemoryPool_LockFree<st_SESSION>* _SessionPool;
-
-		
 
 	HANDLE _hQuitEvent;
 	HANDLE _hTimeoutEvent;

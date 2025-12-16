@@ -192,7 +192,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
 	InterlockedIncrement((LONG*)&_iSessionCount);
 
-	if (!OnAccept(ptr->ulSessionID))
+	if (!OnAccept(ptr->ulSessionID, clientaddr))
 		return false;
 
 	// 소켓을 IOCP에 등록

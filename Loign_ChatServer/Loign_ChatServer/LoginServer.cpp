@@ -22,17 +22,29 @@ void LoginServer::InitLoginServer(ULONG ip, LONG port, bool bNagleEnabled, int m
 	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
 
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
-
-	_pRedisClient = new cpp_redis::client();
-	_pRedisClient->connect();
 	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 }
 
-bool LoginServer::OnAccept(ULONGLONG sessionID)
+// 필요할 때 초기화 해서 사용할 수 있는 함수
+cpp_redis::client& LoginServer::GetTLSRedisClient()
+{
+	thread_local cpp_redis::client client;
+	thread_local bool connected = false;
+
+	if (!connected) {
+		client.connect();
+		connected = true;
+	}
+
+	return client;
+}
+
+bool LoginServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 {
 	st_SESSION* pSession = _SessionPool->Alloc();
 
 	pSession->ulSessionID = sessionID;
+	pSession->ClientAddr = clientAddr;
 	pSession->dwLastRecvTime = timeGetTime();
 
 	AcquireSRWLockExclusive(&_SessionMapLock);
@@ -65,6 +77,21 @@ void LoginServer::OnRelease(ULONGLONG sessionID)
 
 void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 {
+	st_SESSION* pSession;
+
+	AcquireSRWLockExclusive(&_SessionMapLock);
+	auto itSession = _SessionMap.find(sessionID);
+	if (itSession != _SessionMap.end())
+	{
+		pSession = (*itSession).second;
+	}
+	else
+	{
+		ReleaseSRWLockExclusive(&_SessionMapLock);
+		return;
+	}
+	ReleaseSRWLockExclusive(&_SessionMapLock);
+
 	BYTE status = 1;
 
 	// 무조건 로그인 요청만 들어옴.
@@ -81,8 +108,9 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	Sleep(5);
 
 	// Redis에 넣기.
-	_pRedisClient->setex(std::to_string(AccountNo), 5, sessionKey);
-	_pRedisClient->sync_commit();
+	cpp_redis::client& _redisClient = GetTLSRedisClient();
+	_redisClient.setex(std::to_string(AccountNo), 5, sessionKey);
+	_redisClient.sync_commit();
 
 	// 패킷 전송 준비
 	(*cPacket)->Clear(sizeof(st_NetHeader));
@@ -108,8 +136,13 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	WCHAR gameServerIP[16];
 	WCHAR chatServerIP[16];
 	WCHAR clientAddr[16];
-	GetClientAddr(sessionID, clientAddr, 16);
+	if (!InetNtop(AF_INET, &pSession->ClientAddr.sin_addr, clientAddr, 16)) {
+		_pLog._dwInetNtoPError++;
+		Disconnect(sessionID);
+		return;
+	}
 
+	//wcsncpy_s(chatServerIP, _countof(chatServerIP), L"127.0.0.1", sizeof(WCHAR) * 16);
 	if (wcscmp(clientAddr, L"10.0.1.2") == 0)
 	{
 		wcsncpy_s(chatServerIP, _countof(chatServerIP), L"10.0.1.1", sizeof(WCHAR) * 16);
