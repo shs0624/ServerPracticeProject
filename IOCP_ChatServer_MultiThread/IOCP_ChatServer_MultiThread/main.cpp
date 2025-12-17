@@ -8,7 +8,7 @@ int main()
 	LogController::GetInstance();
 
 	ChatServer* _chatServer = new ChatServer();
-	_chatServer->InitChatServer(INADDR_ANY, SERVERPORT, true, 5000);
+	_chatServer->InitChatServer(INADDR_ANY, SERVERPORT, true, 11000);
 
 	char ch;
 	while (1)

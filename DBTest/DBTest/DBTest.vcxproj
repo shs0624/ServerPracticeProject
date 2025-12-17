@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{5b603fd6-fe41-4527-8062-7ba3e04b0e03}</ProjectGuid>
-    <RootNamespace>IOCPChatServerMultiThread</RootNamespace>
+    <ProjectGuid>{a08d918b-43ae-40f2-8fbe-fd97193d9949}</ProjectGuid>
+    <RootNamespace>DBTest</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>C:\Program Files\MySQL\MySQL Server 8.0\lib;C:\Program Files\MySQL\MySQL Server 8.0\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -119,8 +119,6 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <Optimization>Disabled</Optimization>
-      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -128,35 +126,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="CCrashDump.h" />
-    <ClInclude Include="CFreeList.h" />
-    <ClInclude Include="CFreeList_LockFree.h" />
-    <ClInclude Include="ChatServer.h" />
-    <ClInclude Include="CommonProtocol.h" />
-    <ClInclude Include="CRingBuffer.h" />
-    <ClInclude Include="CSerializationBuffer.h" />
-    <ClInclude Include="DebugLog.h" />
-    <ClInclude Include="Includes.h" />
-    <ClInclude Include="LockFreeQueue.h" />
-    <ClInclude Include="LockFreeStack_Re.h" />
-    <ClInclude Include="LogManager.h" />
-    <ClInclude Include="MessageDefine.h" />
-    <ClInclude Include="NetServer.h" />
-    <ClInclude Include="ProcademyProfiler.h" />
-    <ClInclude Include="RefCountPointer.h" />
-    <ClInclude Include="TLSMemoryPool.h" />
-    <ClInclude Include="TLS_MemoryPool.h" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="testMain.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ChatServer.cpp" />
-    <ClCompile Include="ChatServer_MakePacket.cpp" />
-    <ClCompile Include="ChatServer_Message.cpp" />
-    <ClCompile Include="ChatServer_Timer.cpp" />
-    <ClCompile Include="CRingBuffer.cpp" />
-    <ClCompile Include="CSerializationBuffer.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="NetServer.cpp" />
-    <ClCompile Include="ProcademyProfiler.cpp" />
+    <None Include="libmysql.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="libmysql.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="LogManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,6 +1,6 @@
 #pragma once
-//#include "TLSMemoryPool.h"
-#include "TLS_MemoryPool.h"
+#include "TLSMemoryPool.h"
+//#include "TLS_MemoryPool.h"
 //#include "CFreeList_LockFree.h"
 #define LOGARR_MAX 10000
 //#define LOG_LOCKFREEQUEUE
@@ -43,11 +43,11 @@ private:
     st_Node* _head;        // 시작노드를 포인트한다.
     st_Node* _tail;        // 마지막노드를 포인트한다.
 
-    static procademy::MemoryPool_TLS<st_Node> _NodePool;
+    //static procademy::MemoryPool_TLS<st_Node> _NodePool;
     //static procademy::MemoryPool_TLS<st_Node>* _NodePool;
     //procademy::CMemoryPool_LockFree<st_Node>* _NodePool;
     //procademy::CMemoryPool<st_Node>* _NodePool;
-    //TLSMemoryPoolManager<st_Node>* _NodePool;
+    static TLSMemoryPoolManager<st_Node> _NodePool;
 
 public:
     //LockFreeQueue() :_NodePool(new TLSMemoryPoolManager<st_Node>(500, 5, 10))
@@ -195,7 +195,11 @@ public:
     }
 
 };
+//
+//template <typename T>
+//procademy::MemoryPool_TLS<typename LockFreeQueue<T>::st_Node>
+//LockFreeQueue<T>::_NodePool(5000, false);
 
 template <typename T>
-procademy::MemoryPool_TLS<typename LockFreeQueue<T>::st_Node>
-LockFreeQueue<T>::_NodePool(5000, false);
+TLSMemoryPoolManager<typename LockFreeQueue<T>::st_Node>
+LockFreeQueue<T>::_NodePool(500, 5, 20);

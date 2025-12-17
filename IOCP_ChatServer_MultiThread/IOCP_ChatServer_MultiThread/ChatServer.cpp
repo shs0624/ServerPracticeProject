@@ -14,7 +14,7 @@ void ChatServer::InitChatServer(ULONG ip, LONG port, bool bNagleEnabled, int max
 	GetSystemInfo(&si);
 
 	int workCount = (int)si.dwNumberOfProcessors * 2;
-	StartNetServer(ip, port, workCount, workCount - 2, true, 8000);
+	StartNetServer(ip, port, workCount, workCount - 2, true, maxConnection);
 
 	InitializeSRWLock(&_UserMapLock);
 	InitializeSRWLock(&_SessionMapLock);
@@ -30,8 +30,8 @@ void ChatServer::InitChatServer(ULONG ip, LONG port, bool bNagleEnabled, int max
 	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
 
-	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(8000, false, false);
-	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(8000, false, false);
+	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(maxConnection, false, false);
+	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
 
 	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 }
