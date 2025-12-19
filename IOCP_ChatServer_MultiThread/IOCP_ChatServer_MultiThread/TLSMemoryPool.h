@@ -54,7 +54,7 @@ public:
 
 		// 총 생성 청크는 전체 스레드의 요구 청크 * 2만큼
 		_iCreateChunkCount = iThreadCount * iChunkPerThread * 2;
-		_iLeftChunk = _iCreateChunkCount;
+		_iLeftChunk = 0;
 
 		_bPlacementNew = bPlacementNew;
 		_bCreateNew = bCreateNew;
@@ -63,7 +63,15 @@ public:
 
 		_pGuardCode = (LPVOID)this;
 
-		CreateChunk();
+		InitChunk();
+	}
+
+	void InitChunk()
+	{
+		for (int i = 0; i < _iCreateChunkCount; i++)
+		{
+			CreateChunk();
+		}
 	}
 
 	// 스레드 별 스택 생성
@@ -94,7 +102,7 @@ public:
 		while (1)
 		{
 			// 청크가 없다면 생성
-			if (_TopChunk == NULL)
+			while (_TopChunk == NULL)
 			{
 				CreateChunk();
 			}
@@ -137,7 +145,7 @@ public:
 	void FreeChunkToPool(st_BLOCK_NODE<DATA>* chunk)
 	{
 		//st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)chunk);
-		ULONGLONG localIdx = InterlockedIncrement(&_ulIDCnt);
+		ULONGLONG localIdx = (ULONGLONG)InterlockedIncrement64(&_ulIDCnt);
 		localIdx = localIdx << 47;
 
 #ifdef DEBUG_TLSMEMORYPOOL
@@ -147,26 +155,14 @@ public:
 		}
 #endif
 
-		// TLS에서 이미 무너져있는지
-		st_BLOCK_NODE<DATA>* node = chunk;
-		for (int i = 0; i < _iChunkSize - 1; i++)
-		{
-			if (node->nextPtr == NULL)
-				DebugBreak();
-
-			node = node->nextPtr;
-		}
-
-
 		while (1)
 		{
 			st_BLOCK_NODE<DATA>* oldTopChunk = _TopChunk;
 			st_BLOCK_NODE<DATA>* newTop = (st_BLOCK_NODE<DATA>*)((ULONGLONG)chunk | localIdx);
+			chunk->guardCode = (LPVOID)oldTopChunk;
 
 			if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newTop, (__int64)oldTopChunk) == (__int64)oldTopChunk)
 			{
-				chunk->guardCode = (LPVOID)oldTopChunk;
-
 #ifdef DEBUG_TLSMEMORYPOOL
 				DWORD localCnt = InterlockedIncrement(&_logIdx) % LOGSIZE;
 				_LogArr[localCnt].ptr = newTop;
@@ -238,46 +234,38 @@ public:
 
 	void CreateChunk()
 	{
-		// TLS풀에 전달할 노드용 메모리
-		st_BLOCK_NODE<DATA>* pNodeStart = (st_BLOCK_NODE<DATA>*)malloc(sizeof(st_BLOCK_NODE<DATA>) * _iChunkSize * _iCreateChunkCount);
+		st_BLOCK_NODE<DATA>* pNodeStart = (st_BLOCK_NODE<DATA>*)malloc(sizeof(st_BLOCK_NODE<DATA>) * _iChunkSize);
 		st_BLOCK_NODE<DATA>* pChunkNode = NULL;
 		st_BLOCK_NODE<DATA>* prevNode = NULL;
-		for (int chunkCount = 0; chunkCount < _iCreateChunkCount; chunkCount++)
+
+		for (int i = 0; i < _iChunkSize; i++)
 		{
-			prevNode = NULL;
+			pChunkNode = pNodeStart + i;
+			pChunkNode->guardCode = _pGuardCode;
+			pChunkNode->nextPtr = prevNode;
+			pChunkNode->state = IN_MANAGER;
 
-			//for (int i = _iChunkSize - 1; i >= 0; i--)
-			for (int i = 0; i < _iChunkSize; i++)
+			if (_bCreateNew)
+				new(&(pChunkNode->allocData))DATA;
+
+			prevNode = pChunkNode;
+		}
+
+		ULONGLONG localIdx = (ULONGLONG)InterlockedIncrement64(&_ulIDCnt);
+		localIdx = localIdx << 47;
+
+		while (1)
+		{
+			st_BLOCK_NODE<DATA>* oldChunkTop = _TopChunk;
+			st_BLOCK_NODE<DATA>* newChunk = (st_BLOCK_NODE<DATA>*)((ULONGLONG)pChunkNode | localIdx);
+
+			// 청크의 다음 노드 주소는 guardCode에 넣자. 어차피 청크 안에서의 guard처리는 안할거다.
+			pChunkNode->guardCode = (LPVOID)oldChunkTop;
+
+			if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newChunk, (__int64)oldChunkTop) == (__int64)oldChunkTop)
 			{
-				pChunkNode = pNodeStart + i;
-				pChunkNode->guardCode = _pGuardCode;
-				pChunkNode->nextPtr = prevNode;
-				pChunkNode->state = IN_MANAGER;
-
-				if (_bCreateNew)
-					new(&(pChunkNode->allocData))DATA;
-
-				prevNode = pChunkNode;
-			}
-
-			ULONGLONG localIdx = InterlockedIncrement(&_ulIDCnt);
-			localIdx = localIdx << 47;
-
-			while (1)
-			{
-				st_BLOCK_NODE<DATA>* oldChunkTop = _TopChunk;
-				st_BLOCK_NODE<DATA>* newChunk = (st_BLOCK_NODE<DATA>*)((ULONGLONG)pChunkNode | localIdx);
-
-				// 청크의 다음 노드 주소는 guardCode에 넣자. 어차피 청크 안에서의 guard처리는 안할거다.
-				pChunkNode->guardCode = (LPVOID)oldChunkTop;
-
-				if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newChunk, (__int64)oldChunkTop) == (__int64)oldChunkTop)
-				{
-					pNodeStart = pNodeStart + _iChunkSize;
-					
-					InterlockedIncrement(&_iLeftChunk);
-					break;
-				}
+				InterlockedIncrement(&_iLeftChunk);
+				break;
 			}
 		}
 	}
@@ -295,7 +283,6 @@ public:
 			_dwSize = 0;
 			_iBaseChunk = baseChunk;
 			_iBaseSize = baseChunk * _iTlsChunkSize;
-			//_iMaxSize = maxChunk * _iChunkSize;
 
 			_guardCode = manager;
 			_Manager = manager;
@@ -348,18 +335,18 @@ public:
 				// 현재 노드에서 Size만큼 탐색하며 그 다음 노드를 Top으로 설정
 				st_BLOCK_NODE<DATA>* returnChunk = _TopNode;
 				st_BLOCK_NODE<DATA>* newTopNode = _TopNode;
-				st_BLOCK_NODE<DATA>* tailChunk = NULL;
+				st_BLOCK_NODE<DATA>* tailNode = _TopNode;
 				for (int i = 0; i < _iTlsChunkSize; i++)
 				{
-					tailChunk = newTopNode;
-					if (tailChunk->state != IN_TLS)
+					tailNode = newTopNode;
+					if (tailNode->state != IN_TLS)
 						DebugBreak();
-					tailChunk->state = IN_MANAGER;
+					tailNode->state = IN_MANAGER;
 
 					newTopNode = newTopNode->nextPtr;
 				}
 
-				tailChunk->nextPtr = NULL;
+				tailNode->nextPtr = NULL;
 				_TopNode = newTopNode;
 
 				// 청크 데이터를 반환
@@ -433,24 +420,6 @@ public:
 
 			return &(oldTop->allocData);
 		}
-
-		/*bool Log(int num)
-		{
-			if (num < _logIdx)
-			{
-				switch (_workArr[num].first)
-				{
-				case PUSH:
-					printf("PUSH : %p\n", _workArr[num].second);
-					break;
-				case POP:
-					printf("POP : %p\n", _workArr[num].second);
-					break;
-				}
-				return true;
-			}
-			return false;
-		}*/
 	private:
 		DWORD _dwTLSLogIdx;
 		st_ALLOCLOG _TLSLogArr[LOGSIZE];
@@ -485,7 +454,7 @@ private:
 	unsigned int _iChunkPerThread;
 
 	// 17비트 카운터
-	ULONGLONG _ulIDCnt;
+	volatile LONG64 _ulIDCnt;
 
 	unsigned int _iTLSPoolCount;
 
