@@ -7,6 +7,7 @@
 #define MAXCAPACITY_CHUNK 7
 #define LOGSIZE 10000
 //#define DEBUG_TLSMEMORYPOOL
+#define DEBUG_GUARDCODE
 
 enum LOG_WORKTYPE
 {
@@ -30,7 +31,6 @@ class TLSMemoryPoolManager
 	{
 		LPVOID guardCode;
 		T allocData;
-		LOG_NODESTATE state;
 		st_BLOCK_NODE<T>* nextPtr;
 	};
 
@@ -109,8 +109,8 @@ public:
 
 			st_BLOCK_NODE<DATA>* oldTopChunk = _TopChunk;
 
-			st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)oldTopChunk);
-			st_BLOCK_NODE<DATA>* newTopChunk = (st_BLOCK_NODE<DATA>*)chunkPtr->guardCode;
+			st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x0000ffffffffffff & (ULONGLONG)oldTopChunk);
+			st_BLOCK_NODE<DATA>* newTopChunk = (st_BLOCK_NODE<DATA>*)(chunkPtr->guardCode);
 
 			if (InterlockedCompareExchange64((__int64*)&_TopChunk, (__int64)newTopChunk, (__int64)oldTopChunk) == (__int64)oldTopChunk)
 			{
@@ -144,9 +144,9 @@ public:
 	// 청크 해제 TLS -> 메인
 	void FreeChunkToPool(st_BLOCK_NODE<DATA>* chunk)
 	{
-		//st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x00007fffffffffff & (ULONGLONG)chunk);
+		//st_BLOCK_NODE<DATA>* chunkPtr = (st_BLOCK_NODE<DATA>*)(0x0000fffffffffff & (ULONGLONG)chunk);
 		ULONGLONG localIdx = (ULONGLONG)InterlockedIncrement64(&_ulIDCnt);
-		localIdx = localIdx << 47;
+		localIdx = localIdx << 48;
 
 #ifdef DEBUG_TLSMEMORYPOOL
 		if (chunk->guardCode != _pGuardCode)
@@ -241,9 +241,8 @@ public:
 		for (int i = 0; i < _iChunkSize; i++)
 		{
 			pChunkNode = pNodeStart + i;
-			pChunkNode->guardCode = _pGuardCode;
+			pChunkNode->guardCode = (LPVOID)_pGuardCode;
 			pChunkNode->nextPtr = prevNode;
-			pChunkNode->state = IN_MANAGER;
 
 			if (_bCreateNew)
 				new(&(pChunkNode->allocData))DATA;
@@ -252,7 +251,7 @@ public:
 		}
 
 		ULONGLONG localIdx = (ULONGLONG)InterlockedIncrement64(&_ulIDCnt);
-		localIdx = localIdx << 47;
+		localIdx = localIdx << 48;
 
 		while (1)
 		{
@@ -300,16 +299,10 @@ public:
 				// 그 노드를 타고 들어가서 최하단 노드를 찾기
 				for (int j = 0; j < _iTlsChunkSize - 1; j++)
 				{
-					if (bottomNode->state != IN_MANAGER)
-						DebugBreak();
-					bottomNode->state = IN_TLS;
 					bottomNode = bottomNode->nextPtr;
 				}
 
 				// bottomNode는 Top과 연결,Top은 청크로 받은 노드로 변경.
-				if (bottomNode->state != IN_MANAGER)
-					DebugBreak();
-				bottomNode->state = IN_TLS;
 				bottomNode->nextPtr = _TopNode;
 				_TopNode = chunkTop;
 
@@ -339,10 +332,6 @@ public:
 				for (int i = 0; i < _iTlsChunkSize; i++)
 				{
 					tailNode = newTopNode;
-					if (tailNode->state != IN_TLS)
-						DebugBreak();
-					tailNode->state = IN_MANAGER;
-
 					newTopNode = newTopNode->nextPtr;
 				}
 
@@ -358,19 +347,17 @@ public:
 
 		bool Free(DATA* pData)
 		{
-			//st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - sizeof(LPVOID));
-			st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((char*)pData - offsetof(st_BLOCK_NODE<DATA>, allocData));
-#ifdef DEBUG_TLSMEMORYPOOL
+			st_BLOCK_NODE<DATA>* nodePtr = (st_BLOCK_NODE<DATA>*)((BYTE*)pData - sizeof(LPVOID));
+#ifdef DEBUG_GUARDCODE
 			if (nodePtr->guardCode != _guardCode)
 				DebugBreak();
 #endif
+
+#ifdef DEBUG_TLSMEMORYPOOL
 			DWORD localCnt = InterlockedIncrement(&_dwTLSLogIdx) % LOGSIZE;
 			_TLSLogArr[localCnt].ptr = nodePtr;
 			_TLSLogArr[localCnt].type = FREE_TLSPOOL;
-
-			if (nodePtr->state != IN_USE)
-				DebugBreak();
-			nodePtr->state = IN_TLS;
+#endif
 
 			nodePtr->nextPtr = _TopNode;
 			_TopNode = nodePtr;
@@ -397,21 +384,16 @@ public:
 
 			st_BLOCK_NODE<DATA>* oldTop = _TopNode;
 
-#ifdef DEBUG_TLSMEMORYPOOL
+#ifdef DEBUG_GUARDCODE
 			oldTop->guardCode = _guardCode;
+#endif
 
+#ifdef DEBUG_TLSMEMORYPOOL
 			DWORD localCnt = InterlockedIncrement(&_dwTLSLogIdx) % LOGSIZE;
 			_TLSLogArr[localCnt].ptr = oldTop;
 			_TLSLogArr[localCnt].type = ALLOC_TLSPOOL;
 #endif
 
-			DWORD localCnt = InterlockedIncrement(&_dwTLSLogIdx) % LOGSIZE;
-			_TLSLogArr[localCnt].ptr = oldTop;
-			_TLSLogArr[localCnt].type = ALLOC_TLSPOOL;
-
-			if (oldTop->state != IN_TLS)
-				DebugBreak();
-			oldTop->state = IN_USE;
 			_TopNode = _TopNode->nextPtr ;
 			//_workArr[_logIdx++] = { POP, oldTop };
 
