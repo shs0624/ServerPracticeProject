@@ -530,6 +530,9 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 	{
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
 		return false;
 	}
 
@@ -537,12 +540,18 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	if (ptr->bReleaseFlag == 1)
 	{
 		DecrementIOCount(ptr);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
 		return false;
 	}
 
 	if (sessionID != ptr->ulSessionID)
 	{
 		DecrementIOCount(ptr);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
 		return false;
 	}
 
@@ -569,6 +578,9 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 
 			DecrementIOCount(ptr);
+			if (!cPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+
 			return false;
 		}
 
@@ -602,12 +614,7 @@ bool CNetServer::SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCo
 	for (int i = 0; i < count; i++)
 	{
 		cPacket.IncRefCount();
-		//@@TODO : 보내기 싫패하면 끊어야 할듯.
-		if (!SendPacket_UniCast(sessionIDArr[i], cPacket, false))
-		{
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-		}
+		SendPacket_UniCast(sessionIDArr[i], cPacket, false);
 	}
 
 	// 자신 포함해서 다 보냈으니 1을 줄여야 짝이 맞는다.

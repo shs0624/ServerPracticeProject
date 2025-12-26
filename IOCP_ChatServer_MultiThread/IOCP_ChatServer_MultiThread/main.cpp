@@ -3,6 +3,8 @@
 #include "ChatServer.h"
 #include "LogManager.h"
 
+procademy::CCrashDump cCrashDump;
+
 int main()
 {
 	LogController::GetInstance();

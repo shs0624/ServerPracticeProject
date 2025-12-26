@@ -25,12 +25,7 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 		(*cPacket)->Clear(sizeof(st_NetHeader));
 		mpRESLogin(cPacket, status, accountNum);
 
-		if (!SendPacket_UniCast(sessionID, cPacket))
-		{
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-		}
-
+		SendPacket_UniCast(sessionID, cPacket);
 		Disconnect(sessionID);
 		return;
 	}
@@ -56,6 +51,8 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	}
 	catch (const std::exception& e) {
 		// Redis 통신 실패 처리
+		//_redisClient.disconnect();
+
 		(*cPacket)->Clear(sizeof(st_NetHeader));
 		mpRESLogin(cPacket, status, accountNum);
 
@@ -70,7 +67,8 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 		return;
 	}
 
-	if (!reply.is_string()) {
+	if (!reply.is_string()) 
+	{
 		(*cPacket)->Clear(sizeof(st_NetHeader));
 		mpRESLogin(cPacket, status, accountNum);
 
@@ -142,11 +140,7 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	(*cPacket)->Clear(sizeof(st_NetHeader));
 	mpRESLogin(cPacket, status, accountNum);
 
-	if (!SendPacket_UniCast(sessionID, cPacket))
-	{
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-	}
+	SendPacket_UniCast(sessionID, cPacket);
 }
 
 void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
@@ -219,11 +213,7 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 	(*cPacket)->Clear(sizeof(st_NetHeader));
 	mpRESSectorMove(cPacket, accountNum, nSectorX, nSectorY);
 
-	if (!SendPacket_UniCast(sessionID, cPacket))
-	{
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-	}
+	SendPacket_UniCast(sessionID, cPacket);
 }
 
 void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)

@@ -1,8 +1,8 @@
 #include "CSerializationBuffer.h"
 
 //procademy::CMemoryPool_LockFree<CPacket> CPacket::_CPacketPool(0, true, false);
-//TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(100, 5, 5, true, false);
-procademy::MemoryPool_TLS<CPacket> CPacket::_CPacketPool(5000, false);
+TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(1000, 5, 10, false, true);
+//procademy::MemoryPool_TLS<CPacket> CPacket::_CPacketPool(1000, false);
 DWORD CPacket::_iLogFreeIdx;
 LPVOID CPacket::_freeLog[CPACKET_LOGSIZE];
 DWORD CPacket::_iLogAllocIdx;

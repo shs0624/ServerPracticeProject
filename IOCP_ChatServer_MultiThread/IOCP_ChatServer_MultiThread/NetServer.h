@@ -1,5 +1,6 @@
 #pragma once
 #define PROTOCOL_MAX_SIZE 500
+#define MAX_PACKET_BATCH 1000
 #define SERVERPORT	10004
 #define PROTOCOL_SIZE 10
 #define PROTOCOL_NUMSIZE 8
@@ -31,7 +32,7 @@ struct st_NetSession
 	SOCKADDR_IN clientAddr;
 	LockFreeQueue<RefCountPointer>* sendBuf;
 	CRingBuffer* recvBuf;
-	RefCountPointer cPacketArr[200];
+	RefCountPointer cPacketArr[MAX_PACKET_BATCH];
 
 	DWORD dwSendCount;
 	alignas(4) DWORD dwIOCount;
@@ -93,7 +94,7 @@ protected:
 
 	LockFreeStack<ULONGLONG>* _emptyIndexStack;
 
-	//cpp_redis::client* _pRedisClient;
+	cpp_redis::client* _pRedisClient;
 
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);

@@ -72,6 +72,9 @@
     <ClInclude Include="Includes.h">
       <Filter>LoginServer</Filter>
     </ClInclude>
+    <ClInclude Include="TLSMemoryPool.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CRingBuffer.cpp">

@@ -3,8 +3,6 @@
 #include "NetServer.h"
 #include "LogManager.h"
 
-procademy::CCrashDump cCrashDump;
-
 SOCKET _ListenSocket;
 
 HANDLE _acceptThreadHandle;
@@ -184,6 +182,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
 	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
 	ULONGLONG ulIdx = (idx << 48);
+	ptr->dwSendCount = 0;
 	ptr->clientAddr = clientaddr;
 	ptr->ulSessionID = (ulIdx | id);
 	ptr->bReleaseFlag = false;
@@ -448,6 +447,11 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			}
 
 			len = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->shLen;
+			if (len < 0 || len > PROTOCOL_MAX_SIZE) {
+				Disconnect(ptr->ulSessionID);
+				return false;
+			}
+
 			RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
 			if (useSize < sizeof(st_NetHeader) + len)
 			{
@@ -561,6 +565,9 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 	{
+		if(!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
 		return false;
 	}
 
@@ -568,12 +575,18 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	if (ptr->bReleaseFlag == 1)
 	{
 		DecrementIOCount(ptr);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
 		return false;
 	}
 
 	if (sessionID != ptr->ulSessionID)
 	{
 		DecrementIOCount(ptr);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
 		return false;
 	}
 
@@ -600,6 +613,9 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 
 			DecrementIOCount(ptr);
+			if (!cPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+
 			return false;
 		}
 
@@ -633,12 +649,7 @@ bool CNetServer::SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCo
 	for (int i = 0; i < count; i++)
 	{
 		cPacket.IncRefCount();
-		//@@TODO : 보내기 싫패하면 끊어야 할듯.
-		if (!SendPacket_UniCast(sessionIDArr[i], cPacket, false))
-		{
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-		}
+		SendPacket_UniCast(sessionIDArr[i], cPacket, false);
 	}
 
 	// 자신 포함해서 다 보냈으니 1을 줄여야 짝이 맞는다.
@@ -654,9 +665,8 @@ bool CNetServer::SetWSARecv(st_NetSession* ptr)
 	DWORD flags = 0, recvbytes = 0;
 
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
-	WSABUF recvWsa[200];
+	WSABUF recvWsa[MAX_PACKET_BATCH];
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
-	//ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
 
 	if (ptr->bCanceled)
 		return false;
@@ -697,14 +707,14 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 	DWORD sendbytes;
 
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
-	WSABUF sendWsa[200];
+	WSABUF sendWsa[MAX_PACKET_BATCH];
 
 	if (ptr->bCanceled)
 		return false;
 
 	RefCountPointer cpacket;
 	int loopCnt = ptr->sendBuf->Size();
-	if (loopCnt >= 200)
+	if (loopCnt >= MAX_PACKET_BATCH)
 		DebugBreak();
 
 	for (int i = 0; i < loopCnt; i++)

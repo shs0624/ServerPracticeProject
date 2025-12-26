@@ -140,6 +140,7 @@
     <ClInclude Include="NetServer.h" />
     <ClInclude Include="ProcademyProfiler.h" />
     <ClInclude Include="RefCountPointer.h" />
+    <ClInclude Include="TLSMemoryPool.h" />
     <ClInclude Include="TLS_MemoryPool.h" />
   </ItemGroup>
   <ItemGroup>

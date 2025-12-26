@@ -27,6 +27,7 @@ public:
 		{
 			//Profiler("Alloc");
 			result.ptr = CPacket::_CPacketPool.Alloc();
+			result.ptr->Clear();
 		}
 
 		return result;

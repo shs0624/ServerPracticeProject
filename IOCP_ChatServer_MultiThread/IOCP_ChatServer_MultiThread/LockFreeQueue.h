@@ -70,7 +70,7 @@ public:
             Pop_Front();
         }
 
-        st_Node* _headP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
+        st_Node* _headP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_head);
         _headP->next = (st_Node*)_EndPointNode;
         _tail = _head;
     }
@@ -82,7 +82,7 @@ public:
 
     bool Empty()
     {
-        st_Node* _headP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_head);
+        st_Node* _headP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_head);
         if (_headP->next == (st_Node*)_EndPointNode)
             return true;
 
@@ -95,13 +95,13 @@ public:
         node->data = t;
         node->next = (st_Node*)_EndPointNode;
 
-        DWORD localCnt = InterlockedIncrement(&_dwCount);
-        st_Node* EnqueueNode = (st_Node*)((ULONGLONG)node | (ULONGLONG)localCnt << 47);
+        ULONGLONG localCnt = (ULONGLONG)InterlockedIncrement(&_dwCount) % (USHRT_MAX + 1);
+        st_Node* EnqueueNode = (st_Node*)((ULONGLONG)node | localCnt << 48);
         // 이걸 넣어야지
 
         // tail을 밀어줘야 한다.
         st_Node* _t = _tail;
-        st_Node* _tailP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_t);
+        st_Node* _tailP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_t);
         if (_tailP->next != (st_Node*)_EndPointNode)
         {
             InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
@@ -112,7 +112,7 @@ public:
             // tail도 원상복귀 필요
             st_Node* tail = _tail;
 
-            st_Node* tailPtr = (st_Node*)(0x00007fffffffffff & (ULONGLONG)tail);
+            st_Node* tailPtr = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)tail);
             st_Node* next = tailPtr->next;
 
             if (next == (st_Node*)_EndPointNode)
@@ -139,14 +139,14 @@ public:
 
     int Dequeue(T& t)
     {
-        DWORD localCnt = InterlockedIncrement(&_dwCount);
+        //DWORD localCnt = InterlockedIncrement(&_dwCount);
 
         while (true)
         {
             T localData;
             st_Node* head = _head;
 
-            st_Node* headPtr = (st_Node*)(0x00007fffffffffff & (ULONGLONG)head);
+            st_Node* headPtr = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)head);
             st_Node* next = headPtr->next;
 
             if (next == (st_Node*)_EndPointNode)
@@ -154,7 +154,7 @@ public:
 
             // tail을 밀어줘야 하는지 체크
             st_Node* _t = _tail;
-            st_Node* _tailP = (st_Node*)(0x00007fffffffffff & (ULONGLONG)_t);
+            st_Node* _tailP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_t);
             if (_tailP->next != (st_Node*)_EndPointNode)
             {
                 InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
@@ -162,7 +162,7 @@ public:
 
             if (InterlockedCompareExchangePointer((PVOID*)&_head, next, head) == head)
             {
-                st_Node* localNode = (st_Node*)(0x00007fffffffffff & (ULONGLONG)next);
+                st_Node* localNode = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)next);
                 localData = localNode->data;
 
                 DWORD nSize = InterlockedDecrement(&_size);
@@ -198,7 +198,7 @@ public:
 //
 //template <typename T>
 //procademy::MemoryPool_TLS<typename LockFreeQueue<T>::st_Node>
-//LockFreeQueue<T>::_NodePool(5000, false);
+//LockFreeQueue<T>::_NodePool(1000, false);
 
 template <typename T>
 TLSMemoryPoolManager<typename LockFreeQueue<T>::st_Node>
