@@ -28,6 +28,12 @@
     <Filter Include="Redis">
       <UniqueIdentifier>{c378864a-ff19-4cab-a047-1f16c3a86208}</UniqueIdentifier>
     </Filter>
+    <Filter Include="DB">
+      <UniqueIdentifier>{f55ae2cf-d7d6-4a39-96ef-9b56d5ebc8f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="리소스">
+      <UniqueIdentifier>{4222bc93-dbf4-4d10-9779-27463021bccb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CCrashDump.h">
@@ -75,6 +81,15 @@
     <ClInclude Include="TLSMemoryPool.h">
       <Filter>Lib</Filter>
     </ClInclude>
+    <ClInclude Include="DBConnector.h">
+      <Filter>DB</Filter>
+    </ClInclude>
+    <ClInclude Include="DBQueryProtocol.h">
+      <Filter>DB</Filter>
+    </ClInclude>
+    <ClInclude Include="DBWriter.h">
+      <Filter>DB</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CRingBuffer.cpp">
@@ -95,6 +110,9 @@
     <ClCompile Include="LoginServer.cpp">
       <Filter>LoginServer</Filter>
     </ClCompile>
+    <ClCompile Include="DBConnector.cpp">
+      <Filter>DB</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp_redis.pdb">
@@ -103,6 +121,9 @@
     <None Include="tacopie.pdb">
       <Filter>Redis</Filter>
     </None>
+    <None Include="libmysql.dll">
+      <Filter>리소스</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Library Include="tacopie.lib">
@@ -110,6 +131,9 @@
     </Library>
     <Library Include="cpp_redis.lib">
       <Filter>Redis</Filter>
+    </Library>
+    <Library Include="libmysql.lib">
+      <Filter>리소스</Filter>
     </Library>
   </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 #pragma once
+#include "DBWriter.h"
 #define dfSECTOR_MAX_Y 50
 #define dfSECTOR_MAX_X 50
 #define dfSLEEPTIME 1000
@@ -59,6 +60,8 @@ private:
 	static unsigned int WINAPI TimerThread(LPVOID arg);
 
 	procademy::CMemoryPool_LockFree<st_SESSION>* _SessionPool;
+
+	SHS::DBWriterManager* _DBWriterManager;
 
 	HANDLE _hQuitEvent;
 	HANDLE _hTimeoutEvent;

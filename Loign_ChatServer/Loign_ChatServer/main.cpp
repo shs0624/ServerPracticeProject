@@ -1,3 +1,4 @@
+#pragma once
 #include "Includes.h"
 #include "LogManager.h"
 #include "NetServer.h"

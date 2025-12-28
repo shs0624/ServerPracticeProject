@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>C:\Program Files\MySQL\MySQL Server 8.0\lib;C:\Program Files\MySQL\MySQL Server 8.0\include;$(ProjectDir);$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -120,6 +120,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -132,6 +133,9 @@
     <ClInclude Include="CommonProtocol_Login.h" />
     <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="CSerializationBuffer.h" />
+    <ClInclude Include="DBConnector.h" />
+    <ClInclude Include="DBQueryProtocol.h" />
+    <ClInclude Include="DBWriter.h" />
     <ClInclude Include="Includes.h" />
     <ClInclude Include="LockFreeQueue.h" />
     <ClInclude Include="LockFreeStack_Re.h" />
@@ -146,6 +150,7 @@
   <ItemGroup>
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
+    <ClCompile Include="DBConnector.cpp" />
     <ClCompile Include="LoginServer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NetServer.cpp" />
@@ -153,10 +158,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp_redis.pdb" />
+    <None Include="libmysql.dll" />
     <None Include="tacopie.pdb" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="cpp_redis.lib" />
+    <Library Include="libmysql.lib" />
     <Library Include="tacopie.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

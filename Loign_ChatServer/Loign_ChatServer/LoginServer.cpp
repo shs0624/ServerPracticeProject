@@ -1,14 +1,23 @@
 #pragma once
 #include "Includes.h"
 #include "NetServer.h"
+#include "DBConnector.h"
+#include "DBWriter.h"
 #include "LoginServer.h"
 #include "CommonProtocol_Login.h"
 #include "CFreeList_LockFree.h"
 #include "LogManager.h"
 
+TLSMemoryPoolManager<CDBPoolStruct>
+SHS::DBTLSConnector::_JobPool(5000, 5, 20);
+
+TLSMemoryPoolManager<CDBPoolStruct>
+SHS::DBWriterManager::_JobPool(5000, 5, 20);
 
 void LoginServer::InitLoginServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
 {
+	mysql_library_init(0, NULL, NULL);
+
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
@@ -22,6 +31,8 @@ void LoginServer::InitLoginServer(ULONG ip, LONG port, bool bNagleEnabled, int m
 	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
 
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
+	_DBWriterManager = new SHS::DBWriterManager();
+	_DBWriterManager->InitDBWriterManager(workCount);
 	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 }
 
@@ -105,7 +116,17 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	(*cPacket)->GetData(sessionKey, sizeof(sessionKey));
 
 	// @@TODO: DB에 전송할 때 여기에 넣기
+	SHS::DBTLSConnector* pDBConnector = SHS::DBTLSConnector::GetDBConnectorTLS();
 	Sleep(5);
+
+	LPVOID pAddr = pDBConnector->AllocJobAddress();
+	CDBLogin* pCDBLogin = new(pAddr)CDBLogin;
+	pCDBLogin->_AccountNum = AccountNo;
+	strcpy_s(pCDBLogin->_SessionKey, 64, sessionKey);
+
+	pDBConnector->SendQuery_SELECT((IDBJob*)pCDBLogin);
+	pDBConnector->FreeQueryResult();
+	_pLog._dwDBSelectTPS++;
 
 	// Redis에 넣기.
 	cpp_redis::client& _redisClient = GetTLSRedisClient();
@@ -137,7 +158,6 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	WCHAR chatServerIP[16];
 	WCHAR clientAddr[16];
 	if (!InetNtop(AF_INET, &pSession->ClientAddr.sin_addr, clientAddr, 16)) {
-		_pLog._dwInetNtoPError++;
 		Disconnect(sessionID);
 		return;
 	}

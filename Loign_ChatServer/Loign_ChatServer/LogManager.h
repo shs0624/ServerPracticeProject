@@ -9,15 +9,12 @@ struct stChatLog
 
 	LONG _dwAcceptTotal;
 	LONG _dwAcceptTPS;
+	LONG _dwDBSelectTPS;
 
 	LONG _dwSessionCount;
 
 	LONG _dwPacketPoolUse;
 	LONG _dwPlayerPoolUse;
-
-	LONG _dwDuplicatedLoginTotal;
-	LONG _dwDecodeDisconnectTotal;
-	LONG _dwInetNtoPError;
 
 	LONG _dwTimeoutSessionTotal;
 	LONG _dwTimeoutUserTotal;
@@ -63,11 +60,9 @@ public:
 			_stPrintLog._dwSessionCount += _LogStructArr[i]->_dwSessionCount;
 			_stPrintLog._dwAcceptTotal += _LogStructArr[i]->_dwAcceptTotal;
 			_stPrintLog._dwAcceptTPS += _LogStructArr[i]->_dwAcceptTPS;
+			_stPrintLog._dwDBSelectTPS += _LogStructArr[i]->_dwDBSelectTPS;
 			_stPrintLog._dwRecvMessageTPS += _LogStructArr[i]->_dwRecvMessageTPS;
 			_stPrintLog._dwSendMessageTPS += _LogStructArr[i]->_dwSendMessageTPS;
-			_stPrintLog._dwDuplicatedLoginTotal += _LogStructArr[i]->_dwDuplicatedLoginTotal;
-			_stPrintLog._dwDecodeDisconnectTotal += _LogStructArr[i]->_dwDecodeDisconnectTotal;
-			_stPrintLog._dwInetNtoPError += _LogStructArr[i]->_dwInetNtoPError;
 			_stPrintLog._dwTimeoutSessionTotal += _LogStructArr[i]->_dwTimeoutSessionTotal;
 			_stPrintLog._dwTimeoutUserTotal += _LogStructArr[i]->_dwTimeoutUserTotal;
 			_stPrintLog._dwPacketPoolUse += _LogStructArr[i]->_dwPacketPoolUse;
@@ -85,10 +80,7 @@ public:
 		printf("%-25s%5d\n", "Accept TPS : ", _stPrintLog._dwAcceptTPS);
 		printf("%-25s%5d\n", "RecvPacket TPS : ", _stPrintLog._dwRecvMessageTPS);
 		printf("%-25s%5d\n", "SendPacket TPS : ", _stPrintLog._dwSendMessageTPS);
-		printf("==============================================================================\n");
-		printf("%-25s%5d\n", "Duplicated Login Total :", _stPrintLog._dwDuplicatedLoginTotal);
-		printf("%-25s%5d\n", "Decode Disconnect Total :", _stPrintLog._dwDecodeDisconnectTotal);
-		printf("%-25s%5d\n", "InetNtoP Error Total :", _stPrintLog._dwInetNtoPError);
+		printf("%-25s%5d\n", "DB SELECT TPS : ", _stPrintLog._dwDBSelectTPS);
 		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "Timeout_Session :", _stPrintLog._dwTimeoutSessionTotal);
 		printf("%-25s%5d\n", "Timeout_User   :", _stPrintLog._dwTimeoutUserTotal);
@@ -96,6 +88,7 @@ public:
 		printf("%-25s%5d\n", "PacketPool Use :", _stPrintLog._dwPacketPoolUse);
 		printf("%-25s%5d\n", "UserPool Use   :", _stPrintLog._dwPlayerPoolUse);
 		printf("==============================================================================\n\n\n");
+		printf("\n\n\n\n\n\n\n\n\n");
 	}
 
 	static LogController _LogController;
@@ -117,7 +110,7 @@ private:
 		for (int i = 1; i <= _dwLogArrIdx; i++)
 		{
 			_LogStructArr[i]->_dwAcceptTPS = 0;
-
+			_LogStructArr[i]->_dwDBSelectTPS = 0;
 			_LogStructArr[i]->_dwRecvMessageTPS = 0;
 			_LogStructArr[i]->_dwSendMessageTPS = 0;
 		}
