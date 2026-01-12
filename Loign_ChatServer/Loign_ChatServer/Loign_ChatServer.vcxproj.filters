@@ -34,6 +34,9 @@
     <Filter Include="리소스">
       <UniqueIdentifier>{4222bc93-dbf4-4d10-9779-27463021bccb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="LanClient">
+      <UniqueIdentifier>{04837027-4519-457f-8706-1b20384b4b42}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CCrashDump.h">
@@ -90,6 +93,21 @@
     <ClInclude Include="DBWriter.h">
       <Filter>DB</Filter>
     </ClInclude>
+    <ClInclude Include="MonitorClient.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="MonitorProtocol.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="LanClient.h">
+      <Filter>LanClient</Filter>
+    </ClInclude>
+    <ClInclude Include="PDHMonitor.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="CPUUsage.h">
+      <Filter>Log</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CRingBuffer.cpp">
@@ -112,6 +130,15 @@
     </ClCompile>
     <ClCompile Include="DBConnector.cpp">
       <Filter>DB</Filter>
+    </ClCompile>
+    <ClCompile Include="MonitorClient.cpp">
+      <Filter>Log</Filter>
+    </ClCompile>
+    <ClCompile Include="LanClient.cpp">
+      <Filter>LanClient</Filter>
+    </ClCompile>
+    <ClCompile Include="CPUUsage.cpp">
+      <Filter>Log</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

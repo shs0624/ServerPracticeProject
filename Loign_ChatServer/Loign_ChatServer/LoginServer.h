@@ -9,8 +9,6 @@
 #define dfGAMESERVER_IP L"127.0.0.1"
 #define dfGAMESERVER_PORT 11004
 
-#define dfCHATSERVER_IP L"10.0.1.1"
-//#define dfCHATSERVER_IP L"127.0.0.1"
 #define dfCHATSERVER_PORT 10004
 
 // ¼¼¼Ç

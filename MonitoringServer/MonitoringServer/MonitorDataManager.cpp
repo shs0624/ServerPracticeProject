@@ -1,0 +1,6 @@
+#include "Includes.h"
+#include "MonitorProtocol.h"
+#include "LanServer.h"
+#include "MonitorClientServer.h"
+#include "MonitorDataManager.h"
+#include "MonitorChatServer.h"

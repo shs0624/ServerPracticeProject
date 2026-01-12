@@ -130,7 +130,7 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 
 	// Redis에 넣기.
 	cpp_redis::client& _redisClient = GetTLSRedisClient();
-	_redisClient.setex(std::to_string(AccountNo), 5, sessionKey);
+	_redisClient.setex(std::to_string(AccountNo), 15, sessionKey);
 	_redisClient.sync_commit();
 
 	// 패킷 전송 준비
@@ -162,8 +162,11 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 		return;
 	}
 
-	//wcsncpy_s(chatServerIP, _countof(chatServerIP), L"127.0.0.1", sizeof(WCHAR) * 16);
-	if (wcscmp(clientAddr, L"10.0.1.2") == 0)
+	if (wcscmp(clientAddr, L"127.0.0.1") == 0)
+	{
+		wcsncpy_s(chatServerIP, _countof(chatServerIP), L"127.0.0.1", sizeof(WCHAR) * 16);
+	}
+	else if (wcscmp(clientAddr, L"10.0.1.2") == 0)
 	{
 		wcsncpy_s(chatServerIP, _countof(chatServerIP), L"10.0.1.1", sizeof(WCHAR) * 16);
 	}

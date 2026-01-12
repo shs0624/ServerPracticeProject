@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{21f77df5-e457-4995-9ed6-4bd2ab72a526}</ProjectGuid>
-    <RootNamespace>LoignChatServer</RootNamespace>
+    <ProjectGuid>{39e6cbaf-b1bc-46b0-b381-578af56c6155}</ProjectGuid>
+    <RootNamespace>MonitoringServer</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -70,9 +70,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\Program Files\MySQL\MySQL Server 8.0\lib;C:\Program Files\MySQL\MySQL Server 8.0\include;$(ProjectDir);$(IncludePath)</IncludePath>
-  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -128,51 +125,37 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CPUUsage.cpp" />
+    <ClCompile Include="CRingBuffer.cpp" />
+    <ClCompile Include="CSerializationBuffer.cpp" />
+    <ClCompile Include="LanServer.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="MonitorChatServer.cpp" />
+    <ClCompile Include="MonitorDataManager.cpp" />
+    <ClCompile Include="MonitorClientServer.cpp" />
+    <ClCompile Include="MonitorClientServer_Message.cpp" />
+    <ClCompile Include="ProcademyProfiler.cpp" />
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="CCrashDump.h" />
     <ClInclude Include="CFreeList_LockFree.h" />
-    <ClInclude Include="CommonProtocol_Login.h" />
     <ClInclude Include="CPUUsage.h" />
     <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="CSerializationBuffer.h" />
-    <ClInclude Include="DBConnector.h" />
-    <ClInclude Include="DBQueryProtocol.h" />
-    <ClInclude Include="DBWriter.h" />
+    <ClInclude Include="DebugLog.h" />
     <ClInclude Include="Includes.h" />
-    <ClInclude Include="LanClient.h" />
+    <ClInclude Include="LanServer.h" />
     <ClInclude Include="LockFreeQueue.h" />
     <ClInclude Include="LockFreeStack_Re.h" />
-    <ClInclude Include="LoginServer.h" />
     <ClInclude Include="LogManager.h" />
-    <ClInclude Include="MonitorClient.h" />
+    <ClInclude Include="MonitorChatServer.h" />
+    <ClInclude Include="MonitorDataManager.h" />
     <ClInclude Include="MonitorProtocol.h" />
-    <ClInclude Include="NetServer.h" />
+    <ClInclude Include="MonitorClientServer.h" />
     <ClInclude Include="PDHMonitor.h" />
     <ClInclude Include="ProcademyProfiler.h" />
     <ClInclude Include="RefCountPointer.h" />
     <ClInclude Include="TLSMemoryPool.h" />
-    <ClInclude Include="TLS_MemoryPool.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="CPUUsage.cpp" />
-    <ClCompile Include="CRingBuffer.cpp" />
-    <ClCompile Include="CSerializationBuffer.cpp" />
-    <ClCompile Include="DBConnector.cpp" />
-    <ClCompile Include="LanClient.cpp" />
-    <ClCompile Include="LoginServer.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="MonitorClient.cpp" />
-    <ClCompile Include="NetServer.cpp" />
-    <ClCompile Include="ProcademyProfiler.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="cpp_redis.pdb" />
-    <None Include="libmysql.dll" />
-    <None Include="tacopie.pdb" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="cpp_redis.lib" />
-    <Library Include="libmysql.lib" />
-    <Library Include="tacopie.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

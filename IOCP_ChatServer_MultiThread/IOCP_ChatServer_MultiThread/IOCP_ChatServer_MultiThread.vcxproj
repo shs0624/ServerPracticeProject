@@ -133,15 +133,20 @@
     <ClInclude Include="CFreeList_LockFree.h" />
     <ClInclude Include="ChatServer.h" />
     <ClInclude Include="CommonProtocol.h" />
+    <ClInclude Include="CPUUsage.h" />
     <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="CSerializationBuffer.h" />
     <ClInclude Include="DebugLog.h" />
     <ClInclude Include="Includes.h" />
+    <ClInclude Include="LanClient.h" />
     <ClInclude Include="LockFreeQueue.h" />
     <ClInclude Include="LockFreeStack_Re.h" />
     <ClInclude Include="LogManager.h" />
     <ClInclude Include="MessageDefine.h" />
+    <ClInclude Include="MonitorClient.h" />
+    <ClInclude Include="MonitorProtocol.h" />
     <ClInclude Include="NetServer.h" />
+    <ClInclude Include="PDHMonitor.h" />
     <ClInclude Include="ProcademyProfiler.h" />
     <ClInclude Include="RefCountPointer.h" />
     <ClInclude Include="TLSMemoryPool.h" />
@@ -152,9 +157,12 @@
     <ClCompile Include="ChatServer_MakePacket.cpp" />
     <ClCompile Include="ChatServer_Message.cpp" />
     <ClCompile Include="ChatServer_Timer.cpp" />
+    <ClCompile Include="CPUUsage.cpp" />
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="LanClient.cpp" />
+    <ClCompile Include="MonitorClient.cpp" />
     <ClCompile Include="NetServer.cpp" />
     <ClCompile Include="ProcademyProfiler.cpp" />
   </ItemGroup>

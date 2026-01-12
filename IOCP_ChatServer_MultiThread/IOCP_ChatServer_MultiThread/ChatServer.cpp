@@ -6,8 +6,6 @@
 #include "CFreeList_LockFree.h"
 #include "LogManager.h"
 
-
-
 void ChatServer::InitChatServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
 {
 	SYSTEM_INFO si;

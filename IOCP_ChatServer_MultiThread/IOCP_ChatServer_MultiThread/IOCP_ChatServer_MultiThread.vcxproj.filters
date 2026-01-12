@@ -84,6 +84,21 @@
     <ClInclude Include="TLSMemoryPool.h">
       <Filter>Lib</Filter>
     </ClInclude>
+    <ClInclude Include="MonitorClient.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="LanClient.h">
+      <Filter>NetServer</Filter>
+    </ClInclude>
+    <ClInclude Include="MonitorProtocol.h">
+      <Filter>header</Filter>
+    </ClInclude>
+    <ClInclude Include="PDHMonitor.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="CPUUsage.h">
+      <Filter>Log</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CSerializationBuffer.cpp">
@@ -112,6 +127,15 @@
     </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>리소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="LanClient.cpp">
+      <Filter>NetServer</Filter>
+    </ClCompile>
+    <ClCompile Include="MonitorClient.cpp">
+      <Filter>Log</Filter>
+    </ClCompile>
+    <ClCompile Include="CPUUsage.cpp">
+      <Filter>Log</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

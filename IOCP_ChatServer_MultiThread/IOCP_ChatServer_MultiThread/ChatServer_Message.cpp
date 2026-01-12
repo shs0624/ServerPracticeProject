@@ -12,24 +12,15 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 	auto it = _AccountNumUserMap.find(accountNum);
 	if (it != _AccountNumUserMap.end())
 	{
-		// 둘 다 끊어버리겠다.
+		// 기존에 있던 것만 쳐내겠다.
 		ULONGLONG _aliveSessionID = (*it).second->ulSessionID;
 		ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
 
 		_pLog._dwDuplicatedLoginTotal++;
 		Disconnect(_aliveSessionID);
-
-		status = FALSE;
-
-		// 새로운 유저 - status False 반환
-		(*cPacket)->Clear(sizeof(st_NetHeader));
-		mpRESLogin(cPacket, status, accountNum);
-
-		SendPacket_UniCast(sessionID, cPacket);
-		Disconnect(sessionID);
-		return;
 	}
-	ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
+	else
+		ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
 
 	WCHAR tempID[20];
 	WCHAR tempNickname[20];

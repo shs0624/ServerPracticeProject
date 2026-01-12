@@ -1,0 +1,117 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="헤더 파일">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Lib">
+      <UniqueIdentifier>{b3786360-1ef7-43ab-8d8c-0b1a0050753a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Debug">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="LanServer">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Log">
+      <UniqueIdentifier>{ec2ee30a-f52b-4b65-8ece-3185eda407b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="MonitorServer">
+      <UniqueIdentifier>{cf9fd88d-637b-4b51-8018-fe2a1affcdae}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="LanServer.cpp">
+      <Filter>LanServer</Filter>
+    </ClCompile>
+    <ClCompile Include="CRingBuffer.cpp">
+      <Filter>Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="CSerializationBuffer.cpp">
+      <Filter>Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcademyProfiler.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="MonitorClientServer.cpp">
+      <Filter>MonitorServer</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>MonitorServer</Filter>
+    </ClCompile>
+    <ClCompile Include="MonitorDataManager.cpp">
+      <Filter>MonitorServer</Filter>
+    </ClCompile>
+    <ClCompile Include="MonitorClientServer_Message.cpp">
+      <Filter>MonitorServer</Filter>
+    </ClCompile>
+    <ClCompile Include="MonitorChatServer.cpp">
+      <Filter>MonitorServer</Filter>
+    </ClCompile>
+    <ClCompile Include="CPUUsage.cpp">
+      <Filter>Log</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="LanServer.h">
+      <Filter>LanServer</Filter>
+    </ClInclude>
+    <ClInclude Include="Includes.h">
+      <Filter>LanServer</Filter>
+    </ClInclude>
+    <ClInclude Include="CRingBuffer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="CSerializationBuffer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="LockFreeQueue.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="RefCountPointer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="TLSMemoryPool.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="CCrashDump.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="LogManager.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugLog.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcademyProfiler.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="CFreeList_LockFree.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="LockFreeStack_Re.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="MonitorProtocol.h">
+      <Filter>LanServer</Filter>
+    </ClInclude>
+    <ClInclude Include="MonitorClientServer.h">
+      <Filter>MonitorServer</Filter>
+    </ClInclude>
+    <ClInclude Include="MonitorDataManager.h">
+      <Filter>MonitorServer</Filter>
+    </ClInclude>
+    <ClInclude Include="MonitorChatServer.h">
+      <Filter>MonitorServer</Filter>
+    </ClInclude>
+    <ClInclude Include="PDHMonitor.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="CPUUsage.h">
+      <Filter>Log</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

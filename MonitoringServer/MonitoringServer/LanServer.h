@@ -1,20 +1,24 @@
 #pragma once
 #define PROTOCOL_MAX_SIZE 500
 #define MAX_PACKET_BATCH 1000
-#define SERVERPORT	10004
+#define SERVERPORT	16004
 #define PROTOCOL_SIZE 10
 #define PROTOCOL_NUMSIZE 8
-#define FIXED_KEY 0x32
-#define PROGRAM_KEY 0x77
 #include "LogManager.h"
 
-#include <cpp_redis/cpp_redis>
-#include <tacopie/tacopie>
-#pragma comment(lib, "cpp_redis.lib")
-#pragma comment(lib, "tacopie.lib")
 
 #pragma pack(push, 1)
 struct st_NetHeader
+{
+	unsigned char FixedKey;
+	short shLen;
+	unsigned char RandKey;
+	unsigned char CheckSum;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct st_LanHeader
 {
 	unsigned char FixedKey;
 	short shLen;
@@ -42,12 +46,12 @@ struct st_NetSession
 	BOOL bDeleted;
 };
 
-class CNetServer
+class CLanServer
 {
 public:
-	CNetServer() {};
+	CLanServer() {};
 
-	bool StartNetServer(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection);
+	bool StartLanServer(ULONG ip, LONG port, int concurrentThreads, bool bNagleEnabled, int maxConnection, unsigned char programKey, unsigned char fixedKey);
 	virtual void QuitServer();
 
 	bool DecrementIOCount(st_NetSession* ptr);
@@ -73,12 +77,19 @@ public:
 
 	virtual void OnError(int errorcode, WCHAR* message) = 0;
 protected:
+	bool _bServerEnabled = true;
+
 	int _workerCount;
 	int _iSessionCount;
 	int _imaxConnection;
 	int _iAcceptTPS;
 	int _iRecvMessageTPS;
 	int _iSendMessageTPS;
+
+	unsigned char _FixedKey;
+	unsigned char _ProgramKey;
+
+	SOCKET _ListenSocket;
 
 	OVERLAPPED _ReleaseOverlapped;
 
@@ -87,21 +98,19 @@ protected:
 	// 그래서 static으로 선언해야 한다.
 	static thread_local stChatLog _pLog;
 
-	SOCKET _ListenSocket;
-
+	HANDLE _hTPSUpdateEvent;
 	HANDLE _acceptThreadHandle;
 	HANDLE _NetIOCPHandle;
 	HANDLE _NetIOCPWorkerThreadHandleArr[50];
-
-	unsigned int _acceptThreadID;
 	unsigned int _NetIOCPWorkerThreadID[50];
 
+	DWORD _logID = 0;
 	ULONG _threadID = 1;
+ 
+	unsigned int _acceptThreadID;
 	st_NetSession* _sessionArr;
 
 	LockFreeStack<ULONGLONG>* _emptyIndexStack;
-
-	//cpp_redis::client* _pRedisClient;
 
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);
@@ -117,7 +126,7 @@ protected:
 	static unsigned int WINAPI IOCPWorkerThread(LPVOID arg);
 
 	// 메세지 처리를 위한 함수
-	bool AcceptProc(CNetServer* thisPtr);
+	bool AcceptProc(CLanServer* thisPtr);
 	bool SetWSARecv(st_NetSession* ptr);
 	bool SetWSASend(st_NetSession* ptr);
 	bool RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred);

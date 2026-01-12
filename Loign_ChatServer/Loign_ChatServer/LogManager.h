@@ -1,5 +1,10 @@
 #pragma once
+#include "PDHMonitor.h"
 #include "Includes.h"
+#include "CPUUsage.h"
+#include "LanClient.h"
+#include "CommonProtocol_Login.h"
+#include "MonitorClient.h"
 #define dfLOG_MAX 10000
 
 struct stChatLog
@@ -46,7 +51,6 @@ public:
 			int idx = InterlockedIncrement(&_dwLogArrIdx);
 			_LogStructArr[idx] = ptr;
 		}
-
 
 		return ptr;
 	}
@@ -97,6 +101,12 @@ private:
 	{
 		_dwTlsIdx = TlsAlloc();
 
+		_pCPUUsage = new CCpuUsage();
+		_pPDHMonitor = new PDHMonitor();
+
+		_pMonitorClient = new MonitorClient();
+		_pMonitorClient->InitMonitorClient();
+
 		_hLogUpdateEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 		_htpsThreadHandle = (HANDLE)_beginthreadex(NULL, 0, LogingThread, this, 0, &_tpsThreadID);
 		if (_htpsThreadHandle == NULL)
@@ -116,6 +126,27 @@ private:
 		}
 	}
 
+
+	void SendMonitorPacket()
+	{
+		// 1초마다 갱신
+		_pCPUUsage->UpdateCpuTime();
+		_pPDHMonitor->QueryUpdate();
+
+		// PDH로 서버 CPU, MEM 얻기
+		int timeStamp = (int)time(NULL);
+		int cpuUsage = _pCPUUsage->ProcessTotal();//_pPDHMonitor->GetCPUUsage();
+		int memoryMB = _pPDHMonitor->GetPrivateMemory() / 1000000;
+
+		_pMonitorClient->SendMonitorData(dfMONITOR_DATA_TYPE_LOGIN_SERVER_RUN, true, timeStamp);
+		_pMonitorClient->SendMonitorData(dfMONITOR_DATA_TYPE_LOGIN_SERVER_CPU, cpuUsage, timeStamp);
+		_pMonitorClient->SendMonitorData(dfMONITOR_DATA_TYPE_LOGIN_SERVER_MEM, memoryMB, timeStamp);
+		_pMonitorClient->SendMonitorData(dfMONITOR_DATA_TYPE_LOGIN_SESSION, _stPrintLog._dwSessionCount, timeStamp);
+		_pMonitorClient->SendMonitorData(dfMONITOR_DATA_TYPE_LOGIN_AUTH_TPS, _stPrintLog._dwDBSelectTPS, timeStamp);
+		_pMonitorClient->SendMonitorData(dfMONITOR_DATA_TYPE_LOGIN_PACKET_POOL, _stPrintLog._dwPacketPoolUse, timeStamp);
+		//_pMonitorClient->SendMonitorData(dfMONITOR_DATA_TYPE_CHAT_UPDATEMSG_POOL, _stPrintLog., timeStamp);
+	}
+
 	static unsigned int WINAPI LogingThread(LPVOID arg)
 	{
 		LogController* thisPtr = (LogController*)arg;
@@ -123,6 +154,8 @@ private:
 		while (1)
 		{
 			thisPtr->ReadLog();
+
+			thisPtr->SendMonitorPacket();
 
 			thisPtr->ResetTPS();
 
@@ -133,6 +166,10 @@ private:
 
 		return 0;
 	}
+
+	CCpuUsage* _pCPUUsage;
+	PDHMonitor* _pPDHMonitor;
+	MonitorClient* _pMonitorClient;
 
 	stChatLog _stPrintLog;
 
