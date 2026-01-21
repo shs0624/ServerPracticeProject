@@ -1,5 +1,7 @@
-#define dfTIMEOUT_SESSION 40000
-#define dfSERVERPORT_CLIENT 13004
+#define dfSLEEPTIME 1000
+#define dfTIMEOUT_ClientSESSION 10000
+#define dfSERVERPORT_CLIENT 20220
+#define dfCLIENT_SESSIONKEY "ajfw@!cv980dSZ[fje#@fdj123948djf"
 
 struct st_ClientSESSION
 {
@@ -23,7 +25,7 @@ struct st_ClientUSER
 };
 
 // 모니터링 클라이언트에게 데이터를 전달하는 서버
-class MonitorClientServer : CLanServer
+class MonitorClientServer : CNetServer
 {
 public:
 	MonitorClientServer()
@@ -36,7 +38,7 @@ public:
 	void QuitServer() override
 	{
 		// 세션 전체 삭제.. 그런작업
-		CLanServer::QuitServer();
+		CNetServer::QuitServer();
 	}
 
 	void UpdateAll()
@@ -44,34 +46,8 @@ public:
 
 	}
 
-	void Update(BYTE serverNum, BYTE dataType, int dataValue, int timeStamp)
-	{
-		RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-		(*cPacket)->Initialize(sizeof(st_LanHeader));
-		_pLog._dwPacketPoolUse++;
-
-		mpDataUpdate(cPacket, serverNum, dataType, dataValue, timeStamp);
-
-		// 직접 패킷 인코딩까지
-		st_LanHeader lanHeader;
-		lanHeader.FixedKey = _ProgramKey;
-		lanHeader.RandKey = (unsigned char)rand() % 256;
-		lanHeader.shLen = (*cPacket)->GetDataSize();
-
-		(*cPacket)->PushHeader((char*)&lanHeader, sizeof(st_LanHeader));
-		(*cPacket)->Encode(_FixedKey, lanHeader.RandKey);
-
-		// 연결된 클라에게 전송
-		for (auto it = _UserMap.begin(); it != _UserMap.end(); it++)
-		{
-			cPacket.IncRefCount();
-			SendPacket_UniCast((*it).second->ulSessionID, cPacket, false);
-		}
-
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		return;
-	}
+	// IOCP가 아닌 MonitorDataManager가 호출하기 때문에, 그 로그의 TLS 로그주소 넘겨받기
+	void Update(BYTE serverNum, BYTE dataType, int dataValue, int timeStamp, stChatLog* pLog);
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port);
 	virtual bool OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr);
@@ -80,7 +56,9 @@ public:
 	virtual void OnError(int errorcode, WCHAR* message);
 private:
 	// time 측정을 위한 Update
-	void TimeCheck(DWORD& sleepTime);
+	void TimeCheck();
+
+	void mpLoginRES(RefCountPointer& cPacket, BYTE status);
 
 	void mpDataUpdate(RefCountPointer& cPacket, BYTE serverNum, BYTE dataType, int dataValue, int timeStamp);
 

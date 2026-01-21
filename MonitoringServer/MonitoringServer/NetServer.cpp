@@ -1,13 +1,18 @@
 #pragma once
 #include "Includes.h"
-#include "LanServer.h"
+#include "NetServer.h"
 #include "LogManager.h"
 
+DWORD _threadID = 0;
+DWORD _logID = 0;
+
+bool _bServerEnabled = true;
+
 // 빌드에러 방지를 위한 정의
-thread_local stChatLog CLanServer::_pLog;
+thread_local stChatLog CNetServer::_pLog;
 
 // thread-safe 락프리 스택
-int CLanServer::FindUsableSessionIndex()
+int CNetServer::FindUsableSessionIndex()
 {
 	ULONGLONG idx = -1;
 	while (true)
@@ -21,7 +26,7 @@ int CLanServer::FindUsableSessionIndex()
 	return idx;
 }
 
-void CLanServer::FindSession(ULONGLONG sessionID, st_LanSession** pSession)
+void CNetServer::FindSession(ULONGLONG sessionID, st_NetSession** pSession)
 {
 	ULONGLONG idx = sessionID >> 48;
 	if (sessionID == _sessionArr[idx].ulSessionID)
@@ -36,7 +41,7 @@ void CLanServer::FindSession(ULONGLONG sessionID, st_LanSession** pSession)
 	return;
 }
 
-bool CLanServer::StartLanServer(ULONG ip, LONG port, int concurrentThreads, bool bNagleEnabled, int maxConnection, unsigned char programKey, unsigned char fixedKey)
+bool CNetServer::StartNetServer(ULONG ip, LONG port, int concurrentThreads, bool bNagleEnabled, int maxConnection, unsigned char programKey, unsigned char fixedKey)
 {
 	int retval;
 
@@ -84,10 +89,10 @@ bool CLanServer::StartLanServer(ULONG ip, LONG port, int concurrentThreads, bool
 	printf("\n[TCP 서버] 시작\n");
 }
 
-unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
+unsigned int WINAPI CNetServer::AcceptThread(LPVOID arg)
 {
 	// static 선언해서 함수 호출을 위한 포인터
-	CLanServer* thisPtr = (CLanServer*)arg;
+	CNetServer* thisPtr = (CNetServer*)arg;
 
 	// 데이터 통신에 사용할 변수
 	SOCKET client_sock;
@@ -98,7 +103,7 @@ unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 
 	while (1)
 	{
-		if (!thisPtr->_bServerEnabled)
+		if (!_bServerEnabled)
 		{
 			break;
 		}
@@ -113,7 +118,7 @@ unsigned int WINAPI CLanServer::AcceptThread(LPVOID arg)
 	return 0;
 }
 
-bool CLanServer::AcceptProc(CLanServer* thisPtr)
+bool CNetServer::AcceptProc(CNetServer* thisPtr)
 {
 	// 데이터 통신에 사용할 변수
 	SOCKET client_sock;
@@ -141,7 +146,7 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 		}
 	}
 
-	st_LanSession* ptr = &_sessionArr[idx];
+	st_NetSession* ptr = &_sessionArr[idx];
 
 	// 다른 곳에서 Send후 Dec로 해제되는 걸 막기위해 먼저 Inc
 	ptr->dwIOCount = 0;
@@ -199,18 +204,18 @@ bool CLanServer::AcceptProc(CLanServer* thisPtr)
 	return true;
 }
 
-unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
+unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 {
 	char tempBuffer[PROTOCOL_SIZE + 1];
 	int retval;
-	CLanServer* thisPtr = (CLanServer*)arg;
+	CNetServer* thisPtr = (CNetServer*)arg;
 
 	LogController::GetInstance()->RegisterLogStruct(&_pLog);
 
 	while (1)
 	{
 		DWORD cbTransferred = 0;
-		st_LanSession* ptr = NULL;
+		st_NetSession* ptr = NULL;
 		OVERLAPPED* pOverlapped = NULL;
 
 		retval = GetQueuedCompletionStatus(thisPtr->_NetIOCPHandle, &cbTransferred, (PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
@@ -234,6 +239,16 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 			continue;
 		}
 
+		if (ptr->bCanceled)
+		{
+			if (!thisPtr->DecrementIOCount(ptr))
+				continue;
+			if (!thisPtr->DecrementIOCount(ptr))
+				continue;
+
+			continue;
+		}
+
 		if (retval == 0 || cbTransferred == 0)
 		{
 			thisPtr->DecrementIOCount(ptr);
@@ -244,12 +259,10 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
-			if (!thisPtr->RecvProc_Net(ptr, cbTransferred))
-			{
-				if (!thisPtr->DecrementIOCount(ptr))
-					continue;
-			}
+			// RecvProc_Net은 IOCount를 증가시키지 않는다.
+			thisPtr->RecvProc_Net(ptr, cbTransferred);
 
+			// SetWSARecv는 증가시키니까 실패를 반환하면 Decrease
 			if (!thisPtr->SetWSARecv(ptr))
 			{
 				if (!thisPtr->DecrementIOCount(ptr))
@@ -319,11 +332,11 @@ unsigned int WINAPI CLanServer::IOCPWorkerThread(LPVOID arg)
 	}
 }
 
-void CLanServer::InitializeSessions(ULONG maxConnection)
+void CNetServer::InitializeSessions(ULONG maxConnection)
 {
 	_emptyIndexStack = new LockFreeStack<ULONGLONG>();
 
-	_sessionArr = (st_LanSession*)malloc(sizeof(st_LanSession) * maxConnection);
+	_sessionArr = (st_NetSession*)malloc(sizeof(st_NetSession) * maxConnection);
 	_iSessionCount = 0;
 
 	for (ULONGLONG i = 0; i < maxConnection; i++)
@@ -336,7 +349,7 @@ void CLanServer::InitializeSessions(ULONG maxConnection)
 	}
 }
 
-bool CLanServer::Init(int maxConnection)
+bool CNetServer::Init(int maxConnection)
 {
 	_imaxConnection = maxConnection;
 	InitializeSessions(maxConnection);
@@ -365,16 +378,16 @@ bool CLanServer::Init(int maxConnection)
 	}
 }
 
-bool CLanServer::RecvProc_Net(st_LanSession* ptr, DWORD cbTransferred)
+bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 {
-	st_LanHeader netHeader;
+	st_NetHeader netHeader;
 	ptr->recvBuf->MoveRear(cbTransferred);
 
 	// 받은 데이터 ChatServer에 전달
 	while (1)
 	{
 		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
-		(*csPacket)->Initialize(sizeof(st_LanHeader));
+		(*csPacket)->Initialize(sizeof(st_NetHeader));
 		_pLog._dwPacketPoolUse++;
 
 		short len;
@@ -383,36 +396,40 @@ bool CLanServer::RecvProc_Net(st_LanSession* ptr, DWORD cbTransferred)
 		// csPacket 초기화 후 ptr->recvBuf에서 Dequeue
 		{
 			int useSize = ptr->recvBuf->GetUseSize();
-			if (useSize < sizeof(st_LanHeader))
+			if (useSize < sizeof(st_NetHeader))
 			{
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
 				break;
 			}
 
-			int peekRet = ptr->recvBuf->Peek((char*)(*csPacket)->GetBufferPtr(), sizeof(st_LanHeader));
-			if (peekRet != sizeof(st_LanHeader))
+			int peekRet = ptr->recvBuf->Peek((char*)(*csPacket)->GetBufferPtr(), sizeof(st_NetHeader));
+			if (peekRet != sizeof(st_NetHeader))
 			{
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
 				break;
 			}
 
-			len = ((st_LanHeader*)((*csPacket)->GetBufferPtr()))->shLen;
-			if (len < 0 || len > PROTOCOL_MAX_SIZE) {
+			len = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->shLen;
+			//if (len < 0 || len > PROTOCOL_MAX_SIZE) {
+			if (len < 0) {
 				Disconnect(ptr->ulSessionID);
+				if (!csPacket.DecRefCount())
+					_pLog._dwPacketPoolUse--;
+
 				return false;
 			}
 
-			RK = ((st_LanHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
-			if (useSize < sizeof(st_LanHeader) + len)
+			RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
+			if (useSize < sizeof(st_NetHeader) + len)
 			{
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
 				break;
 			}
 
-			ptr->recvBuf->MoveFront(sizeof(st_LanHeader));
+			ptr->recvBuf->MoveFront(sizeof(st_NetHeader));
 			ptr->recvBuf->Dequeue((*csPacket)->GetTailPtr(), len);
 
 			(*csPacket)->MoveWritePos(len);
@@ -422,6 +439,9 @@ bool CLanServer::RecvProc_Net(st_LanSession* ptr, DWORD cbTransferred)
 		if (!(*csPacket)->Decode(_FixedKey, RK))
 		{
 			Disconnect(ptr->ulSessionID);
+			if (!csPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+
 			return false;
 		}
 
@@ -432,7 +452,7 @@ bool CLanServer::RecvProc_Net(st_LanSession* ptr, DWORD cbTransferred)
 	return true;
 }
 
-bool CLanServer::DecrementIOCount(st_LanSession* ptr)
+bool CNetServer::DecrementIOCount(st_NetSession* ptr)
 {
 	LONG result = InterlockedDecrement((LONG*)&(ptr->dwIOCount));
 	if (result == 0)
@@ -444,15 +464,21 @@ bool CLanServer::DecrementIOCount(st_LanSession* ptr)
 	return true;
 }
 
-bool CLanServer::Disconnect(ULONGLONG sessionID)
+bool CNetServer::Disconnect(ULONGLONG sessionID)
 {
-	st_LanSession* ptr;
+	st_NetSession* ptr;
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 		return false;
 
 	InterlockedIncrement(&ptr->dwIOCount);
 	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (ptr->bCanceled)
 	{
 		DecrementIOCount(ptr);
 		return false;
@@ -468,9 +494,9 @@ bool CLanServer::Disconnect(ULONGLONG sessionID)
 	return true;
 }
 
-bool CLanServer::GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len)
+bool CNetServer::GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len)
 {
-	st_LanSession* ptr;
+	st_NetSession* ptr;
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 	{
@@ -500,16 +526,16 @@ bool CLanServer::GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len)
 
 }
 
-void CLanServer::PostRelease(st_LanSession* ptr)
+void CNetServer::PostRelease(st_NetSession* ptr)
 {
 	// 일부러 -1이 되게 Post
 	//InterlockedIncrement(&ptr->dwIOCount);
 	PostQueuedCompletionStatus(_NetIOCPHandle, 0, (ULONG_PTR)ptr, &_ReleaseOverlapped);
 }
 
-bool CLanServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
+bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
 {
-	st_LanSession* ptr;
+	st_NetSession* ptr;
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 	{
@@ -551,12 +577,12 @@ bool CLanServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	{
 		short shSize = (*cPacket)->GetDataSize();
 
-		st_LanHeader netHeader;
+		st_NetHeader netHeader;
 		netHeader.FixedKey = _ProgramKey;
 		netHeader.RandKey = (unsigned char)rand() % 256;
 		netHeader.shLen = shSize;
 
-		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_LanHeader));
+		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
 		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
 	}
 
@@ -587,22 +613,21 @@ bool CLanServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 
 			return false;
 		}
-
 	}
 
 	DecrementIOCount(ptr);
 	return true;
 }
 
-bool CLanServer::SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCountPointer& cPacket)
+bool CNetServer::SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCountPointer& cPacket)
 {
 	// 메세지를 먼저 생성, 인코딩하기
-	st_LanHeader netHeader;
+	st_NetHeader netHeader;
 	netHeader.FixedKey = _ProgramKey;
 	netHeader.RandKey = (unsigned char)rand() % 256;
 	netHeader.shLen = (*cPacket)->GetDataSize();
 
-	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_LanHeader));
+	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
 	(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
 
 	// 그 후, 여러 세션에 하나의 메세지를 전송
@@ -618,7 +643,7 @@ bool CLanServer::SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCo
 	return true;
 }
 
-bool CLanServer::SetWSARecv(st_LanSession* ptr)
+bool CNetServer::SetWSARecv(st_NetSession* ptr)
 {
 	// WSARecv
 	int recvRet, recvCount = 0;
@@ -658,10 +683,16 @@ bool CLanServer::SetWSARecv(st_LanSession* ptr)
 		}
 	}
 
+	if (ptr->bCanceled)
+	{
+		CancelIoEx((HANDLE)ptr->sock, NULL);;
+		return false;
+	}
+
 	return true;
 }
 
-bool CLanServer::SetWSASend(st_LanSession* ptr)
+bool CNetServer::SetWSASend(st_NetSession* ptr)
 {
 	int retval, sendCount = 0;
 	DWORD sendbytes;
@@ -717,9 +748,9 @@ bool CLanServer::SetWSASend(st_LanSession* ptr)
 	return true;
 }
 
-void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
+void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 {
-	st_LanSession* ptr;
+	st_NetSession* ptr;
 	FindSession(ulSessionID, &ptr);
 	if (ptr == NULL)
 		return;
@@ -764,7 +795,7 @@ void CLanServer::ReleaseSession(ULONGLONG ulSessionID)
 	InterlockedDecrement((LONG*)&_iSessionCount);
 }
 
-void CLanServer::QuitServer()
+void CNetServer::QuitServer()
 {
 
 }

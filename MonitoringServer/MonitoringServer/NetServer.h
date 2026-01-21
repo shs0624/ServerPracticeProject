@@ -1,13 +1,12 @@
 #pragma once
 #define PROTOCOL_MAX_SIZE 500
 #define MAX_PACKET_BATCH 1000
-#define SERVERPORT	16004
 #define PROTOCOL_SIZE 10
 #define PROTOCOL_NUMSIZE 8
 #include "LogManager.h"
 
 #pragma pack(push, 1)
-struct st_LanHeader
+struct st_NetHeader
 {
 	unsigned char FixedKey;
 	short shLen;
@@ -16,7 +15,7 @@ struct st_LanHeader
 };
 #pragma pack(pop)
 
-struct st_LanSession
+struct st_NetSession
 {
 	OVERLAPPED sendOverlapped;
 	OVERLAPPED recvOverlapped;
@@ -35,15 +34,15 @@ struct st_LanSession
 	BOOL bDeleted;
 };
 
-class CLanServer
+class CNetServer
 {
 public:
-	CLanServer() {};
+	CNetServer() {};
 
-	bool StartLanServer(ULONG ip, LONG port, int concurrentThreads, bool bNagleEnabled, int maxConnection, unsigned char programKey, unsigned char fixedKey);
+	bool StartNetServer(ULONG ip, LONG port, int concurrentThreads, bool bNagleEnabled, int maxConnection, unsigned char programKey, unsigned char fixedKey);
 	virtual void QuitServer();
 
-	bool DecrementIOCount(st_LanSession* ptr);
+	bool DecrementIOCount(st_NetSession* ptr);
 	bool Disconnect(ULONGLONG sessionID);
 	bool GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len);
 
@@ -66,8 +65,6 @@ public:
 
 	virtual void OnError(int errorcode, WCHAR* message) = 0;
 protected:
-	bool _bServerEnabled = true;
-
 	int _workerCount;
 	int _iSessionCount;
 	int _imaxConnection;
@@ -78,8 +75,6 @@ protected:
 	unsigned char _FixedKey;
 	unsigned char _ProgramKey;
 
-	SOCKET _ListenSocket;
-
 	OVERLAPPED _ReleaseOverlapped;
 
 	// 비정적 멤버는 인스턴스마다 다른 메모리를 가지는데, thread_local은
@@ -87,37 +82,39 @@ protected:
 	// 그래서 static으로 선언해야 한다.
 	static thread_local stChatLog _pLog;
 
-	HANDLE _hTPSUpdateEvent;
+	SOCKET _ListenSocket;
+
 	HANDLE _acceptThreadHandle;
 	HANDLE _NetIOCPHandle;
 	HANDLE _NetIOCPWorkerThreadHandleArr[50];
+
+	unsigned int _acceptThreadID;
 	unsigned int _NetIOCPWorkerThreadID[50];
 
-	DWORD _logID = 0;
 	ULONG _threadID = 1;
- 
-	unsigned int _acceptThreadID;
-	st_LanSession* _sessionArr;
+	st_NetSession* _sessionArr;
 
 	LockFreeStack<ULONGLONG>* _emptyIndexStack;
+
+	//cpp_redis::client* _pRedisClient;
 
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);
 	bool Init(int maxConnection);
 
-	void PostRelease(st_LanSession* ptr);
+	void PostRelease(st_NetSession* ptr);
 
 	int FindUsableSessionIndex();
-	void FindSession(ULONGLONG sessionID, st_LanSession** ptr);
+	void FindSession(ULONGLONG sessionID, st_NetSession** ptr);
 
 	// 스레드 함수들
 	static unsigned int WINAPI AcceptThread(LPVOID arg);
 	static unsigned int WINAPI IOCPWorkerThread(LPVOID arg);
 
 	// 메세지 처리를 위한 함수
-	bool AcceptProc(CLanServer* thisPtr);
-	bool SetWSARecv(st_LanSession* ptr);
-	bool SetWSASend(st_LanSession* ptr);
-	bool RecvProc_Net(st_LanSession* ptr, DWORD cbTransferred);
+	bool AcceptProc(CNetServer* thisPtr);
+	bool SetWSARecv(st_NetSession* ptr);
+	bool SetWSASend(st_NetSession* ptr);
+	bool RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred);
 	void ReleaseSession(ULONGLONG ulSessionID);
 };

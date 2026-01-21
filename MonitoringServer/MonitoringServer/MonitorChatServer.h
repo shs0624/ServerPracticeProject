@@ -1,5 +1,5 @@
 #define dfTIMEOUT_SESSION 40000
-#define dfSERVERPORT_CHAT 12004
+#define dfSERVERPORT_CHAT 20221
 
 struct st_ChatSESSION
 {

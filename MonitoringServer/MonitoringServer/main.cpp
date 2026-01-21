@@ -1,5 +1,6 @@
 #include "Includes.h"
 #include "LanServer.h"
+#include "NetServer.h"
 #include "LogManager.h"
 #include "MonitorProtocol.h"
 #include "MonitorClientServer.h"

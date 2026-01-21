@@ -22,6 +22,12 @@
     <Filter Include="MonitorServer">
       <UniqueIdentifier>{cf9fd88d-637b-4b51-8018-fe2a1affcdae}</UniqueIdentifier>
     </Filter>
+    <Filter Include="NetServer">
+      <UniqueIdentifier>{d6efa66f-e35f-44ca-90ee-b2cf7ed12f70}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DB">
+      <UniqueIdentifier>{ed672c7a-4620-4f0b-ad96-e3c77297c172}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="LanServer.cpp">
@@ -53,6 +59,9 @@
     </ClCompile>
     <ClCompile Include="CPUUsage.cpp">
       <Filter>Log</Filter>
+    </ClCompile>
+    <ClCompile Include="NetServer.cpp">
+      <Filter>NetServer</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -112,6 +121,18 @@
     </ClInclude>
     <ClInclude Include="CPUUsage.h">
       <Filter>Log</Filter>
+    </ClInclude>
+    <ClInclude Include="NetServer.h">
+      <Filter>NetServer</Filter>
+    </ClInclude>
+    <ClInclude Include="DBConnector.h">
+      <Filter>DB</Filter>
+    </ClInclude>
+    <ClInclude Include="DBQueryProtocol.h">
+      <Filter>DB</Filter>
+    </ClInclude>
+    <ClInclude Include="DBWriter.h">
+      <Filter>DB</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
