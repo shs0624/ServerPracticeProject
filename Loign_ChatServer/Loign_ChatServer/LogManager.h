@@ -23,6 +23,8 @@ struct stChatLog
 
 	LONG _dwTimeoutSessionTotal;
 	LONG _dwTimeoutUserTotal;
+	LONG _lDisconnectInvalidAccountNum;
+	LONG _lDisconnectMaxSession;
 };
 
 class LogController
@@ -71,6 +73,8 @@ public:
 			_stPrintLog._dwTimeoutUserTotal += _LogStructArr[i]->_dwTimeoutUserTotal;
 			_stPrintLog._dwPacketPoolUse += _LogStructArr[i]->_dwPacketPoolUse;
 			_stPrintLog._dwPlayerPoolUse += _LogStructArr[i]->_dwPlayerPoolUse;
+			_stPrintLog._lDisconnectInvalidAccountNum += _LogStructArr[i]->_lDisconnectInvalidAccountNum;
+			_stPrintLog._lDisconnectMaxSession += _LogStructArr[i]->_lDisconnectMaxSession;
 		}
 	}
 
@@ -88,7 +92,9 @@ public:
 		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "Timeout_Session :", _stPrintLog._dwTimeoutSessionTotal);
 		printf("%-25s%5d\n", "Timeout_User   :", _stPrintLog._dwTimeoutUserTotal);
-		printf("==============================================================================\n\n\n");
+		printf("%-25s%5d\n", "Disconnect_InvalidAccountNum   :", _stPrintLog._lDisconnectInvalidAccountNum);
+		printf("%-25s%5d\n", "Disconnect_MaxSession   :", _stPrintLog._lDisconnectMaxSession);
+		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "PacketPool Use :", _stPrintLog._dwPacketPoolUse);
 		printf("%-25s%5d\n", "UserPool Use   :", _stPrintLog._dwPlayerPoolUse);
 		printf("==============================================================================\n\n\n");

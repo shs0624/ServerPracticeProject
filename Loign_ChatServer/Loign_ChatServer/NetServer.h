@@ -1,13 +1,13 @@
 #pragma once
 #define PROTOCOL_MAX_SIZE 500
-#define SERVERPORT	10104
+#define SERVERPORT	20210
 #define PROTOCOL_SIZE 10
 #define PROTOCOL_NUMSIZE 8
 #define FIXED_KEY 0x32
 #define PROGRAM_KEY 0x77
 #include "LogManager.h"
 
-#pragma pack(1)
+#pragma pack(push, 1)
 struct st_NetHeader
 {
 	unsigned char FixedKey;
@@ -46,7 +46,6 @@ public:
 
 	bool DecrementIOCount(st_NetSession* ptr);
 	bool Disconnect(ULONGLONG sessionID);
-	void PostRelease(st_NetSession* ptr);
 	bool GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len);
 
 	bool SendPost(ULONGLONG sessionID);
@@ -54,8 +53,6 @@ public:
 	bool PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
 	bool SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
 	bool SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCountPointer& cPacket);
-
-	cpp_redis::client& GetTLSRedisClient();
 
 	int getAcceptTPS() { return _iAcceptTPS; }
 	int getRecvMessageTPS() { return _iRecvMessageTPS; }
@@ -84,7 +81,14 @@ protected:
 	// 그래서 static으로 선언해야 한다.
 	static thread_local stChatLog _pLog;
 
-	HANDLE _hTPSUpdateEvent;
+	SOCKET _ListenSocket;
+
+	HANDLE _acceptThreadHandle;
+	HANDLE _NetIOCPHandle;
+	HANDLE _NetIOCPWorkerThreadHandleArr[50];
+
+	unsigned int _acceptThreadID;
+	unsigned int _NetIOCPWorkerThreadID[50];
 
 	ULONG _threadID = 1;
 	st_NetSession* _sessionArr;
@@ -94,6 +98,8 @@ protected:
 	// 초기화 함수
 	void InitializeSessions(ULONG maxConnection);
 	bool Init(int maxConnection);
+
+	void PostRelease(st_NetSession* ptr);
 
 	int FindUsableSessionIndex();
 	void FindSession(ULONGLONG sessionID, st_NetSession** ptr);

@@ -3,14 +3,13 @@
 #ifndef _CPACKET_
 #define _CPACKET_
 #include <Windows.h>
-//#include "CFreeList_LockFree.h"
-//#include "TLS_MemoryPool.h"
 #include <new>
 #include "TLSMemoryPool.h"
 #define CPACKET_LOGSIZE 10000
 #define PROTOCOL_MAX_SIZE 500
 
 //#define MALLOC_ON_CALL
+//#define LOG_CPACKET
 
 enum en_PACKET
 {
@@ -378,13 +377,13 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	int	PutData(char* chpSrc, int iSrcSize);
 
+#ifdef LOG_CPACKET
 	static DWORD _iLogFreeIdx;
 	static LPVOID _freeLog[CPACKET_LOGSIZE];
 	static DWORD _iLogAllocIdx;
 	static LPVOID _allocLog[CPACKET_LOGSIZE];
-	//static procademy::CMemoryPool_LockFree<CPacket> _CPacketPool;
+#endif
 	static TLSMemoryPoolManager<CPacket> _CPacketPool;
-	//static procademy::MemoryPool_TLS<CPacket> _CPacketPool;
 	friend class TLSMemoryPoolManager<CPacket>;
 protected:
 	bool _isUsing;

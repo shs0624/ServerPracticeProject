@@ -1,12 +1,13 @@
 #include "CSerializationBuffer.h"
 
-//procademy::CMemoryPool_LockFree<CPacket> CPacket::_CPacketPool(0, true, false);
 TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(1000, 5, 10, false, true);
-//procademy::MemoryPool_TLS<CPacket> CPacket::_CPacketPool(1000, false);
+
+#ifdef LOG_CPACKET
 DWORD CPacket::_iLogFreeIdx;
 LPVOID CPacket::_freeLog[CPACKET_LOGSIZE];
 DWORD CPacket::_iLogAllocIdx;
 LPVOID CPacket::_allocLog[CPACKET_LOGSIZE];
+#endif
 
 // 직렬화버퍼 초기화. 동적으로 사용을 원하면 사용. 헤더를 넣었다면 헤더 사이즈도 설정
 #ifdef MALLOC_ON_CALL

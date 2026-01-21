@@ -3,23 +3,8 @@
 #include "NetServer.h"
 #include "LogManager.h"
 
-procademy::CCrashDump cCrashDump;
-
-SOCKET _ListenSocket;
-
-HANDLE _acceptThreadHandle;
-HANDLE _NetIOCPHandle;
-HANDLE _NetIOCPWorkerThreadHandleArr[50];
-
 DWORD _threadID = 0;
 DWORD _logID = 0;
-
-HANDLE _tpsThreadHandle;
-
-unsigned int _tpsThreadID;
-unsigned int _acceptThreadID;
-unsigned int _EchoIOCPWorkerThreadID;
-unsigned int _NetIOCPWorkerThreadID[50];
 
 bool _bServerEnabled = true;
 
@@ -37,7 +22,7 @@ int CNetServer::FindUsableSessionIndex()
 
 		Sleep(0);
 	}
-		
+
 	return idx;
 }
 
@@ -151,7 +136,16 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	ULONGLONG idx;
 	// 비동기 입출력 시작
 	{
-		//Profiler("FindSessionIdx");
+		int sessionCount = InterlockedIncrement((LONG*)&_iSessionCount);
+		if (sessionCount > _imaxConnection)
+		{
+			// 연결끊기 후 sessionCount 롤백
+			closesocket(client_sock);
+			InterlockedDecrement((LONG*)&_iSessionCount);
+			_pLog._lDisconnectMaxSession++;
+			return false;
+		}
+
 		idx = FindUsableSessionIndex();
 		if (idx == -1)
 		{
@@ -181,6 +175,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
 	ULONGLONG id = (_threadID++) & 0x0000ffffffffffff;
 	ULONGLONG ulIdx = (idx << 48);
+	ptr->dwSendCount = 0;
 	ptr->clientAddr = clientaddr;
 	ptr->ulSessionID = (ulIdx | id);
 	ptr->bReleaseFlag = false;
@@ -190,8 +185,6 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	ptr->sock = client_sock;
 
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
-	InterlockedIncrement((LONG*)&_iSessionCount);
-
 	if (!OnAccept(ptr->ulSessionID, clientaddr))
 		return false;
 
@@ -231,7 +224,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 		st_NetSession* ptr = NULL;
 		OVERLAPPED* pOverlapped = NULL;
 
-		retval = GetQueuedCompletionStatus(_NetIOCPHandle, &cbTransferred, (PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
+		retval = GetQueuedCompletionStatus(thisPtr->_NetIOCPHandle, &cbTransferred, (PULONG_PTR)&ptr, (LPOVERLAPPED*)&pOverlapped, INFINITE);
 
 		if (retval == 0 && ptr == NULL && pOverlapped == NULL)
 		{
@@ -252,6 +245,16 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			continue;
 		}
 
+		if (ptr->bCanceled)
+		{
+			if (!thisPtr->DecrementIOCount(ptr))
+				continue;
+			if (!thisPtr->DecrementIOCount(ptr))
+				continue;
+
+			continue;
+		}
+
 		if (retval == 0 || cbTransferred == 0)
 		{
 			thisPtr->DecrementIOCount(ptr);
@@ -262,12 +265,15 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
-			if (!thisPtr->RecvProc_Net(ptr, cbTransferred))
+			/*if (!thisPtr->RecvProc_Net(ptr, cbTransferred))
 			{
 				if (!thisPtr->DecrementIOCount(ptr))
 					continue;
-			}
-			
+			}*/
+			// RecvProc_Net은 IOCount를 증가시키지 않는다.
+			thisPtr->RecvProc_Net(ptr, cbTransferred);
+
+			// SetWSARecv는 증가시키니까 실패를 반환하면 Decrease
 			if (!thisPtr->SetWSARecv(ptr))
 			{
 				if (!thisPtr->DecrementIOCount(ptr))
@@ -348,7 +354,7 @@ void CNetServer::InitializeSessions(ULONG maxConnection)
 	{
 		_sessionArr[i].bReleaseFlag = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
-		_sessionArr[i].recvBuf = new CRingBuffer(15000);
+		_sessionArr[i].recvBuf = new CRingBuffer(3000);
 
 		_emptyIndexStack->push(i);
 	}
@@ -400,6 +406,17 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 
 		// csPacket 초기화 후 ptr->recvBuf에서 Dequeue
 		{
+			// 수신 버퍼가 가득한지 체크
+			int leftSize = ptr->recvBuf->GetFreeSize();
+			if (leftSize < sizeof(st_NetHeader))
+			{
+				Disconnect(ptr->ulSessionID);
+				if (!csPacket.DecRefCount())
+					_pLog._dwPacketPoolUse--;
+
+				return false;
+			}
+
 			int useSize = ptr->recvBuf->GetUseSize();
 			if (useSize < sizeof(st_NetHeader))
 			{
@@ -417,6 +434,15 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			}
 
 			len = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->shLen;
+			//if (len < 0 || len > PROTOCOL_MAX_SIZE) {
+			if (len < 0) {
+				Disconnect(ptr->ulSessionID);
+				if (!csPacket.DecRefCount())
+					_pLog._dwPacketPoolUse--;
+
+				return false;
+			}
+
 			RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
 			if (useSize < sizeof(st_NetHeader) + len)
 			{
@@ -435,6 +461,9 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 		if (!(*csPacket)->Decode(FIXED_KEY, RK))
 		{
 			Disconnect(ptr->ulSessionID);
+			if (!csPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+
 			return false;
 		}
 
@@ -465,31 +494,27 @@ bool CNetServer::Disconnect(ULONGLONG sessionID)
 	if (ptr == NULL)
 		return false;
 
+	InterlockedIncrement(&ptr->dwIOCount);
 	if (sessionID != ptr->ulSessionID)
 	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (ptr->bCanceled)
+	{
+		DecrementIOCount(ptr);
 		return false;
 	}
 
 	ptr->bCanceled = true;
 	ptr->bDeleted = true;
 
-	// @@TODO : 미흡한 처리를 보완해야함. CancelIO 이후 IOCP에 새 입출력이 들어갈 수도 있다.
 	CancelIoEx((HANDLE)ptr->sock, NULL);
 
-	// 이미 IO에 들어간 상태면 자연스럽게 Release를 타지 않을까?
-	if (ptr->dwIOCount > 0)
-		return false;
-
-	ReleaseSession(sessionID);
+	DecrementIOCount(ptr);
 
 	return true;
-}
-
-void CNetServer::PostRelease(st_NetSession* ptr)
-{
-	// 일부러 -1이 되게 Post
-	//InterlockedIncrement(&ptr->dwIOCount);
-	PostQueuedCompletionStatus(_NetIOCPHandle, 0, (ULONG_PTR)ptr, &_ReleaseOverlapped);
 }
 
 bool CNetServer::GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len)
@@ -521,7 +546,14 @@ bool CNetServer::GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len)
 
 	DecrementIOCount(ptr);
 	return false;
-	
+
+}
+
+void CNetServer::PostRelease(st_NetSession* ptr)
+{
+	// 일부러 -1이 되게 Post
+	//InterlockedIncrement(&ptr->dwIOCount);
+	PostQueuedCompletionStatus(_NetIOCPHandle, 0, (ULONG_PTR)ptr, &_ReleaseOverlapped);
 }
 
 bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
@@ -555,6 +587,15 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 		return false;
 	}
 
+	if (ptr->bCanceled)
+	{
+		DecrementIOCount(ptr);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
+		return false;
+	}
+
 	if (pushHeader)
 	{
 		short shSize = (*cPacket)->GetDataSize();
@@ -573,23 +614,26 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
+		if (!SetWSASend(ptr))
+		{
+			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+			if (ptr->bCanceled)
+				CancelIoEx((HANDLE)ptr->sock, NULL);
+
+			DecrementIOCount(ptr);
+			DecrementIOCount(ptr);
+			return false;
+		}
+
 		if (ptr->bCanceled)
 		{
 			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+			CancelIoEx((HANDLE)ptr->sock, NULL);
 
 			DecrementIOCount(ptr);
 			if (!cPacket.DecRefCount())
 				_pLog._dwPacketPoolUse--;
 
-			return false;
-		}
-
-		if (!SetWSASend(ptr))
-		{
-			InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
-
-			DecrementIOCount(ptr);
-			DecrementIOCount(ptr);
 			return false;
 		}
 	}
@@ -630,9 +674,8 @@ bool CNetServer::SetWSARecv(st_NetSession* ptr)
 	DWORD flags = 0, recvbytes = 0;
 
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
-	WSABUF recvWsa[200];
+	WSABUF recvWsa[MAX_PACKET_BATCH];
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
-	//ZeroMemory(&(ptr->sendOverlapped), sizeof(OVERLAPPED));
 
 	if (ptr->bCanceled)
 		return false;
@@ -664,6 +707,12 @@ bool CNetServer::SetWSARecv(st_NetSession* ptr)
 		}
 	}
 
+	if (ptr->bCanceled)
+	{
+		CancelIoEx((HANDLE)ptr->sock, NULL);;
+		return false;
+	}
+
 	return true;
 }
 
@@ -673,14 +722,14 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 	DWORD sendbytes;
 
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
-	WSABUF sendWsa[200];
+	WSABUF sendWsa[MAX_PACKET_BATCH];
 
 	if (ptr->bCanceled)
 		return false;
 
 	RefCountPointer cpacket;
 	int loopCnt = ptr->sendBuf->Size();
-	if (loopCnt >= 200)
+	if (loopCnt >= MAX_PACKET_BATCH)
 		DebugBreak();
 
 	for (int i = 0; i < loopCnt; i++)

@@ -9,10 +9,10 @@
 #include "LogManager.h"
 
 TLSMemoryPoolManager<CDBPoolStruct>
-SHS::DBTLSConnector::_JobPool(5000, 5, 20);
+SHS::DBTLSConnector::_JobPool(3000, 5, 10);
 
 TLSMemoryPoolManager<CDBPoolStruct>
-SHS::DBWriterManager::_JobPool(5000, 5, 20);
+SHS::DBWriterManager::_JobPool(3000, 5, 10);
 
 void LoginServer::InitLoginServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
 {
@@ -33,7 +33,8 @@ void LoginServer::InitLoginServer(ULONG ip, LONG port, bool bNagleEnabled, int m
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
 	_DBWriterManager = new SHS::DBWriterManager();
 	_DBWriterManager->InitDBWriterManager(workCount);
-	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
+	
+	_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 }
 
 // 필요할 때 초기화 해서 사용할 수 있는 함수
@@ -117,7 +118,6 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 
 	// @@TODO: DB에 전송할 때 여기에 넣기
 	SHS::DBTLSConnector* pDBConnector = SHS::DBTLSConnector::GetDBConnectorTLS();
-	Sleep(5);
 
 	LPVOID pAddr = pDBConnector->AllocJobAddress();
 	CDBLogin* pCDBLogin = new(pAddr)CDBLogin;
@@ -125,6 +125,27 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	strcpy_s(pCDBLogin->_SessionKey, 64, sessionKey);
 
 	pDBConnector->SendQuery_SELECT((IDBJob*)pCDBLogin);
+	if (!pDBConnector->StoreQueryResult())
+	{
+		// 그냥 에러난거니까 디버그 브레이크 걸릴예정
+		Disconnect(sessionID);
+		return;
+	}
+
+	// SELECT 결과가 없다
+	if (!pDBConnector->FetchQueryResult())
+	{
+		status = dfLOGIN_STATUS_ACCOUNT_MISS;
+		// 실패 패킷 전송 준비
+		(*cPacket)->Clear(sizeof(st_NetHeader));
+
+		mpLoginRES(cPacket, AccountNo, status, NULL, NULL, NULL, NULL, NULL, NULL);
+		SendPacket_UniCast(sessionID, cPacket);
+
+		Disconnect(sessionID);
+		return;
+	}
+
 	pDBConnector->FreeQueryResult();
 	_pLog._dwDBSelectTPS++;
 
@@ -145,20 +166,12 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	std::wstring wsNick = L"NICK_" + std::to_wstring(AccountNo);
 	wcsncpy_s(Nickname, wsNick.c_str(), sizeof(WCHAR) * 20);
 
-	en_PACKET_TYPE packetType = en_PACKET_CS_LOGIN_RES_LOGIN;
-
-	(**cPacket) << (WORD)packetType;
-	(**cPacket) << AccountNo;
-	(**cPacket) << status;
-
-	(*cPacket)->PutData((char*)ID, sizeof(WCHAR) * 20);
-	(*cPacket)->PutData((char*)Nickname, sizeof(WCHAR) * 20);
-
 	WCHAR gameServerIP[16];
 	WCHAR chatServerIP[16];
 	WCHAR clientAddr[16];
 	if (!InetNtop(AF_INET, &pSession->ClientAddr.sin_addr, clientAddr, 16)) {
 		Disconnect(sessionID);
+		DebugBreak();
 		return;
 	}
 
@@ -176,20 +189,76 @@ void LoginServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	}
 	else
 	{
-		status = false;
+		// 외부에서 온 접속이니 외부 IP 
+		wcsncpy_s(chatServerIP, _countof(chatServerIP), dfCHATSERVER_PUBLICIP, sizeof(WCHAR) * 16);
 	}
 
 	wcsncpy_s(gameServerIP, _countof(gameServerIP), dfGAMESERVER_IP, sizeof(WCHAR) * 16);
 
-	(*cPacket)->PutData((char*)gameServerIP, sizeof(WCHAR) * 16);
-	(**cPacket) << (USHORT)dfGAMESERVER_PORT;
-	(*cPacket)->PutData((char*)chatServerIP, sizeof(WCHAR) * 16);
-	(**cPacket) << (USHORT)dfCHATSERVER_PORT;
+	status = dfMONITOR_TOOL_LOGIN_OK;
+
+	mpLoginRES(cPacket, AccountNo, status, ID, Nickname,
+		gameServerIP, (USHORT)dfGAMESERVER_PORT, chatServerIP, (USHORT)dfCHATSERVER_PORT);
 
 	SendPacket_UniCast(sessionID, cPacket);
+}
+
+void LoginServer::mpLoginRES(RefCountPointer& cPacket, INT64 accountNum, BYTE status, WCHAR* ID, WCHAR* Nickname, WCHAR* gameIP, USHORT gamePort, WCHAR* chatIP, USHORT chatPort)
+{
+	(**cPacket) << (WORD)en_PACKET_CS_LOGIN_RES_LOGIN;
+	(**cPacket) << accountNum;
+	(**cPacket) << status;
+
+	(*cPacket)->PutData((char*)ID, sizeof(WCHAR) * 20);
+	(*cPacket)->PutData((char*)Nickname, sizeof(WCHAR) * 20);
+
+	(*cPacket)->PutData((char*)gameIP, sizeof(WCHAR) * 16);
+	(**cPacket) << gamePort;
+	(*cPacket)->PutData((char*)chatIP, sizeof(WCHAR) * 16);
+	(**cPacket) << chatPort;
 }
 
 void LoginServer::OnError(int errorcode, WCHAR* message)
 {
 
+}
+
+// time 측정을 위한 함수
+void LoginServer::TimeCheck(DWORD sleepTime)
+{
+	AcquireSRWLockShared(&_SessionMapLock);
+	for (auto it = _SessionMap.begin(); it != _SessionMap.end(); it++)
+	{
+		st_SESSION* pSession = (*it).second;
+		DWORD timeDiff = timeGetTime() - pSession->dwLastRecvTime;
+		if (timeDiff >= dfTIMEOUT_SESSION)
+		{
+			Disconnect(pSession->ulSessionID);
+			_pLog._dwTimeoutSessionTotal++;
+			continue;
+		}
+	}
+	ReleaseSRWLockShared(&_SessionMapLock);
+}
+
+unsigned int WINAPI LoginServer::TimerThread(LPVOID arg)
+{
+	LoginServer* thisPtr = (LoginServer*)arg;
+
+	LogController::GetInstance()->RegisterLogStruct(&_pLog);
+
+	HANDLE hHandleArr[2] = { thisPtr->_hQuitEvent, thisPtr->_hTimeoutEvent };
+
+	DWORD ret = 0;
+	while (1)
+	{
+		thisPtr->TimeCheck(dfSLEEPTIME);
+
+		ret = WaitForMultipleObjects(2, hHandleArr, FALSE, dfSLEEPTIME);
+		if (ret == WAIT_OBJECT_0)
+		{
+			// 서버 종료
+			return 0;
+		}
+	}
 }

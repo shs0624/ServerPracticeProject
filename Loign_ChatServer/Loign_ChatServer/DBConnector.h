@@ -66,20 +66,48 @@ namespace SHS
 			return true;
 		}
 
-		bool FreeQueryResult()
+		// Fetch만 하는 것 결과는 따로 보기
+		bool FetchQueryResult()
+		{
+			sql_row = mysql_fetch_row(res);
+			if (sql_row == NULL)
+				return false;
+
+			return true;
+		}
+
+		bool StoreQueryResult()
 		{
 			int status = 0;
-			do {
-				res = mysql_store_result(connection); // INSERT/COMMIT은 NULL이어도 OK
-				if (res) mysql_free_result(res);
-				status = mysql_next_result(connection);
-			} while (status == 0);
-
-			if (status > 0) { // -1이 아닌 경우 에러
-				printf("Mysql multi-result error : %s", mysql_error(&conn));
+			res = mysql_store_result(connection);
+			if (!res)
+			{
+				// INSERT/UPDATE는 NULL일 수 있지만 이 클래스는 SELECT 전용이니 무시
+				// NULL이면 에러다. 서버 종료
+				DebugBreak();
 				return false;
 			}
+
 			return true;
+		}
+
+		void FreeQueryResult()
+		{
+			//int status = 0;
+			//do {
+			//	res = mysql_store_result(connection); // INSERT/COMMIT은 NULL이어도 OK
+			//	if (res) 
+			//		mysql_free_result(res);
+
+			//	status = mysql_next_result(connection);
+			//} while (status == 0);
+
+			//if (status > 0) { // -1이 아닌 경우 에러
+			//	printf("Mysql multi-result error : %s", mysql_error(&conn));
+			//	return false;
+			//}
+			//return true;
+			mysql_free_result(res);
 		}
 
 		// 전부 UTF-16으로?
@@ -123,6 +151,7 @@ namespace SHS
 		MYSQL conn;
 		MYSQL* connection;
 		MYSQL_RES* res;
+		MYSQL_ROW sql_row;
 
 		static TLSMemoryPoolManager<CDBPoolStruct> _JobPool;
 	};
