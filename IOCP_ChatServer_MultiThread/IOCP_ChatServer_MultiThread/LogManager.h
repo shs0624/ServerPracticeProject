@@ -30,6 +30,12 @@ struct stChatLog
 	LONG _dwDecodeDisconnectTotal;
 	LONG _dwNotCorrectAccountNumTotal;
 	LONG _dwRedisCertificationFailTotal;
+	LONG _lDisconnectExcessiveMessageTotal;
+
+	LONG _lDisconnectInvalidAccountNum;
+	LONG _lDisconnectLenOverMax;
+	LONG _lDisconnectOutOfMoveRange;
+	LONG _lDisconnectMaxSession;
 
 	LONG _dwTimeoutSessionTotal;
 	LONG _dwTimeoutUserTotal;
@@ -85,6 +91,11 @@ public:
 			_stPrintLog._dwDecodeDisconnectTotal += _LogStructArr[i]->_dwDecodeDisconnectTotal;
 			_stPrintLog._dwNotCorrectAccountNumTotal += _LogStructArr[i]->_dwNotCorrectAccountNumTotal;
 			_stPrintLog._dwRedisCertificationFailTotal += _LogStructArr[i]->_dwRedisCertificationFailTotal;
+			_stPrintLog._lDisconnectExcessiveMessageTotal += _LogStructArr[i]->_lDisconnectExcessiveMessageTotal;
+			_stPrintLog._lDisconnectInvalidAccountNum += _LogStructArr[i]->_lDisconnectInvalidAccountNum;
+			_stPrintLog._lDisconnectLenOverMax += _LogStructArr[i]->_lDisconnectLenOverMax;
+			_stPrintLog._lDisconnectOutOfMoveRange += _LogStructArr[i]->_lDisconnectOutOfMoveRange;
+			_stPrintLog._lDisconnectMaxSession += _LogStructArr[i]->_lDisconnectMaxSession;
 			_stPrintLog._dwTimeoutSessionTotal += _LogStructArr[i]->_dwTimeoutSessionTotal;
 			_stPrintLog._dwTimeoutUserTotal += _LogStructArr[i]->_dwTimeoutUserTotal;
 			_stPrintLog._dwPacketPoolUse += _LogStructArr[i]->_dwPacketPoolUse;
@@ -112,10 +123,15 @@ public:
 		printf("%-25s%5d\n", "Decode Disconnect Total :", _stPrintLog._dwDecodeDisconnectTotal);
 		printf("%-25s%5d\n", "Not Correct AccountNum Total :", _stPrintLog._dwNotCorrectAccountNumTotal);
 		printf("%-25s%5d\n", "Redis Certification Fail Total :", _stPrintLog._dwRedisCertificationFailTotal);
+		printf("%-25s%5d\n", "Disconnect MaxSession Total :", _stPrintLog._lDisconnectMaxSession);
+		//printf("%-25s%5d\n", "Disconnect Excessive Message Total :", _stPrintLog._lDisconnectExcessiveMessageTotal);
+		//printf("%-25s%5d\n", "Disconnect InvalidAccountNum Total :", _stPrintLog._lDisconnectInvalidAccountNum);
+		//printf("%-25s%5d\n", "Disconnect LenOverMax Total :", _stPrintLog._lDisconnectLenOverMax);
+		//printf("%-25s%5d\n", "Disconnect OutOfMoveRange Total :", _stPrintLog._lDisconnectOutOfMoveRange);
 		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "Timeout_Session :", _stPrintLog._dwTimeoutSessionTotal);
 		printf("%-25s%5d\n", "Timeout_User   :", _stPrintLog._dwTimeoutUserTotal);
-		printf("==============================================================================\n\n\n");
+		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "PacketPool Use :", _stPrintLog._dwPacketPoolUse);
 		printf("%-25s%5d\n", "UserPool Use   :", _stPrintLog._dwPlayerPoolUse);
 		printf("==============================================================================\n\n\n");

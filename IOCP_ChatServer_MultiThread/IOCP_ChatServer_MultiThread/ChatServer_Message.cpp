@@ -8,20 +8,6 @@
 void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, ULONGLONG sessionID)
 {
 	BYTE status = TRUE;
-	AcquireSRWLockExclusive(&_AccountNumUserMapLock);
-	auto it = _AccountNumUserMap.find(accountNum);
-	if (it != _AccountNumUserMap.end())
-	{
-		// 기존에 있던 것만 쳐내겠다.
-		ULONGLONG _aliveSessionID = (*it).second->ulSessionID;
-		ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
-
-		_pLog._dwDuplicatedLoginTotal++;
-		Disconnect(_aliveSessionID);
-	}
-	else
-		ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
-
 	WCHAR tempID[20];
 	WCHAR tempNickname[20];
 	CHAR tempSessionKey[64];
@@ -32,42 +18,22 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 
 	// Redis 검증
 	cpp_redis::client& _redisClient = GetTLSRedisClient();
-	//cpp_redis::client* _redisClient = _pRedisClient;
-
 	cpp_redis::reply reply;
+
+	// future가 error가 나올 수 있어 try catch 시도
 	try {
+		// future_error 가능
 		auto fut = _redisClient.get(std::to_string(accountNum));
-		_redisClient.sync_commit();       
-		reply = fut.get();                // future_error 가능
+		_redisClient.sync_commit();
+		reply = fut.get();
 	}
 	catch (const std::exception& e) {
 		// Redis 통신 실패 처리
-		//_redisClient.disconnect();
+		_redisClient.disconnect();
 
 		(*cPacket)->Clear(sizeof(st_NetHeader));
 		mpRESLogin(cPacket, status, accountNum);
-
-		if (!SendPacket_UniCast(sessionID, cPacket))
-		{
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-		}
-
-		_pLog._dwRedisCertificationFailTotal++;
-		Disconnect(sessionID);
-		return;
-	}
-
-	if (!reply.is_string()) 
-	{
-		(*cPacket)->Clear(sizeof(st_NetHeader));
-		mpRESLogin(cPacket, status, accountNum);
-
-		if (!SendPacket_UniCast(sessionID, cPacket))
-		{
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-		}
+		SendPacket_UniCast(sessionID, cPacket);
 
 		_pLog._dwRedisCertificationFailTotal++;
 		Disconnect(sessionID);
@@ -79,17 +45,42 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 		// 검증 실패
 		(*cPacket)->Clear(sizeof(st_NetHeader));
 		mpRESLogin(cPacket, status, accountNum);
-
-		if (!SendPacket_UniCast(sessionID, cPacket))
-		{
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-		}
+		SendPacket_UniCast(sessionID, cPacket);
 
 		_pLog._dwRedisCertificationFailTotal++;
 		Disconnect(sessionID);
 		return;
 	}
+
+	// 보낸 세션이 이미 로그인 한 세션인지 확인하기
+	AcquireSRWLockShared(&_UserMapLock);
+	auto it = _UserMap.find(sessionID);
+	if (it != _UserMap.end())
+	{
+		// 이미 로그인 한 세션이니까, 메세지 취소하고 디스커넥트
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
+		Disconnect(sessionID);
+		return;
+	}
+	else
+		ReleaseSRWLockShared(&_UserMapLock);
+
+	AcquireSRWLockExclusive(&_AccountNumUserMapLock);
+	it = _AccountNumUserMap.find(accountNum);
+	if (it != _AccountNumUserMap.end())
+	{
+		// 기존에 있던 것만 쳐내겠다.
+		ULONGLONG _aliveSessionID = (*it).second->ulSessionID;
+		ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
+
+		_pLog._dwDuplicatedLoginTotal++;
+		Disconnect(_aliveSessionID);
+	}
+	else
+		ReleaseSRWLockExclusive(&_AccountNumUserMapLock);
 
 	st_USER* userPtr = _UserPool->Alloc();
 
@@ -143,6 +134,30 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 		ReleaseSRWLockShared(&_UserMapLock);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+
+		Disconnect(sessionID);
+		return;
+	}
+
+	if (!CheckValidAccountNum((*it).second, accountNum))
+	{
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
+		_pLog._lDisconnectInvalidAccountNum++;
+		Disconnect(sessionID);
+		return;
+	}
+
+	if (!CheckMessageCount((*it).second))
+	{
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
+		_pLog._lDisconnectExcessiveMessageTotal++;
+		Disconnect(sessionID);
 		return;
 	}
 
@@ -151,6 +166,18 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 
 	(**cPacket) >> nSectorX;
 	(**cPacket) >> nSectorY;
+
+	// 섹터 이동 범위 체크
+	if (nSectorX < 0 || nSectorX >= dfSECTOR_MAX_X || nSectorY < 0 || nSectorY >= dfSECTOR_MAX_Y)
+	{
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
+		_pLog._lDisconnectOutOfMoveRange++;
+		Disconnect(sessionID);
+		return;
+	}
 
 	if ((*it).second->bBatched == FALSE)
 	{
@@ -185,6 +212,7 @@ void ChatServer::MessageProc_Move(RefCountPointer& cPacket, INT64 accountNum, UL
 				break;
 			}
 		}
+
 		if (bFlag == false)
 			DebugBreak();
 
@@ -219,6 +247,30 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 		ReleaseSRWLockShared(&_UserMapLock);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+
+		Disconnect(sessionID);
+		return;
+	}
+
+	if (!CheckValidAccountNum((*it).second, accountNum))
+	{
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
+		_pLog._lDisconnectInvalidAccountNum++;
+		Disconnect(sessionID);
+		return;
+	}
+
+	if (!CheckMessageCount((*it).second))
+	{
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
+		_pLog._lDisconnectExcessiveMessageTotal++;
+		Disconnect(sessionID);
 		return;
 	}
 
@@ -232,7 +284,17 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 	WORD len;
 	WCHAR message[200];
 	(**cPacket) >> len;
-	(*cPacket)->GetData((char*)message, sizeof(WCHAR) * len);
+	int resultLen = (*cPacket)->GetData((char*)message, len);
+	if (len != resultLen)
+	{
+		// 메세지에 담긴 len과 실제 도착한 길이가 맞지 않는 경우
+		ReleaseSRWLockShared(&_UserMapLock);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+
+		Disconnect(sessionID);
+		return;
+	}
 
 	(*cPacket)->Clear(sizeof(st_NetHeader));
 	mpRESMessage(cPacket, accountNum, (*it).second->ID, (*it).second->NickName, len, message);
@@ -241,12 +303,12 @@ void ChatServer::MessageProc_Message(RefCountPointer& cPacket, INT64 accountNum,
 
 	// 메세지를 먼저 생성, 인코딩하기
 	st_NetHeader netHeader;
-	netHeader.FixedKey = PROGRAM_KEY;
+	netHeader.FixedKey = _ProgramKey;
 	netHeader.RandKey = (unsigned char)rand() % 256;
 	netHeader.shLen = (*cPacket)->GetDataSize();
 
 	(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
-	(*cPacket)->Encode(FIXED_KEY, netHeader.RandKey);
+	(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
 
 	// 주변 섹터에 락걸며 차례대로 메세지 전송
 	for (int iY = -1; iY <= 1; iY++)
@@ -283,7 +345,7 @@ void ChatServer::SendPacket_Sector(RefCountPointer& cPacket, WORD sectorX, WORD 
 	ReleaseSRWLockShared(&_SectorLock[sectorY][sectorX]);
 }
 
-// 락에 규칙을 정하자. X가 작은 거 먼저걸고, Y도 작은거 먼저 걸자.
+// 락에 규칙을 정하자. X가 작은 거 먼저걸고, 같은 X는 Y도 작은거 먼저 걸자
 void ChatServer::LockSectorMove(WORD sectorX, WORD sectorY, WORD nSectorX, WORD nSectorY)
 {
 	if (sectorX == nSectorX && sectorY == nSectorY)
@@ -292,31 +354,17 @@ void ChatServer::LockSectorMove(WORD sectorX, WORD sectorY, WORD nSectorX, WORD 
 		return;
 	}
 
-	if (sectorX < nSectorX)
+	const bool isSectorXFirst = (sectorX < nSectorX) || (sectorX == nSectorX && sectorY < nSectorY);
+
+	if (isSectorXFirst)
 	{
-		if (sectorY < nSectorY)
-		{
-			AcquireSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
-			AcquireSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
-		}
-		else
-		{
-			AcquireSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
-			AcquireSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
-		}
+		AcquireSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
+		AcquireSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
 	}
 	else
 	{
-		if (sectorY < nSectorY)
-		{
-			AcquireSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
-			AcquireSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
-		}
-		else
-		{
-			AcquireSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
-			AcquireSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
-		}
+		AcquireSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
+		AcquireSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
 	}
 }
 
@@ -329,30 +377,16 @@ void ChatServer::UnLockSectorMove(WORD sectorX, WORD sectorY, WORD nSectorX, WOR
 		return;
 	}
 
-	if (sectorX < nSectorX)
+	const bool isSectorXFirst = (sectorX < nSectorX) || (sectorX == nSectorX && sectorY < nSectorY);
+
+	if (isSectorXFirst)
 	{
-		if (sectorY < nSectorY)
-		{
-			ReleaseSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
-			ReleaseSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
-		}
-		else
-		{
-			ReleaseSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
-			ReleaseSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
-		}
+		ReleaseSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
+		ReleaseSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
 	}
 	else
 	{
-		if (sectorY < nSectorY)
-		{
-			ReleaseSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
-			ReleaseSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
-		}
-		else
-		{
-			ReleaseSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
-			ReleaseSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
-		}
+		ReleaseSRWLockExclusive(&_SectorLock[sectorY][sectorX]);
+		ReleaseSRWLockExclusive(&_SectorLock[nSectorY][nSectorX]);
 	}
 }

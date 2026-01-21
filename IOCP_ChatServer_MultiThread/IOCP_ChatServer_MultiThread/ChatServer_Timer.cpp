@@ -14,11 +14,9 @@ unsigned int WINAPI ChatServer::TimerThread(LPVOID arg)
 	DWORD ret = 0;
 	while (1)
 	{
-		DWORD sleepTime = dfSLEEPTIME;
+		thisPtr->TimeCheck(dfSLEEPTIME);
 
-		thisPtr->TimeCheck(sleepTime);
-
-		ret = WaitForMultipleObjects(2, hHandleArr, FALSE, sleepTime);
+		ret = WaitForMultipleObjects(2, hHandleArr, FALSE, dfSLEEPTIME);
 		if (ret == WAIT_OBJECT_0)
 		{
 			// 서버 종료
@@ -28,7 +26,7 @@ unsigned int WINAPI ChatServer::TimerThread(LPVOID arg)
 }
 
 // time 측정을 위한 함수
-void ChatServer::TimeCheck(DWORD& sleepTime)
+void ChatServer::TimeCheck(DWORD sleepTime)
 {
 	AcquireSRWLockShared(&_SessionMapLock);
 	for (auto it = _SessionMap.begin(); it != _SessionMap.end(); it++)
@@ -37,15 +35,10 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 		DWORD timeDiff = timeGetTime() - pSession->dwLastRecvTime;
 		if (timeDiff >= dfTIMEOUT_SESSION)
 		{
-			ReleaseSRWLockShared(&_SessionMapLock);
 			Disconnect(pSession->ulSessionID);
-			AcquireSRWLockShared(&_SessionMapLock);
 			_pLog._dwTimeoutSessionTotal++;
 			continue;
 		}
-
-		if (timeDiff < sleepTime)
-			sleepTime = timeDiff;
 	}
 	ReleaseSRWLockShared(&_SessionMapLock);
 
@@ -56,15 +49,10 @@ void ChatServer::TimeCheck(DWORD& sleepTime)
 		DWORD timeDiff = timeGetTime() - pUser->dwLastRecvTime;
 		if (timeDiff >= dfTIMEOUT_USER)
 		{
-			ReleaseSRWLockShared(&_UserMapLock);
 			Disconnect(pUser->ulSessionID);
-			AcquireSRWLockShared(&_UserMapLock);
 			_pLog._dwTimeoutUserTotal++;
 			continue;
 		}
-
-		if (timeDiff < sleepTime)
-			sleepTime = timeDiff;
 	}
 	ReleaseSRWLockShared(&_UserMapLock);
 }

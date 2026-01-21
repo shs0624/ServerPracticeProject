@@ -1,9 +1,15 @@
 #pragma once
 #define dfSECTOR_MAX_Y 50
 #define dfSECTOR_MAX_X 50
+#define dfMESSAGE_ATTACKTERM 100
+#define dfMESSAGE_ATTACKCOUNT 5
+#define dfMESSAGE_DISCONNECTCOUNT 3
 #define dfSLEEPTIME 1000
-#define dfTIMEOUT_SESSION 5000
+#define dfTIMEOUT_SESSION 10000
 #define dfTIMEOUT_USER 40000
+
+#define CHATSERVER_FIXEDKEY 0x32
+#define CHATSERVER_PROGRAM_KEY 0x77
 
 // 로그인 하지 않은 세션
 struct st_SESSION
@@ -32,6 +38,10 @@ struct st_USER
 	// 타임아웃용 시간
 	DWORD dwLastRecvTime;
 	bool bBatched;
+
+	// 공격 메세지 체크용 카운터
+	DWORD dwMessageAlertCount;
+	DWORD dwDisconnectAlertCount;
 };
 
 class ChatServer : CNetServer
@@ -57,7 +67,11 @@ public:
 	virtual void OnError(int errorcode, WCHAR* message);
 private:
 	// time 측정을 위한 Update
-	void TimeCheck(DWORD& sleepTime);
+	void TimeCheck(DWORD sleepTime);
+
+	bool CheckMessageCount(st_USER* pUser);
+	
+	bool CheckValidAccountNum(st_USER* pUser, ULONGLONG accountNum);
 
 	cpp_redis::client& GetTLSRedisClient();
 

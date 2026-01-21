@@ -33,5 +33,5 @@ void ChatServer::mpRESMessage(RefCountPointer& cPacket, INT64 accountNum, WCHAR*
 	(*cPacket)->PutData((char*)nick, sizeof(WCHAR) * 20);
 
 	(**cPacket) << len;
-	(*cPacket)->PutData((char*)message, sizeof(WCHAR) * len);
+	(*cPacket)->PutData((char*)message, len);
 }

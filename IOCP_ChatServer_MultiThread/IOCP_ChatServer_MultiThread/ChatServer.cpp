@@ -12,7 +12,7 @@ void ChatServer::InitChatServer(ULONG ip, LONG port, bool bNagleEnabled, int max
 	GetSystemInfo(&si);
 
 	int workCount = (int)si.dwNumberOfProcessors * 2;
-	StartNetServer(ip, port, workCount, workCount - 2, true, maxConnection);
+	StartNetServer(ip, port, workCount - 2, true, maxConnection, CHATSERVER_PROGRAM_KEY, CHATSERVER_FIXEDKEY);
 
 	InitializeSRWLock(&_UserMapLock);
 	InitializeSRWLock(&_SessionMapLock);
@@ -31,7 +31,7 @@ void ChatServer::InitChatServer(ULONG ip, LONG port, bool bNagleEnabled, int max
 	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(maxConnection, false, false);
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
 
-	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
+	_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 }
 
 // 필요할 때 초기화 해서 사용할 수 있는 함수
@@ -129,6 +129,8 @@ void ChatServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	INT64 AccountNo;
 	(**cPacket) >> AccountNo;
 
+	cPacket.SetAccountNum(sessionID);
+
 	// enum에 따라 다른 메세지 처리
 	switch ((en_PACKET_TYPE)type)
 	{
@@ -141,7 +143,12 @@ void ChatServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 	case en_PACKET_CS_CHAT_REQ_MESSAGE:
 		MessageProc_Message(cPacket, AccountNo, sessionID);
 		break;
+	case en_PACKET_CS_CHAT_REQ_HEARTBEAT:
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+		break;
 	default:
+		Disconnect(sessionID);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
 		break;
@@ -151,4 +158,38 @@ void ChatServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cPacket)
 void ChatServer::OnError(int errorcode, WCHAR* message)
 {
 
+}
+
+// 공격 체크용 함수.
+bool ChatServer::CheckMessageCount(st_USER* pUser)
+{
+	int nowTime = timeGetTime();
+	if (nowTime - pUser->dwLastRecvTime < dfMESSAGE_ATTACKTERM)
+	{
+		pUser->dwMessageAlertCount++;
+		if (pUser->dwMessageAlertCount >= dfMESSAGE_ATTACKCOUNT)
+		{
+			pUser->dwDisconnectAlertCount++;
+			if (pUser->dwMessageAlertCount >= dfMESSAGE_DISCONNECTCOUNT)
+			{
+				return false;
+			}
+		}
+	}
+	else
+	{
+		pUser->dwMessageAlertCount = 0;
+	}
+
+	return true;
+}
+
+bool ChatServer::CheckValidAccountNum(st_USER* pUser,ULONGLONG accountNum)
+{
+	if (pUser->AccountNum != accountNum)
+	{
+		return false;
+	}
+
+	return true;
 }

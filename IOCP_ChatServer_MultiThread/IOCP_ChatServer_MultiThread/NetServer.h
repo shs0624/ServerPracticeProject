@@ -1,11 +1,9 @@
 #pragma once
 #define PROTOCOL_MAX_SIZE 500
 #define MAX_PACKET_BATCH 1000
-#define SERVERPORT	10004
+#define SERVERPORT	20204
 #define PROTOCOL_SIZE 10
 #define PROTOCOL_NUMSIZE 8
-#define FIXED_KEY 0x32
-#define PROGRAM_KEY 0x77
 #include "LogManager.h"
 
 #include <cpp_redis/cpp_redis>
@@ -47,7 +45,7 @@ class CNetServer
 public:
 	CNetServer() {};
 
-	bool StartNetServer(ULONG ip, LONG port, int workerCount, int concurrentThreads, bool bNagleEnabled, int maxConnection);
+	bool StartNetServer(ULONG ip, LONG port, int concurrentThreads, bool bNagleEnabled, int maxConnection, unsigned char programKey, unsigned char fixedKey);
 	virtual void QuitServer();
 
 	bool DecrementIOCount(st_NetSession* ptr);
@@ -79,6 +77,9 @@ protected:
 	int _iAcceptTPS;
 	int _iRecvMessageTPS;
 	int _iSendMessageTPS;
+
+	unsigned char _FixedKey;
+	unsigned char _ProgramKey;
 
 	OVERLAPPED _ReleaseOverlapped;
 

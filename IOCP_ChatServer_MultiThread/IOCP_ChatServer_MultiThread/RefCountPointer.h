@@ -89,6 +89,11 @@ public:
 		InterlockedIncrement((LONG*)_iRefCount);
 	}*/
 
+	void SetAccountNum(ULONGLONG accountNum)
+	{
+		_iAccountNum = accountNum;
+	}
+
 	void IncRefCount()
 	{
 		InterlockedIncrement((LONG*)_iRefCount);
@@ -117,6 +122,7 @@ public:
 private:
 	CPacket* ptr;
 	long* _iRefCount;
+	ULONGLONG _iAccountNum;
 
 	//void IncRefCount()
 	//{
