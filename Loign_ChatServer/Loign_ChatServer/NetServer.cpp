@@ -15,15 +15,10 @@ thread_local stChatLog CNetServer::_pLog;
 int CNetServer::FindUsableSessionIndex()
 {
 	ULONGLONG idx = -1;
-	while (true)
-	{
-		if (_emptyIndexStack->pop(&idx))
-			break;
-
-		Sleep(0);
-	}
-
-	return idx;
+	if (_emptyIndexStack->pop(&idx))
+		return idx;
+	else
+		return -1;
 }
 
 void CNetServer::FindSession(ULONGLONG sessionID, st_NetSession** pSession)
@@ -806,16 +801,8 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	ptr->dwIOCount = 0;
 	closesocket(ptr->sock);
 
-	// @@TODO : 락프리 스택 내부적으로 while돌리기
-	while (true)
-	{
-		if (_emptyIndexStack->push(idx))
-			break;
+	_emptyIndexStack->push(idx);
 
-		Sleep(0);
-	}
-
-	// 인덱스를 아직 ID에 넣지 않음
 	InterlockedDecrement((LONG*)&_iSessionCount);
 }
 

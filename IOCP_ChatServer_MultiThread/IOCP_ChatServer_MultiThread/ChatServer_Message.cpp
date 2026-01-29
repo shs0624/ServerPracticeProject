@@ -40,6 +40,18 @@ void ChatServer::MessageProc_Login(RefCountPointer& cPacket, INT64 accountNum, U
 		return;
 	}
 
+	if (!reply.is_string())
+	{
+		// 검증 실패
+		(*cPacket)->Clear(sizeof(st_NetHeader));
+		mpRESLogin(cPacket, status, accountNum);
+		SendPacket_UniCast(sessionID, cPacket);
+
+		_pLog._dwRedisCertificationFailTotal++;
+		Disconnect(sessionID);
+		return;
+	}
+
 	if (strncmp(tempSessionKey, reply.as_string().c_str(), 64) != 0)// 요청 전송
 	{
 		// 검증 실패

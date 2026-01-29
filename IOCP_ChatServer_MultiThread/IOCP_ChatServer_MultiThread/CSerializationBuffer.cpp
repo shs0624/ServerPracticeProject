@@ -1,6 +1,6 @@
 #include "CSerializationBuffer.h"
 
-TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(1000, 5, 10, false, true);
+TLSMemoryPoolManager<CPacket> CPacket::_CPacketPool(1000, 5, 20, false, true);
 
 #ifdef LOG_CPACKET
 DWORD CPacket::_iLogFreeIdx;

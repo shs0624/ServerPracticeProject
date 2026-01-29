@@ -192,4 +192,4 @@ public:
 
 template <typename T>
 TLSMemoryPoolManager<typename LockFreeQueue<T>::st_Node>
-LockFreeQueue<T>::_NodePool(500, 5, 20);
+LockFreeQueue<T>::_NodePool(1000, 5, 20);

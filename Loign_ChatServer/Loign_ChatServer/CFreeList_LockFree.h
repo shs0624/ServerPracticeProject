@@ -18,6 +18,7 @@
 ----------------------------------------------------------------*/
 #pragma once
 #define DEFAULTSIZE 500
+//#define LOG_LOCKFREELIST
 #include <new.h>
 #include <Windows.h>
 
@@ -38,12 +39,13 @@ namespace procademy
 			DATA allocPtr;
 			st_BLOCK_NODE* nextPtr;
 		};
-
+#ifdef LOG_LOCKFREELIST
 		struct st_ALLOC_LOG
 		{
 			FreeList_LockFree_LOG type;
 			st_BLOCK_NODE* ptr;
 		};
+#endif
 	public:
 		//////////////////////////////////////////////////////////////////////////
 		// 생성자, 파괴자.
@@ -79,13 +81,13 @@ namespace procademy
 				{
 					new(&(node->allocPtr))DATA;
 				}
-	
+
 				node->guardCode = m_guardCode;
 				node->nextPtr = _pTopNode;
 				memset(&node->allocPtr, 0, sizeof(DATA));
 				//node->allocPtr = NULL;
 				node = (st_BLOCK_NODE*)((ULONGLONG)node | localIdx);
-				_pTopNode = node;				
+				_pTopNode = node;
 			}
 
 			int a = 50;
@@ -130,9 +132,11 @@ namespace procademy
 			// 호출했으니까, 데이터를 반환할 때까지 루프
 			while (1)
 			{
-				if (m_iUseCount == m_iCapacity)
-					Resize();
-
+				//if (m_iUseCount == m_iCapacity)
+				if (_pTopNode == NULL)
+				{
+					return Resize();
+				}
 
 				st_BLOCK_NODE* oldTopNode = _pTopNode;
 
@@ -143,7 +147,7 @@ namespace procademy
 				NodePtr->nextPtr = (st_BLOCK_NODE*)m_guardCode;
 #endif
 
- 				if (InterlockedCompareExchange64((__int64*)&_pTopNode, (__int64)newNode, (__int64)oldTopNode) == (__int64)oldTopNode)
+				if (InterlockedCompareExchange64((__int64*)&_pTopNode, (__int64)newNode, (__int64)oldTopNode) == (__int64)oldTopNode)
 				{
 					// 바뀌었다!
 					DATA* data = &(NodePtr->allocPtr);
@@ -152,9 +156,11 @@ namespace procademy
 						data = new(data) DATA;
 					}
 
+#ifdef LOG_LOCKFREELIST
 					DWORD localCnt = InterlockedIncrement(&_logIdx);
 					_LogArr[localCnt].ptr = NodePtr;
 					_LogArr[localCnt].type = ALLOC_LOCKFREEPOOL;
+#endif
 
 					InterlockedIncrement(&m_iUseCount);
 					return data;
@@ -170,7 +176,10 @@ namespace procademy
 		//////////////////////////////////////////////////////////////////////////
 		bool Free(DATA* pData)
 		{
+			LONGLONG localIdx = InterlockedIncrement(&_IDCnt);
+			localIdx = localIdx << 47;
 			st_BLOCK_NODE* nodePtr = (st_BLOCK_NODE*)((char*)pData - sizeof(void*));
+			st_BLOCK_NODE* newNode = (st_BLOCK_NODE*)((ULONGLONG)nodePtr | localIdx);
 
 #ifdef __GUARDTEST__
 			if (nodePtr->guardCode != m_guardCode || nodePtr->nextPtr != m_guardCode)
@@ -181,12 +190,8 @@ namespace procademy
 
 			while (1)
 			{
-				ULONGLONG localIdx = _IDCnt;
 				st_BLOCK_NODE* oldTopNode = _pTopNode;
 				nodePtr->nextPtr = oldTopNode;
-
-				localIdx = localIdx << 47;
-				st_BLOCK_NODE* newNode = (st_BLOCK_NODE*)((ULONGLONG)nodePtr | localIdx);
 
 				if (InterlockedCompareExchange64((__int64*)&_pTopNode, (__int64)newNode, (__int64)oldTopNode) == (__int64)oldTopNode)
 				{
@@ -196,11 +201,12 @@ namespace procademy
 						nodePtr->allocPtr.~DATA();
 					}
 
+#ifdef LOG_LOCKFREELIST
 					DWORD localCnt = InterlockedIncrement(&_logIdx);
 					_LogArr[localCnt].ptr = newNode;
 					_LogArr[localCnt].type = FREE_LOCKFREEPOOL;
+#endif
 
-					InterlockedIncrement(&_IDCnt);
 					InterlockedDecrement(&m_iUseCount);
 					return true;
 				}
@@ -230,40 +236,40 @@ namespace procademy
 		// 스택 방식으로 반환된 (미사용) 오브젝트 블럭을 관리. - 스택의 탑 포인터.
 		st_BLOCK_NODE* _pTopNode;
 	private:
-		void Resize(void)
+
+		// 그냥 하나 만들어서, 반환하는 형태
+		DATA* Resize(void)
 		{
-			for (int i = 0; i < m_iCreateCount; i++)
+			st_BLOCK_NODE* nodePtr = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE));
+
+			nodePtr->guardCode = m_guardCode;
+			nodePtr->nextPtr = _pTopNode;
+
+			DATA* data = &(nodePtr->allocPtr);
+			if (m_bPlacementNew || m_bCreateNew)
 			{
-				st_BLOCK_NODE* node = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE));
-
-				ULONGLONG localIdx = _IDCnt++;
-				localIdx = localIdx << 47;
-
-				if (m_bCreateNew)
-				{
-					//node->allocPtr = new DATA;
-					new(&(node->allocPtr)) DATA;
-				}
-	
-				node->guardCode = m_guardCode;
-				node->nextPtr = _pTopNode;
-				node = (st_BLOCK_NODE*)((ULONGLONG)node | localIdx);
-				_pTopNode = node;
+				data = new(data) DATA;
 			}
 
-			m_iCapacity += m_iCreateCount;
+			InterlockedIncrement(&_IDCnt);
+			InterlockedIncrement(&m_iUseCount);
+			InterlockedIncrement(&m_iCapacity);
+
+			return data;
 		}
 
 		ULONGLONG _IDCnt = 1;
 
-		int m_iCreateCount;
-		int m_iCapacity;
-		unsigned int m_iUseCount;
+		DWORD m_iCreateCount;
+		DWORD m_iCapacity;
+		DWORD m_iUseCount;
 		bool m_bPlacementNew;
 		bool m_bCreateNew;
 		void* m_guardCode;
 
+#ifdef LOG_LOCKFREELIST
 		st_ALLOC_LOG _LogArr[30001];
 		DWORD _logIdx = 0;
+#endif
 	};
 }

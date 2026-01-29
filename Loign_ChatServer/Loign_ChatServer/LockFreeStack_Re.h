@@ -30,69 +30,67 @@ public:
 		_TopNode = _StartNode;
 	}
 
-	bool push(T data)
+	void push(T data)
 	{
-		st_NODE* newNode = new st_NODE;
-		newNode->value = data;
-
-		st_NODE* oldTop = _TopNode;
-		newNode->Next = oldTop;
+		st_NODE* newNodePtr = new st_NODE;
+		newNodePtr->value = data;
 
 		ULONGLONG localIdx = InterlockedIncrement(&_IdxValue);
-		newNode = (st_NODE*)((ULONGLONG)newNode | ((ULONGLONG)localIdx << 47));
+		st_NODE* newNode = (st_NODE*)((ULONGLONG)newNodePtr | ((ULONGLONG)localIdx << 47));
 
-		InterlockedIncrement(&trycnt);
-
-		// 현재 TopNode가 oldTop과 같다면 TopNode를 newNode로 변경
-		// 반환은 연산 전 TopNode에 저장된 값을 반환하므로, oldTop이면 TopNode에 변경이 없었다는 뜻.
-		if (InterlockedCompareExchange64((__int64*)&_TopNode, (__int64)newNode, (__int64)oldTop) == (__int64)oldTop)
+		while (1)
 		{
-			// 로그 남기기용
+			st_NODE* oldTop = _TopNode;
+			newNodePtr->Next = oldTop;
+
+			// 현재 TopNode가 oldTop과 같다면 TopNode를 newNode로 변경
+			// 반환은 연산 전 TopNode에 저장된 값을 반환하므로, oldTop이면 TopNode에 변경이 없었다는 뜻.
+			if (InterlockedCompareExchange64((__int64*)&_TopNode, (__int64)newNode, (__int64)oldTop) == (__int64)oldTop)
+			{
+				// 로그 남기기용
 #ifdef LOG_LOCKFREESTACK
-			unsigned long idx = InterlockedIncrement(&_logIdx) - 1;
-			idx = idx % LOGARR_MAX;
-			_workArr[idx] = { PUSH, newNode };
+				unsigned long idx = InterlockedIncrement(&_logIdx) - 1;
+				idx = idx % LOGARR_MAX;
+				_workArr[idx] = { PUSH, newNode };
 #endif
 
-			InterlockedIncrement(&cnt);
-			return true;
+				InterlockedIncrement(&cnt);
+				return;
+			}
 		}
-
-		return false;
 	}
 
 	bool pop(T* output)
 	{
-		st_NODE* oldTop = _TopNode;
-		st_NODE* topPtr = (st_NODE*)(0x00007fffffffffff & (ULONGLONG)oldTop);
-		st_NODE* newNode = topPtr->Next;
-
-		if (topPtr == _StartNode)
-			return false;
-		
-		InterlockedIncrement(&trycnt);
-
-		// 현재 TopNode가 oldTop과 같다면 TopNode를 newNode로 변경
-		// 반환은 연산 전 TopNode에 저장된 값을 반환하므로, oldTop이면 TopNode에 변경이 없었다는 뜻.
-		if (InterlockedCompareExchange64((__int64*)&_TopNode, (__int64)newNode, (__int64)oldTop) == (__int64)oldTop)
+		while (1)
 		{
-			// 로그 남기기용
+			st_NODE* oldTop = _TopNode;
+			st_NODE* topPtr = (st_NODE*)(0x00007fffffffffff & (ULONGLONG)oldTop);
+			st_NODE* newNode = topPtr->Next;
+
+			if (topPtr == _StartNode)
+				return false;
+
+			// 현재 TopNode가 oldTop과 같다면 TopNode를 newNode로 변경
+			// 반환은 연산 전 TopNode에 저장된 값을 반환하므로, oldTop이면 TopNode에 변경이 없었다는 뜻.
+			if (InterlockedCompareExchange64((__int64*)&_TopNode, (__int64)newNode, (__int64)oldTop) == (__int64)oldTop)
+			{
+				// 로그 남기기용
 #ifdef LOG_LOCKFREESTACK
-			unsigned long idx = _InterlockedIncrement(&_logIdx) - 1;
-			idx = idx % LOGARR_MAX;
-			_workArr[idx] = { POP, oldTop };
+				unsigned long idx = _InterlockedIncrement(&_logIdx) - 1;
+				idx = idx % LOGARR_MAX;
+				_workArr[idx] = { POP, oldTop };
 #endif
 
-			*output = topPtr->value;
-			//*deletePtr = topPtr;
-			delete topPtr;
+				* output = topPtr->value;
+				//*deletePtr = topPtr;
+				delete topPtr;
 
-			InterlockedDecrement(&cnt);
-			return true;
+				InterlockedDecrement(&cnt);
+				return true;
+			}
 		}
-		
-		return false;
-	}	
+	}
 
 	bool Log(int num)
 	{

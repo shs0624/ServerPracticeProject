@@ -9,10 +9,10 @@
 #include "LogManager.h"
 
 TLSMemoryPoolManager<CDBPoolStruct>
-SHS::DBTLSConnector::_JobPool(3000, 5, 10);
+SHS::DBTLSConnector::_JobPool(2000, 5, 20);
 
 TLSMemoryPoolManager<CDBPoolStruct>
-SHS::DBWriterManager::_JobPool(3000, 5, 10);
+SHS::DBWriterManager::_JobPool(2000, 5, 20);
 
 void LoginServer::InitLoginServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
 {

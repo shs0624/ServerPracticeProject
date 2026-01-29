@@ -1,5 +1,6 @@
 #pragma comment(lib,"ws2_32")
 #include "Includes.h"
+#include "LogManager.h"
 #include "LanClient.h"
 #define LOGCOUNT 10000
 
@@ -97,7 +98,8 @@ unsigned int WINAPI CLanClient::IOCPWorkerThread(LPVOID arg)
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
-				ptr->cPacketArr[i].DecRefCount();
+				if (ptr->cPacketArr[i].DecRefCount())
+					DebugBreak();
 			}
 			ptr->dwSendCount = 0;
 
@@ -328,6 +330,7 @@ bool CLanClient::SendPacket_UniCast(RefCountPointer& cPacket, bool pushHeader)
 
 			DecrementIOCount();
 			DecrementIOCount();
+
 			return false;
 		}
 	}

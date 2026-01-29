@@ -114,8 +114,8 @@ public:
 			return false;
 		}
 
-		/*if (*_iRefCount < 0)
-			DebugBreak();*/
+		if (*_iRefCount < 0)
+			DebugBreak();
 		return true;
 	}
 
@@ -144,6 +144,4 @@ private:
 	//	/*if (*_iRefCount < 0)
 	//		DebugBreak();*/
 	//}
-
-	friend class CNetServer;
 };
