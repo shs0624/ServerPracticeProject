@@ -1,7 +1,9 @@
 #pragma once
 #define dfFIXEDKEY 0x32
 #define dfPROGRAM_KEY 0x77
-#include "Structs.h"
+#include "ContentsDefine.h"
+
+class IRoom;
 
 class RoomNetServer : CNetServer
 {
@@ -34,37 +36,7 @@ public:
 		return SetInfoToSession(sessionID, ptr, roomNum);
 	}
 
-	void MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRoomNum)
-	{
-		auto nowRoomit = _RoomMap.find(nowRoomNum);
-		if (nowRoomit != _RoomMap.end())
-		{
-			stRoomMessage* pMessage = _MessagePool.Alloc();
-			pMessage->sessionID = sessionID;
-			pMessage->type = RoomMessageType::LEAVE;
-
-			// 세션, 유저의 해제는 그 스레드에서 하자.
-			((*nowRoomit).second)->EnqueueMessage(pMessage);
-		}
-
-		auto moveRoomit = _RoomMap.find(moveRoomNum);
-		if (moveRoomit != _RoomMap.end())
-		{
-			stRoomMessage* pMessage = _MessagePool.Alloc();
-			pMessage->sessionID = sessionID;
-			pMessage->type = RoomMessageType::ENTER;
-
-			// 세션, 유저의 해제는 그 스레드에서 하자.
-			((*nowRoomit).second)->EnqueueMessage(pMessage);
-		}
-
-		st_NetSession* ptr;
-		FindSession(sessionID, &ptr);
-		if (ptr != NULL)
-		{
-			ptr->dwIncludedRoom = moveRoomNum;
-		}
-	}
+	void MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRoomNum);
 
 	st_USER* AllocUSER() { return _UserPool->Alloc(); }
 	void FreeUSER(st_USER* pUser) { _UserPool->Free(pUser); }
@@ -74,17 +46,23 @@ public:
 	void FreeMessage(stRoomMessage* pMessage) { _MessagePool.Free(pMessage); }
 
 	void mpRESLogin(RefCountPointer& cPacket, BYTE status, ULONGLONG accountNum);
-	void mpRESEcho(RefCountPointer& cPacket, ULONGLONG accountNum, ULONGLONG sendTick);
+	void mpRESEcho(RefCountPointer& cPacket, ULONGLONG accountNum, LONGLONG sendTick);
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port);
 	virtual bool OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr);
 	virtual void OnRelease(ULONGLONG sessionID);
 	virtual void OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket);
-	virtual void OnError(int errorcode, WCHAR* message);
+	virtual void OnError(int errorcode, WCHAR* message)
+	{
+
+	}
 private:
 	void InitRoom();
 
-	static unsigned int WINAPI TimerThread(LPVOID arg);
+	static unsigned int WINAPI TimerThread(LPVOID arg)
+	{
+
+	}
 
 	HANDLE _hQuitEvent;
 	HANDLE _hTimeoutEvent;
@@ -96,16 +74,16 @@ private:
 	procademy::CMemoryPool_LockFree<st_SESSION>* _SessionPool;
 
 	// AccountNum, 유저 구조체 - 중복 로그인 체크용
-	unordered_map<ULONGLONG, st_USER*> _AccountNumUserMap;
-	SRWLOCK _AccountNumUserMapLock;
+	/*unordered_map<ULONGLONG, st_USER*> _AccountNumUserMap;
+	SRWLOCK _AccountNumUserMapLock;*/
 
-	// SessionID, 유저 구조체
-	unordered_map<ULONGLONG, st_USER*> _UserMap;
-	SRWLOCK _UserMapLock;
+	//// SessionID, 유저 구조체
+	//unordered_map<ULONGLONG, st_USER*> _UserMap;
+	//SRWLOCK _UserMapLock;
 
-	// SessionID, 세션 구조체
-	unordered_map<ULONGLONG, st_SESSION*> _SessionMap;
-	SRWLOCK _SessionMapLock;
+	//// SessionID, 세션 구조체
+	//unordered_map<ULONGLONG, st_SESSION*> _SessionMap;
+	//SRWLOCK _SessionMapLock;
 
 	unordered_map<DWORD, IRoom*> _RoomMap;
 

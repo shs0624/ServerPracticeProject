@@ -1,8 +1,6 @@
 #pragma once
 #include "Includes.h"
-#include "NetServer_Room.h"
 #include "NetServer_Pipe.h"
-#include "IRoomFactory.h"
 #include "LogManager.h"
 
 DWORD _threadID = 0;

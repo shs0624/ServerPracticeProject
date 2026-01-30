@@ -2,52 +2,20 @@
 #define dfROOM_AUTH 1001
 #define dfROOM_ECHO 1011
 #define dfFRAME 30
-#include "Structs.h"
-#include "RoomNetServer.h"
+#include "ContentsDefine.h"
 #include "LogManager.h"
-#include "IRoomFactory.h"
 
-// 빌드에러 방지를 위한 정의
-thread_local stChatLog IRoom::_pLog;
+class RoomNetServer;
 
 class IRoom
 {
 public:
-	bool DequeueMessage(stRoomMessage* pOutput)
-	{
-		stRoomMessage Message;
-		stRoomMessage* ptr = &Message;
-		if (!_MessageQueue.Empty())
-		{
-			_MessageQueue.Dequeue(ptr);
-
-			pOutput->cPacket = ptr->cPacket;
-			pOutput->sessionID = ptr->sessionID;
-			pOutput->type = ptr->type;
-
-			_pRoomNetServer->FreeMessage(ptr);
-			return true;
-		}
-		else
-			return false;
-	}
-
-	virtual void EnqueueMessage(stRoomMessage* pMessage)
-	{
-		_MessageQueue.Enqueue(pMessage);
-
-		SetEvent(_hThreadEvent);
-	}
+	bool DequeueMessage(stRoomMessage* pOutput);
+	
+	void EnqueueMessage(stRoomMessage* pMessage);
 
 	// Init으로 해도 될듯
-	virtual void SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer)
-	{
-		_dwFrameTime = 1000 / dfFRAME;
-		_dwRoomNumber = roomNumber;
-		_pRoomNetServer = pRoomNetServer;
-	}
-
-	
+	void SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer);
 
 	// Enter, Leave 했을 때
 	virtual void OnJoin(ULONGLONG sessionID) = 0;
@@ -55,17 +23,15 @@ public:
 	virtual void OnUpdate() = 0;
 	virtual void OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket) = 0;
 
-	
-protected:
-	st_USER* AllocUSER() { return _pRoomNetServer->AllocUSER(); }
-	void FreeUSER(st_USER* pUser) { _pRoomNetServer->FreeUSER(pUser); }
-	st_SESSION* AllocSESSION() { return _pRoomNetServer->AllocSESSION(); }
-	void FreeSESSION(st_SESSION* pSession) { _pRoomNetServer->FreeSESSION(pSession); }
-
 	// 비정적 멤버는 인스턴스마다 다른 메모리를 가지는데, thread_local은
 	// 인스턴스마다가 아니라, 스레드 마다 같은 메모리를 가지니 의미가 충돌한다.
 	// 그래서 static으로 선언해야 한다.
 	static thread_local stChatLog _pLog;
+protected:
+	st_USER* AllocUSER();
+	void FreeUSER(st_USER* pUser);
+	st_SESSION* AllocSESSION();
+	void FreeSESSION(st_SESSION* pSession);
 
 	LockFreeQueue<stRoomMessage*> _MessageQueue;
 	RoomNetServer* _pRoomNetServer;
@@ -113,6 +79,9 @@ private:
 
 	HANDLE _hQuitEvent;
 	HANDLE _hThreadEvent;
+
+	HANDLE _RoomThreadHandle;
+	unsigned int _RoomThreadID;
 
 	DWORD _dwFrameTime;
 };

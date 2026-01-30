@@ -123,6 +123,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <Optimization>Disabled</Optimization>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -148,7 +149,7 @@
     <ClInclude Include="MonitorClient.h" />
     <ClInclude Include="MonitorProtocol.h" />
     <ClInclude Include="NetServer_Pipe.h" />
-    <ClInclude Include="NetServer_Room.h" />
+    <ClInclude Include="IRoom.h" />
     <ClInclude Include="PDHMonitor.h" />
     <ClInclude Include="ProcademyProfiler.h" />
     <ClInclude Include="RefCountPointer.h" />
@@ -157,10 +158,13 @@
     <ClInclude Include="TLSMemoryPool.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AuthRoom.cpp" />
     <ClCompile Include="ContentsDefine.h" />
     <ClCompile Include="CPUUsage.cpp" />
     <ClCompile Include="CRingBuffer.cpp" />
     <ClCompile Include="CSerializationBuffer.cpp" />
+    <ClCompile Include="EchoRoom.cpp" />
+    <ClCompile Include="IRoom.cpp" />
     <ClCompile Include="LanClient.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MonitorClient.cpp" />

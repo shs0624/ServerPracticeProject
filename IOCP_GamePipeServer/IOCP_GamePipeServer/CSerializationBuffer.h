@@ -6,7 +6,7 @@
 #include <new>
 #include "TLSMemoryPool.h"
 #define CPACKET_LOGSIZE 10000
-#define PROTOCOL_MAX_SIZE 500
+#define PROTOCOL_MAX_SIZE 100
 
 //#define MALLOC_ON_CALL
 //#define LOG_CPACKET

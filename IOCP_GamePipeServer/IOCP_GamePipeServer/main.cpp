@@ -1,7 +1,11 @@
 #include "Includes.h"
-#include "NetServer.h"
-#include "ChatServer.h"
 #include "LogManager.h"
+#include "NetServer_Pipe.h"
+#include "IRoom.h"
+#include "AuthRoom.h"
+#include "EchoRoom.h"
+#include "IRoomFactory.h"
+#include "RoomNetServer.h"
 
 procademy::CCrashDump cCrashDump;
 
@@ -9,8 +13,8 @@ int main()
 {
 	//LogController::GetInstance();
 
-	ChatServer* _chatServer = new ChatServer();
-	_chatServer->InitChatServer(INADDR_ANY, SERVERPORT, true, 20000);
+	RoomNetServer* _gameServer = new RoomNetServer();
+	_gameServer->InitRoomNetServer(INADDR_ANY, SERVERPORT, true, 10000);
 
 	char ch;
 	while (1)
@@ -19,7 +23,7 @@ int main()
 		ch = _getch();
 		if (ch == 'Q' || ch == 'q')
 		{
-			_chatServer->QuitServer();
+			_gameServer->QuitServer();
 			//break;
 		}
 		if (ch == 'P' || ch == 'p')

@@ -1,8 +1,12 @@
 #include "Includes.h"
 #include "ContentsDefine.h"
-#include "IRoomFactory.h"
 #include "NetServer_Pipe.h"
+#include "IRoom.h"
+#include "AuthRoom.h"
+#include "EchoRoom.h"
+#include "IRoomFactory.h"
 #include "RoomNetServer.h"
+
 
 TLSMemoryPoolManager<stRoomMessage>
 RoomNetServer::_MessagePool(800, 5, 20);
@@ -14,8 +18,8 @@ void RoomNetServer::InitRoomNetServer(ULONG ip, LONG port, bool bNagleEnabled, i
 
 	InitRoom();
 
-	InitializeSRWLock(&_UserMapLock);
-	InitializeSRWLock(&_SessionMapLock);
+	//InitializeSRWLock(&_UserMapLock);
+	//InitializeSRWLock(&_SessionMapLock);
 
 	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
@@ -23,20 +27,46 @@ void RoomNetServer::InitRoomNetServer(ULONG ip, LONG port, bool bNagleEnabled, i
 	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(maxConnection, false, false);
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
 
-	_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
+	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 
 	int workCount = (int)si.dwNumberOfProcessors - 2;
 	StartNetServer(ip, port, workCount, bNagleEnabled, maxConnection, dfPROGRAM_KEY, dfFIXEDKEY);
 }
 
+void RoomNetServer::MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRoomNum)
+{
+	auto nowRoomit = _RoomMap.find(nowRoomNum);
+	if (nowRoomit != _RoomMap.end())
+	{
+		stRoomMessage* pMessage = _MessagePool.Alloc();
+		pMessage->sessionID = sessionID;
+		pMessage->type = RoomMessageType::LEAVE;
+
+		// 세션, 유저의 해제는 그 스레드에서 하자.
+		((*nowRoomit).second)->EnqueueMessage(pMessage);
+	}
+
+	auto moveRoomit = _RoomMap.find(moveRoomNum);
+	if (moveRoomit != _RoomMap.end())
+	{
+		stRoomMessage* pMessage = _MessagePool.Alloc();
+		pMessage->sessionID = sessionID;
+		pMessage->type = RoomMessageType::ENTER;
+
+		// 세션, 유저의 해제는 그 스레드에서 하자.
+		((*moveRoomit).second)->EnqueueMessage(pMessage);
+	}
+
+	st_NetSession* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr != NULL)
+	{
+		ptr->dwIncludedRoom = moveRoomNum;
+	}
+}
+
 bool RoomNetServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 {
-	st_SESSION* pSession = _SessionPool->Alloc();
-
-	// 세션에 SESSION 구조체 할당
-	//if (!SetInfoToSession(sessionID, pSession, dfROOM_AUTH))
-	//	return false;
-
 	// @@TODO : AUTH에 실질적으로 넣기 전에, 연결이 끊어지면 어떻게하는가
 	//pSession->ulSessionID = sessionID;
 	//pSession->ClientAddr = clientAddr;
@@ -55,6 +85,10 @@ bool RoomNetServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 	pMessage->type = ENTER;
 
 	((*it).second)->EnqueueMessage(pMessage);
+
+	// 세션에 SESSION 구조체 할당
+	if (!SetInfoToSession(sessionID, NULL, dfROOM_AUTH))
+		return false;
 
 	_pLog._dwSessionCount++;
 	return true;
@@ -117,7 +151,7 @@ void RoomNetServer::mpRESLogin(RefCountPointer& cPacket, BYTE status, ULONGLONG 
 	(**cPacket) << accountNum;
 }
 
-void RoomNetServer::mpRESEcho(RefCountPointer& cPacket, ULONGLONG accountNum, ULONGLONG sendTick)
+void RoomNetServer::mpRESEcho(RefCountPointer& cPacket, ULONGLONG accountNum, LONGLONG sendTick)
 {
 	WORD type = en_PACKET_CS_GAME_RES_ECHO;
 

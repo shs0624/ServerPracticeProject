@@ -78,7 +78,7 @@
     <ClInclude Include="LockFreeStack_Re.h">
       <Filter>Lib</Filter>
     </ClInclude>
-    <ClInclude Include="NetServer_Room.h">
+    <ClInclude Include="IRoom.h">
       <Filter>NetServer</Filter>
     </ClInclude>
     <ClInclude Include="CommonProtocol.h">
@@ -141,6 +141,15 @@
       <Filter>NetServer</Filter>
     </ClCompile>
     <ClCompile Include="ContentsDefine.h">
+      <Filter>Contents</Filter>
+    </ClCompile>
+    <ClCompile Include="IRoom.cpp">
+      <Filter>NetServer</Filter>
+    </ClCompile>
+    <ClCompile Include="AuthRoom.cpp">
+      <Filter>Contents</Filter>
+    </ClCompile>
+    <ClCompile Include="EchoRoom.cpp">
       <Filter>Contents</Filter>
     </ClCompile>
   </ItemGroup>
