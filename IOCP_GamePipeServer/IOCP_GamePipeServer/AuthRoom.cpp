@@ -20,18 +20,22 @@ void AuthRoom::OnJoin(ULONGLONG sessionID)
 	_SessionMap.insert({ sessionID, pSession });
 
 	_pLog._dwAuthUserCount++;
-	_pLog._dwSessionCount++;
 }
 
 void AuthRoom::OnLeave(ULONGLONG sessionID)
 {
+	st_SESSION* pSession = NULL;
 	auto it = _SessionMap.find(sessionID);
 	if (it != _SessionMap.end())
 	{
-		_SessionMap.erase(it);
+		pSession = (*it).second;
+
+		_pLog._dwAuthUserCount--;
+		_SessionMap.erase(sessionID);
 	}
 
-	FreeSESSION((*it).second);
+	if(pSession != NULL)
+		FreeSESSION(pSession);
 }
 
 void AuthRoom::OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
@@ -66,4 +70,30 @@ void AuthRoom::OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
 	}
 
 	_pRoomNetServer->MoveRoom(sessionID, _dwRoomNumber, dfROOM_ECHO);
+	_pLog._dwLoginMessageTPS++;
+}
+
+void AuthRoom::OnUpdate()
+{
+	stRoomMessage* pMessage = NULL;
+	while (!_MessageQueue.Empty())
+	{
+		_MessageQueue.Dequeue(pMessage);
+
+		RoomMessageType type = pMessage->type;
+		switch (type)
+		{
+		case ENTER:
+			OnJoin(pMessage->sessionID);
+			break;
+		case LEAVE:
+			OnLeave(pMessage->sessionID);
+			break;
+		case MESSAGE:
+			OnMessage(pMessage->sessionID, pMessage->cPacket);
+			break;
+		}
+	}
+
+	_pLog._dwAuthFPS++;
 }

@@ -20,9 +20,6 @@ void EchoRoom::OnJoin(ULONGLONG sessionID)
 		// 중복로그인 - sessionID
 		_pRoomNetServer->DisconnectSession(sessionID);
 		_UserMap.erase(sessionID);
-
-		_pLog._dwAuthUserCount--;
-		_pLog._dwSessionCount--;
 		return;
 	}
 
@@ -35,16 +32,13 @@ void EchoRoom::OnJoin(ULONGLONG sessionID)
 		_UserMap.erase(sessionID);
 
 		_pLog._dwGameUserCount--;
-		_pLog._dwSessionCount--;
 		_pLog._dwDuplicatedLoginTotal++;
 	}
 
 	_UserMap.insert({ sessionID, pUser });
 	_AccountUserMap.insert({ pUser->AccountNum, pUser });
 
-	_pLog._dwAuthUserCount--;
 	_pLog._dwGameUserCount++;
-	_pLog._dwSessionCount++;
 	_pLog._dwLoginMessageTPS++;
 
 	// RES Send
@@ -69,6 +63,7 @@ void EchoRoom::OnLeave(ULONGLONG sessionID)
 		}
 
 		FreeUSER(pUser);
+		_pLog._dwGameUserCount--;
 	}
 }
 
@@ -101,5 +96,32 @@ void EchoRoom::OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
 
 	(*cPacket)->Clear(sizeof(st_NetHeader));
 	_pRoomNetServer->mpRESEcho(cPacket, accountNum, sendTick);
-	_pRoomNetServer->RoomSendPacket(sessionID, cPacket);
+	_pLog._dwEchoMessageTPS++;
+	if (_pRoomNetServer->RoomSendPacket(sessionID, cPacket))
+		_pLog._dwSendMessageTPS++;
+}
+
+void EchoRoom::OnUpdate()
+{
+	stRoomMessage* pMessage = NULL;
+	while (!_MessageQueue.Empty())
+	{
+		_MessageQueue.Dequeue(pMessage);
+
+		RoomMessageType type = pMessage->type;
+		switch (type)
+		{
+		case ENTER:
+			OnJoin(pMessage->sessionID);
+			break;
+		case LEAVE:
+			OnLeave(pMessage->sessionID);
+			break;
+		case MESSAGE:
+			OnMessage(pMessage->sessionID, pMessage->cPacket);
+			break;
+		}
+	}
+
+	_pLog._dwGameFPS++;
 }

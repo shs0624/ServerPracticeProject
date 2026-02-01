@@ -16,13 +16,13 @@ void RoomNetServer::InitRoomNetServer(ULONG ip, LONG port, bool bNagleEnabled, i
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
-	InitRoom();
-
 	//InitializeSRWLock(&_UserMapLock);
 	//InitializeSRWLock(&_SessionMapLock);
 
 	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
+
+	InitRoom();
 
 	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(maxConnection, false, false);
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);

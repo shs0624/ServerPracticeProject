@@ -13,10 +13,7 @@ public:
 	virtual void OnJoin(ULONGLONG sessionID);
 	virtual void OnLeave(ULONGLONG sessionID);
 	virtual void OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket);
-	virtual void OnUpdate()
-	{
-
-	}
+	virtual void OnUpdate();
 private:
 	unordered_map<ULONGLONG, st_USER*> _UserMap;
 	unordered_map<ULONGLONG, st_USER*> _AccountUserMap;

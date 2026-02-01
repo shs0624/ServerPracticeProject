@@ -28,6 +28,8 @@ struct stChatLog
 
 	DWORD _dwLoginMessageTPS;
 	DWORD _dwEchoMessageTPS;
+	DWORD _dwLoginQueueSize;
+	DWORD _dwEchoQueueSize;
 
 	DWORD _dwDuplicatedLoginTotal;
 	DWORD _dwDecodeDisconnectTotal;
@@ -87,6 +89,7 @@ public:
 			_stPrintLog._dwRecvMessageTPS += _LogStructArr[i]->_dwRecvMessageTPS;
 			_stPrintLog._dwSendMessageTPS += _LogStructArr[i]->_dwSendMessageTPS;
 			_stPrintLog._dwLoginMessageTPS += _LogStructArr[i]->_dwLoginMessageTPS;
+			_stPrintLog._dwEchoMessageTPS += _LogStructArr[i]->_dwEchoMessageTPS;
 			_stPrintLog._dwAuthFPS += _LogStructArr[i]->_dwAuthFPS;
 			_stPrintLog._dwGameFPS += _LogStructArr[i]->_dwGameFPS;
 			_stPrintLog._dwDuplicatedLoginTotal += _LogStructArr[i]->_dwDuplicatedLoginTotal;
@@ -120,6 +123,7 @@ public:
 		printf("%-25s%5d\n", "SendPacket TPS : ", _stPrintLog._dwSendMessageTPS);
 		printf("==============================================================================\n");
 		printf("%-25s%5d\n", "Contents - Login TPS :", _stPrintLog._dwLoginMessageTPS);
+		printf("%-25s%5d\n", "Contents - Echo  TPS :", _stPrintLog._dwEchoMessageTPS);
 		printf("%-25s%5d\n", "Contents - Auth  FPS :", _stPrintLog._dwAuthFPS);
 		printf("%-25s%5d\n", "Contents - Game  FPS :", _stPrintLog._dwGameFPS);
 		printf("==============================================================================\n");
@@ -170,6 +174,7 @@ private:
 			_LogStructArr[i]->_dwAcceptTPS = 0;
 
 			_LogStructArr[i]->_dwLoginMessageTPS = 0;
+			_LogStructArr[i]->_dwEchoMessageTPS = 0;
 
 			_LogStructArr[i]->_dwAuthFPS = 0;
 			_LogStructArr[i]->_dwGameFPS = 0;

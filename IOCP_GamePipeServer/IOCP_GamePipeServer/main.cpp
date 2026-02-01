@@ -12,6 +12,7 @@ procademy::CCrashDump cCrashDump;
 int main()
 {
 	//LogController::GetInstance();
+	timeBeginPeriod(1);
 
 	RoomNetServer* _gameServer = new RoomNetServer();
 	_gameServer->InitRoomNetServer(INADDR_ANY, SERVERPORT, true, 10000);
@@ -32,6 +33,8 @@ int main()
 		}
 
 	}
+
+	timeEndPeriod(1);
 
 	return 0;
 }

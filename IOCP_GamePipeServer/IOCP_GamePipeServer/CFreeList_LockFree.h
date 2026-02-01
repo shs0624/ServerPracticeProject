@@ -89,8 +89,6 @@ namespace procademy
 				node = (st_BLOCK_NODE*)((ULONGLONG)node | localIdx);
 				_pTopNode = node;				
 			}
-
-			int a = 50;
 		}
 
 		virtual	~CMemoryPool_LockFree()

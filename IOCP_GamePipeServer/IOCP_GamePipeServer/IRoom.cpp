@@ -36,8 +36,6 @@ bool IRoom::DequeueMessage(stRoomMessage* pOutput)
 void IRoom::EnqueueMessage(stRoomMessage* pMessage)
 {
 	_MessageQueue.Enqueue(pMessage);
-
-	SetEvent(_hThreadEvent);
 }
 
 void IRoom::SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer)
@@ -45,6 +43,8 @@ void IRoom::SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer)
 	_dwFrameTime = 1000 / dfFRAME;
 	_dwRoomNumber = roomNumber;
 	_pRoomNetServer = pRoomNetServer;
+
+	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
 	_RoomThreadHandle = (HANDLE)_beginthreadex(NULL, 0, RoomThread, this, 0, &_RoomThreadID);
 }

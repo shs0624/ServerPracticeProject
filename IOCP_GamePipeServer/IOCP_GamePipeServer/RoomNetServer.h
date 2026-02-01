@@ -18,7 +18,13 @@ public:
 
 	bool RoomSendPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true)
 	{
-		return SendPacket_UniCast(sessionID, cPacket, pushHeader);
+		if (PostPacket(sessionID, cPacket, pushHeader))
+		{
+			_pLog._dwSendMessageTPS++;
+			return true;
+		}
+		else
+			return false;
 	}
 
 	void DisconnectSession(ULONGLONG sessionID)

@@ -1,7 +1,7 @@
 #pragma once
 #define dfROOM_AUTH 1001
 #define dfROOM_ECHO 1011
-#define dfFRAME 30
+#define dfFRAME 50
 #include "ContentsDefine.h"
 #include "LogManager.h"
 
@@ -20,8 +20,8 @@ public:
 	// Enter, Leave 했을 때
 	virtual void OnJoin(ULONGLONG sessionID) = 0;
 	virtual void OnLeave(ULONGLONG sessionID) = 0;
-	virtual void OnUpdate() = 0;
 	virtual void OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket) = 0;
+	virtual void OnUpdate() = 0;
 
 	// 비정적 멤버는 인스턴스마다 다른 메모리를 가지는데, thread_local은
 	// 인스턴스마다가 아니라, 스레드 마다 같은 메모리를 가지니 의미가 충돌한다.
@@ -43,28 +43,28 @@ private:
 		IRoom* thisPtr = (IRoom*)arg;
 		LogController::GetInstance()->RegisterLogStruct(&_pLog);
 
-		stRoomMessage* pMessage = NULL;
+		//stRoomMessage* pMessage = NULL;
 		DWORD ret = 0;
 		while (1)
 		{
-			while (!thisPtr->_MessageQueue.Empty())
-			{
-				thisPtr->_MessageQueue.Dequeue(pMessage);
+			//while (!thisPtr->_MessageQueue.Empty())
+			//{
+			//	thisPtr->_MessageQueue.Dequeue(pMessage);
 
-				RoomMessageType type = pMessage->type;
-				switch (type)
-				{
-				case ENTER:
-					thisPtr->OnJoin(pMessage->sessionID);
-					break;
-				case LEAVE:
-					thisPtr->OnLeave(pMessage->sessionID);
-					break;
-				case MESSAGE:
-					thisPtr->OnMessage(pMessage->sessionID, pMessage->cPacket);
-					break;
-				}
-			}
+			//	RoomMessageType type = pMessage->type;
+			//	switch (type)
+			//	{
+			//	case ENTER:
+			//		thisPtr->OnJoin(pMessage->sessionID);
+			//		break;
+			//	case LEAVE:
+			//		thisPtr->OnLeave(pMessage->sessionID);
+			//		break;
+			//	case MESSAGE:
+			//		thisPtr->OnMessage(pMessage->sessionID, pMessage->cPacket);
+			//		break;
+			//	}
+			//}
 
 			thisPtr->OnUpdate();
 
@@ -78,7 +78,6 @@ private:
 	}
 
 	HANDLE _hQuitEvent;
-	HANDLE _hThreadEvent;
 
 	HANDLE _RoomThreadHandle;
 	unsigned int _RoomThreadID;

@@ -98,6 +98,8 @@ bool CNetServer::CheckSession(st_NetSession* ptr, ULONGLONG sessionID)
 	{
 		return false;
 	}
+
+	return true;
 }
 
 bool CNetServer::StartNetServer(ULONG ip, LONG port, int concurrentThreads, bool bNagleEnabled, int maxConnection, unsigned char programKey, unsigned char fixedKey)
@@ -326,6 +328,23 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			continue;
 		}
 
+		if (pOverlapped == &thisPtr->_SendOverlapped)
+		{
+			if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+			{
+				if (!thisPtr->SetWSASend(ptr))
+				{
+					InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+					if (!thisPtr->DecrementIOCount(ptr))
+						continue;
+				}
+			}
+
+			thisPtr->DecrementIOCount(ptr);
+			thisPtr->DecrementIOCount(ptr);
+			continue;
+		}
+
 		if (pOverlapped == &ptr->recvOverlapped)
 		{
 			// RecvProc_Net은 IOCount를 증가시키지 않는다.
@@ -338,7 +357,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 					continue;
 			}
 		}
-		else
+		else if (pOverlapped == &ptr->sendOverlapped)
 		{
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
@@ -534,6 +553,52 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 
 	return true;
 }
+
+bool CNetServer::PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
+{
+	st_NetSession* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+	{
+		return false;
+	}
+
+	InterlockedIncrement(&ptr->dwIOCount);
+	if (ptr->bReleaseFlag == 1)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (pushHeader)
+	{
+		short shSize = (*cPacket)->GetDataSize();
+
+		st_NetHeader netHeader;
+		netHeader.FixedKey = _ProgramKey;
+		netHeader.RandKey = (unsigned char)rand() % 256;
+		netHeader.shLen = shSize;
+
+		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
+	}
+
+	ptr->sendBuf->Enqueue(cPacket);
+
+	InterlockedIncrement(&ptr->dwIOCount);
+	PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, &_SendOverlapped);
+
+	_pLog._dwSendMessageTPS++;
+	DecrementIOCount(ptr);
+	return true;
+}
+
 
 bool CNetServer::DecrementIOCount(st_NetSession* ptr)
 {
@@ -867,14 +932,7 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	ptr->dwIOCount = 0;
 	closesocket(ptr->sock);
 
-	// @@TODO : 락프리 스택 내부적으로 while돌리기
-	while (true)
-	{
-		if (_emptyIndexStack->push(idx))
-			break;
-
-		Sleep(0);
-	}
+	_emptyIndexStack->push(idx);
 
 	// 인덱스를 아직 ID에 넣지 않음
 	InterlockedDecrement((LONG*)&_iSessionCount);
