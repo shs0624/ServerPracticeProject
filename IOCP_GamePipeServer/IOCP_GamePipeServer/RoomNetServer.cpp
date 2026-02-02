@@ -109,8 +109,6 @@ void RoomNetServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket)
 	pMessage->cPacket = cpacket;
 
 	((*it).second)->EnqueueMessage(pMessage);
-
-	_pLog._dwRecvMessageTPS++;
 }
 
 void RoomNetServer::OnRelease(ULONGLONG sessionID)
