@@ -1,6 +1,6 @@
 ﻿#include "ProcademyProfiler.h"
 #include <iostream>
-#define STRUCT_ARR_MAX 50
+#define STRUCT_ARR_MAX 100
 #define THREAD_ARR_MAX 21
 
 CHAR _Line[200] = "--------------------------------------------------------------------------------------------------\n";
@@ -98,6 +98,7 @@ public:
 
 		profileArr[*idx]._IsUsing = true;
 		profileArr[*idx]._StartTime = starTime;
+		profileArr[*idx]._MaxTime = 0;
 		profileArr[*idx]._MinTime = LLONG_MAX;
 		profileArr[*idx]._TotalTime = 0;
 		profileArr[*idx]._CallCount = 0;
@@ -164,9 +165,9 @@ public:
 				}
 
 				double average = ptr->_TotalTime - (ptr->_MaxTime + ptr->_MinTime);
-				average = ((average / (ptr->_CallCount - 2))) * (1000000.0f / (float)_Freq.QuadPart);
-				double min = (double)((double)ptr->_MinTime) * (1000000.0f / (float)_Freq.QuadPart);
-				double max = (double)((double)ptr->_MaxTime) * (1000000.0f / (float)_Freq.QuadPart);
+				average = (((average / (ptr->_CallCount - 2))) * _Freq.QuadPart) * (1 / 1000000.0f);
+				double min = (double)((ptr->_MinTime) * _Freq.QuadPart) * (1 / 1000000.0f);
+				double max = (double)((ptr->_MaxTime) * _Freq.QuadPart) * (1 / 1000000.0f);
 				sprintf_s(context, 200, "%20s | %.4f㎲ | %.4f㎲ | %.4f㎲ | %lld\n",
 					ptr->_Tag, average, min, max, ptr->_CallCount);
 				fwrite(&context, strlen(context), 1, file);

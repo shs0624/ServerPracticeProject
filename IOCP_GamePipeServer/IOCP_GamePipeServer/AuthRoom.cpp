@@ -75,22 +75,22 @@ void AuthRoom::OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
 
 void AuthRoom::OnUpdate()
 {
-	stRoomMessage* pMessage = NULL;
+	stRoomMessage Message;
 	while (!_MessageQueue.Empty())
 	{
-		_MessageQueue.Dequeue(pMessage);
+		DequeueMessage(&Message);
 
-		RoomMessageType type = pMessage->type;
+		RoomMessageType type = Message.type;
 		switch (type)
 		{
 		case ENTER:
-			OnJoin(pMessage->sessionID);
+			OnJoin(Message.sessionID);
 			break;
 		case LEAVE:
-			OnLeave(pMessage->sessionID);
+			OnLeave(Message.sessionID);
 			break;
 		case MESSAGE:
-			OnMessage(pMessage->sessionID, pMessage->cPacket);
+			OnMessage(Message.sessionID, Message.cPacket);
 			break;
 		}
 	}

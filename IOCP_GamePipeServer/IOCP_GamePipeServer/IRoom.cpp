@@ -22,9 +22,10 @@ bool IRoom::DequeueMessage(stRoomMessage* pOutput)
 	{
 		_MessageQueue.Dequeue(ptr);
 
-		pOutput->cPacket = ptr->cPacket;
 		pOutput->sessionID = ptr->sessionID;
 		pOutput->type = ptr->type;
+		if(ptr->type == MESSAGE)
+			pOutput->cPacket = ptr->cPacket;
 
 		_pRoomNetServer->FreeMessage(ptr);
 		return true;
