@@ -33,6 +33,7 @@ struct st_NetSession
 	RefCountPointer cPacketArr[MAX_PACKET_BATCH];
 
 	// 소속 Room 정보를 번호로 할지 뭐로할지..
+	LockFreeQueue<stRoomMessage*>* _MessageQ;
 	DWORD dwIncludedRoom;
 	LPVOID pUser;
 
@@ -77,6 +78,8 @@ public:
 
 	virtual void OnError(int errorcode, WCHAR* message) = 0;
 protected:
+	friend class IRoom;
+
 	int _workerCount;
 	int _iSessionCount;
 	int _imaxConnection;

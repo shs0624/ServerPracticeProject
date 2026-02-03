@@ -67,15 +67,6 @@ void RoomNetServer::MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRo
 
 bool RoomNetServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 {
-	// @@TODO : AUTH에 실질적으로 넣기 전에, 연결이 끊어지면 어떻게하는가
-	//pSession->ulSessionID = sessionID;
-	//pSession->ClientAddr = clientAddr;
-	//pSession->dwLastRecvTime = timeGetTime();
-
-	//AcquireSRWLockExclusive(&_SessionMapLock);
-	//_SessionMap.insert({ sessionID, pSession });
-	//ReleaseSRWLockExclusive(&_SessionMapLock);
-
 	auto it = _RoomMap.find(dfROOM_AUTH);
 	if (it == _RoomMap.end())
 		DebugBreak();
@@ -99,16 +90,17 @@ void RoomNetServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket)
 	st_NetSession* ptr;
 	FindSession(sessionID, &ptr);
 
-	auto it = _RoomMap.find(ptr->dwIncludedRoom);
-	if (it == _RoomMap.end())
-		DebugBreak();
+	//auto it = _RoomMap.find(ptr->dwIncludedRoom);
+	//if (it == _RoomMap.end())
+	//	DebugBreak();
 
 	stRoomMessage* pMessage = _MessagePool.Alloc();
 	pMessage->sessionID = sessionID;
 	pMessage->type = RoomMessageType::MESSAGE;
 	pMessage->cPacket = cpacket;
 
-	((*it).second)->EnqueueMessage(pMessage);
+	ptr->_MessageQ->Enqueue(pMessage);
+	//((*it).second)->EnqueueMessage(pMessage);
 }
 
 void RoomNetServer::OnRelease(ULONGLONG sessionID)

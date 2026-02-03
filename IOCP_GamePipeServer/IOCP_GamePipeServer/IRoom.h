@@ -47,25 +47,6 @@ private:
 		DWORD ret = 0;
 		while (1)
 		{
-			//while (!thisPtr->_MessageQueue.Empty())
-			//{
-			//	thisPtr->_MessageQueue.Dequeue(pMessage);
-
-			//	RoomMessageType type = pMessage->type;
-			//	switch (type)
-			//	{
-			//	case ENTER:
-			//		thisPtr->OnJoin(pMessage->sessionID);
-			//		break;
-			//	case LEAVE:
-			//		thisPtr->OnLeave(pMessage->sessionID);
-			//		break;
-			//	case MESSAGE:
-			//		thisPtr->OnMessage(pMessage->sessionID, pMessage->cPacket);
-			//		break;
-			//	}
-			//}
-
 			thisPtr->OnUpdate();
 
 			ret = WaitForSingleObject(thisPtr->_hQuitEvent, thisPtr->_dwFrameTime);
