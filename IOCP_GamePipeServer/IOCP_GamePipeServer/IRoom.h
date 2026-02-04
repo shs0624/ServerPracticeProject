@@ -22,6 +22,7 @@ public:
 	virtual void OnLeave(ULONGLONG sessionID) = 0;
 	virtual void OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket) = 0;
 	virtual void OnUpdate() = 0;
+	virtual void OnSessionUpdate(ULONGLONG sessionID) = 0;
 
 	// 비정적 멤버는 인스턴스마다 다른 메모리를 가지는데, thread_local은
 	// 인스턴스마다가 아니라, 스레드 마다 같은 메모리를 가지니 의미가 충돌한다.
@@ -33,7 +34,9 @@ protected:
 	st_SESSION* AllocSESSION();
 	void FreeSESSION(st_SESSION* pSession);
 
+	vector<st_NetSession*> _SessionVec;
 	LockFreeQueue<stRoomMessage*> _MessageQueue;
+
 	RoomNetServer* _pRoomNetServer;
 
 	DWORD _dwRoomNumber;
@@ -43,11 +46,20 @@ private:
 		IRoom* thisPtr = (IRoom*)arg;
 		LogController::GetInstance()->RegisterLogStruct(&_pLog);
 
-		//stRoomMessage* pMessage = NULL;
 		DWORD ret = 0;
 		while (1)
 		{
+			// 세션별로 해야하는 작업 순회시키기
+			for (int i = 0; i < thisPtr->_SessionVec.size(); i++)
+			{
+				st_NetSession* pSession = thisPtr->_SessionVec[i];
+				
+				thisPtr->OnSessionUpdate(pSession->ulSessionID);
+			}
+
 			thisPtr->OnUpdate();
+
+			// Leave체크?
 
 			ret = WaitForSingleObject(thisPtr->_hQuitEvent, thisPtr->_dwFrameTime);
 			if (ret == WAIT_OBJECT_0)
@@ -57,6 +69,8 @@ private:
 			}
 		}
 	}
+
+	CNetServer* _pNetServer;
 
 	HANDLE _hQuitEvent;
 

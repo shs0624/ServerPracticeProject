@@ -33,7 +33,6 @@ struct st_NetSession
 	RefCountPointer cPacketArr[MAX_PACKET_BATCH];
 
 	// 소속 Room 정보를 번호로 할지 뭐로할지..
-	LockFreeQueue<stRoomMessage*>* _MessageQ;
 	DWORD dwIncludedRoom;
 	LPVOID pUser;
 

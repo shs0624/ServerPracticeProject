@@ -43,7 +43,9 @@ void IRoom::SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer)
 {
 	_dwFrameTime = 1000 / dfFRAME;
 	_dwRoomNumber = roomNumber;
+
 	_pRoomNetServer = pRoomNetServer;
+	_pNetServer = (CNetServer*)pRoomNetServer;
 
 	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 

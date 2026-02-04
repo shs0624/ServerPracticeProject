@@ -34,6 +34,16 @@ void AuthRoom::OnLeave(ULONGLONG sessionID)
 		_SessionMap.erase(sessionID);
 	}
 
+	for (int i = 0; i < _SessionVec.size(); i++)
+	{
+		if (_SessionVec[i]->ulSessionID == sessionID)
+		{
+			// 있으니까, 제거
+			_SessionVec[i] = _SessionVec.back();
+			_SessionVec.pop_back();
+		}
+	}
+
 	if(pSession != NULL)
 		FreeSESSION(pSession);
 }
@@ -69,31 +79,52 @@ void AuthRoom::OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
 		return;
 	}
 
+	// MoveRoom도 그냥 방식이 바뀌면 된다. 수정하기
 	_pRoomNetServer->MoveRoom(sessionID, _dwRoomNumber, dfROOM_ECHO);
 	_pLog._dwLoginMessageTPS++;
 }
 
 void AuthRoom::OnUpdate()
 {
-	stRoomMessage Message;
-	while (!_MessageQueue.Empty())
-	{
-		DequeueMessage(&Message);
+	// @@TODO : 타이머 체크
 
-		RoomMessageType type = Message.type;
+	_pLog._dwAuthFPS++;
+}
+
+void AuthRoom::OnSessionUpdate(ULONGLONG sessionID)
+{
+	st_SESSION* pSession = NULL;
+	auto it = _SessionMap.find(sessionID);
+	if (it == _SessionMap.end())
+	{
+		pSession = (*it).second;
+
+		_pLog._dwAuthUserCount--;
+		_SessionMap.erase(sessionID);
+	}
+
+	stRoomMessage* pMessage;
+	// 메세지 있는지 체크
+	while (!pSession->_MessageQ->Empty())
+	{
+		pSession->_MessageQ->Dequeue(pMessage);
+		if (pMessage == NULL)
+			break; // Disconnect?
+
+		RoomMessageType type = pMessage->type;
 		switch (type)
 		{
 		case ENTER:
-			OnJoin(Message.sessionID);
+			OnJoin(pMessage->sessionID);
 			break;
 		case LEAVE:
-			OnLeave(Message.sessionID);
+			OnLeave(pMessage->sessionID);
 			break;
 		case MESSAGE:
-			OnMessage(Message.sessionID, Message.cPacket);
+			OnMessage(pMessage->sessionID, pMessage->cPacket);
 			break;
 		}
 	}
 
-	_pLog._dwAuthFPS++;
+	// Enter,Leave라면 Enter는 입장처리, Leave면 표시 남기기.
 }

@@ -51,9 +51,6 @@ public:
 
 	void FreeMessage(stRoomMessage* pMessage) { _MessagePool.Free(pMessage); }
 
-	void mpRESLogin(RefCountPointer& cPacket, BYTE status, ULONGLONG accountNum);
-	void mpRESEcho(RefCountPointer& cPacket, ULONGLONG accountNum, LONGLONG sendTick);
-
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port);
 	virtual bool OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr);
 	virtual void OnRelease(ULONGLONG sessionID);

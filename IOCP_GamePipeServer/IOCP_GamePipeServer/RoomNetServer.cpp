@@ -16,18 +16,15 @@ void RoomNetServer::InitRoomNetServer(ULONG ip, LONG port, bool bNagleEnabled, i
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
-	//InitializeSRWLock(&_UserMapLock);
-	//InitializeSRWLock(&_SessionMapLock);
-
 	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	_hTimeoutEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
 
 	InitRoom();
 
+	// @@TODO: 세션, 유저에 대한 MessageQ 초기화 필요
+
 	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(maxConnection, false, false);
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
-
-	//_TimerThreadHandle = (HANDLE)_beginthreadex(NULL, 0, TimerThread, this, 0, &_TimerThreadID);
 
 	int workCount = (int)si.dwNumberOfProcessors - 2;
 	StartNetServer(ip, port, workCount, bNagleEnabled, maxConnection, dfPROGRAM_KEY, dfFIXEDKEY);
@@ -90,17 +87,12 @@ void RoomNetServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket)
 	st_NetSession* ptr;
 	FindSession(sessionID, &ptr);
 
-	//auto it = _RoomMap.find(ptr->dwIncludedRoom);
-	//if (it == _RoomMap.end())
-	//	DebugBreak();
-
 	stRoomMessage* pMessage = _MessagePool.Alloc();
 	pMessage->sessionID = sessionID;
 	pMessage->type = RoomMessageType::MESSAGE;
 	pMessage->cPacket = cpacket;
 
 	ptr->_MessageQ->Enqueue(pMessage);
-	//((*it).second)->EnqueueMessage(pMessage);
 }
 
 void RoomNetServer::OnRelease(ULONGLONG sessionID)
@@ -130,22 +122,4 @@ void RoomNetServer::InitRoom()
 	IRoom* pEcho = IRoomFactory::Create(dfROOM_ECHO);
 	pEcho->SetRoomInfo(dfROOM_ECHO, this);
 	_RoomMap.insert({ dfROOM_ECHO, pEcho });
-}
-
-void RoomNetServer::mpRESLogin(RefCountPointer& cPacket, BYTE status, ULONGLONG accountNum)
-{
-	WORD type = en_PACKET_CS_GAME_RES_LOGIN;
-
-	(**cPacket) << type;
-	(**cPacket) << status;
-	(**cPacket) << accountNum;
-}
-
-void RoomNetServer::mpRESEcho(RefCountPointer& cPacket, ULONGLONG accountNum, LONGLONG sendTick)
-{
-	WORD type = en_PACKET_CS_GAME_RES_ECHO;
-
-	(**cPacket) << type;
-	(**cPacket) << accountNum;
-	(**cPacket) << sendTick;
 }
