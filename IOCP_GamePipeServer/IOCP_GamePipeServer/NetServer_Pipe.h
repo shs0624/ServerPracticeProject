@@ -35,6 +35,7 @@ struct st_NetSession
 	// 소속 Room 정보를 번호로 할지 뭐로할지..
 	DWORD dwIncludedRoom;
 	LPVOID pUser;
+	LockFreeQueue<stRoomMessage*>* _MessageQ;
 
 	DWORD dwSendCount;
 	alignas(4) DWORD dwIOCount;

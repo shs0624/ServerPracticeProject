@@ -1,7 +1,7 @@
 #pragma once
 #define dfROOM_AUTH 1001
 #define dfROOM_ECHO 1011
-#define dfFRAME 50
+#define dfFRAME 30
 #include "ContentsDefine.h"
 #include "LogManager.h"
 
@@ -10,17 +10,24 @@ class RoomNetServer;
 class IRoom
 {
 public:
-	bool DequeueMessage(stRoomMessage* pOutput);
+	bool FreeMessage(stRoomMessage* pOutput);
 	
-	void EnqueueMessage(stRoomMessage* pMessage);
-
 	// Init으로 해도 될듯
 	void SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer);
 
-	// Enter, Leave 했을 때
-	virtual void OnJoin(ULONGLONG sessionID) = 0;
-	virtual void OnLeave(ULONGLONG sessionID) = 0;
-	virtual void OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket) = 0;
+	// ENTER, LEAVE 메세지를 넣는 함수
+	virtual void EnqueueMessage(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
+
+	void UpdateSession();
+
+	void RegisterLog();
+
+	bool SleepCheck();
+
+	// 지금은 Enter, Leave 메세지가 처리 됐을 때, 즉 OnMessage가 호출하는 구조라 옳지않음.
+	virtual void OnJoin(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
+	virtual void OnLeave(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
+	virtual void OnMessage(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
 	virtual void OnUpdate() = 0;
 	virtual void OnSessionUpdate(ULONGLONG sessionID) = 0;
 
@@ -34,43 +41,42 @@ protected:
 	st_SESSION* AllocSESSION();
 	void FreeSESSION(st_SESSION* pSession);
 
-	vector<st_NetSession*> _SessionVec;
-	LockFreeQueue<stRoomMessage*> _MessageQueue;
+	// ENTER, LEAVE는 메세지 큐를 통해서 처리합니다.
+	LockFreeQueue<stRoomMessage*>* _MessageQueue;
 
 	RoomNetServer* _pRoomNetServer;
+	CNetServer* _pNetServer;
 
 	DWORD _dwRoomNumber;
 private:
-	static unsigned int WINAPI RoomThread(LPVOID arg)
-	{
-		IRoom* thisPtr = (IRoom*)arg;
-		LogController::GetInstance()->RegisterLogStruct(&_pLog);
+	//static unsigned int WINAPI RoomThread(LPVOID arg)
+	//{
+	//	IRoom* thisPtr = (IRoom*)arg;
+	//	LogController::GetInstance()->RegisterLogStruct(&_pLog);
 
-		DWORD ret = 0;
-		while (1)
-		{
-			// 세션별로 해야하는 작업 순회시키기
-			for (int i = 0; i < thisPtr->_SessionVec.size(); i++)
-			{
-				st_NetSession* pSession = thisPtr->_SessionVec[i];
-				
-				thisPtr->OnSessionUpdate(pSession->ulSessionID);
-			}
+	//	DWORD ret = 0;
+	//	while (1)
+	//	{
+	//		// 세션별로 해야하는 작업 순회시키기
+	//		for (int i = 0; i < thisPtr->_SessionVec.size(); i++)
+	//		{
+	//			st_NetSession* pSession = thisPtr->_SessionVec[i];
+	//			
+	//			thisPtr->OnSessionUpdate(pSession->ulSessionID);
+	//		}
 
-			thisPtr->OnUpdate();
+	//		thisPtr->OnUpdate();
 
-			// Leave체크?
+	//		// Leave체크?
 
-			ret = WaitForSingleObject(thisPtr->_hQuitEvent, thisPtr->_dwFrameTime);
-			if (ret == WAIT_OBJECT_0)
-			{
-				// 서버 종료
-				return 0;
-			}
-		}
-	}
-
-	CNetServer* _pNetServer;
+	//		ret = WaitForSingleObject(thisPtr->_hQuitEvent, thisPtr->_dwFrameTime);
+	//		if (ret == WAIT_OBJECT_0)
+	//		{
+	//			// 서버 종료
+	//			return 0;
+	//		}
+	//	}
+	//}
 
 	HANDLE _hQuitEvent;
 

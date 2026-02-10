@@ -1,4 +1,5 @@
 #include "Includes.h"
+#include "ContentsDefine.h"
 #include "LogManager.h"
 #include "NetServer_Pipe.h"
 #include "IRoom.h"

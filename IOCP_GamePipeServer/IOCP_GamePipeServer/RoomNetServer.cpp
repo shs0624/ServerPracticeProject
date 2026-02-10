@@ -7,9 +7,8 @@
 #include "IRoomFactory.h"
 #include "RoomNetServer.h"
 
-
-TLSMemoryPoolManager<stRoomMessage>
-RoomNetServer::_MessagePool(800, 5, 20);
+//TLSMemoryPoolManager<stRoomMessage>
+//RoomNetServer::_MessagePool(800, 5, 20);
 
 void RoomNetServer::InitRoomNetServer(ULONG ip, LONG port, bool bNagleEnabled, int maxConnection)
 {
@@ -25,6 +24,9 @@ void RoomNetServer::InitRoomNetServer(ULONG ip, LONG port, bool bNagleEnabled, i
 
 	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(maxConnection, false, false);
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
+	_MessagePool = new procademy::CMemoryPool_LockFree<stRoomMessage>(1000000, false, false);
+
+	//InitPool(maxConnection);
 
 	int workCount = (int)si.dwNumberOfProcessors - 2;
 	StartNetServer(ip, port, workCount, bNagleEnabled, maxConnection, dfPROGRAM_KEY, dfFIXEDKEY);
@@ -35,23 +37,23 @@ void RoomNetServer::MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRo
 	auto nowRoomit = _RoomMap.find(nowRoomNum);
 	if (nowRoomit != _RoomMap.end())
 	{
-		stRoomMessage* pMessage = _MessagePool.Alloc();
+		stRoomMessage* pMessage = _MessagePool->Alloc();
 		pMessage->sessionID = sessionID;
 		pMessage->type = RoomMessageType::LEAVE;
 
 		// 세션, 유저의 해제는 그 스레드에서 하자.
-		((*nowRoomit).second)->EnqueueMessage(pMessage);
+		((*nowRoomit).second)->pRoomPtr->OnLeave(sessionID, pMessage);
 	}
 
 	auto moveRoomit = _RoomMap.find(moveRoomNum);
 	if (moveRoomit != _RoomMap.end())
 	{
-		stRoomMessage* pMessage = _MessagePool.Alloc();
+		stRoomMessage* pMessage = _MessagePool->Alloc();
 		pMessage->sessionID = sessionID;
 		pMessage->type = RoomMessageType::ENTER;
 
 		// 세션, 유저의 해제는 그 스레드에서 하자.
-		((*moveRoomit).second)->EnqueueMessage(pMessage);
+		((*moveRoomit).second)->pRoomPtr->OnJoin(sessionID, pMessage);
 	}
 
 	st_NetSession* ptr;
@@ -68,17 +70,22 @@ bool RoomNetServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 	if (it == _RoomMap.end())
 		DebugBreak();
 
-	stRoomMessage* pMessage = _MessagePool.Alloc();   
+	stRoomMessage* pMessage = _MessagePool->Alloc();   
 	pMessage->sessionID = sessionID;
 	pMessage->type = ENTER;
 
-	((*it).second)->EnqueueMessage(pMessage);
+	st_SESSION* pSession = AllocSESSION();
+	pSession->ulSessionID = sessionID;
+	pSession->dwLastRecvTime = timeGetTime();
 
-	// 세션에 SESSION 구조체 할당
-	if (!SetInfoToSession(sessionID, NULL, dfROOM_AUTH))
+	if (!SetInfoToSession(sessionID, pSession, dfROOM_AUTH))
+	{
+		FreeSESSION(pSession);
 		return false;
+	}
 
-	_pLog._dwSessionCount++;
+	(*it).second->pRoomPtr->OnJoin(sessionID, pMessage);
+
 	return true;
 }
 
@@ -87,11 +94,16 @@ void RoomNetServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket)
 	st_NetSession* ptr;
 	FindSession(sessionID, &ptr);
 
-	stRoomMessage* pMessage = _MessagePool.Alloc();
+	auto it = _RoomMap.find(ptr->dwIncludedRoom);
+	if (it == _RoomMap.end())
+		DebugBreak();
+
+	stRoomMessage* pMessage = _MessagePool->Alloc();
 	pMessage->sessionID = sessionID;
 	pMessage->type = RoomMessageType::MESSAGE;
 	pMessage->cPacket = cpacket;
 
+	
 	ptr->_MessageQ->Enqueue(pMessage);
 }
 
@@ -104,22 +116,98 @@ void RoomNetServer::OnRelease(ULONGLONG sessionID)
 	if (it == _RoomMap.end())
 		DebugBreak();
 
-	stRoomMessage* pMessage = _MessagePool.Alloc();
+	stRoomMessage* pMessage = _MessagePool->Alloc();
 	pMessage->sessionID = sessionID;
 	pMessage->type = RoomMessageType::LEAVE;
 
 	// 세션, 유저의 해제는 그 스레드에서 하자.
-	((*it).second)->EnqueueMessage(pMessage);
+	((*it).second)->pRoomPtr->OnLeave(sessionID, pMessage);
 }
 
 void RoomNetServer::InitRoom()
 {
 	// Room 생성
+	RoomInfo* pAuthInfo = new RoomInfo();
 	IRoom* pAuth = IRoomFactory::Create(dfROOM_AUTH);
 	pAuth->SetRoomInfo(dfROOM_AUTH, this);
-	_RoomMap.insert({ dfROOM_AUTH, pAuth });
 
+	pAuthInfo->pRoomPtr = pAuth;
+	pAuthInfo->dwRoomNumber = dfROOM_AUTH;
+	_RoomMap.insert({ dfROOM_AUTH, pAuthInfo });
+	_AuthRoomThreadHandle = (HANDLE)_beginthreadex(NULL, 0, RoomThread, pAuthInfo, 0, &_AuthRoomThreadID);
+
+	RoomInfo* pEchoInfo = new RoomInfo();
 	IRoom* pEcho = IRoomFactory::Create(dfROOM_ECHO);
 	pEcho->SetRoomInfo(dfROOM_ECHO, this);
-	_RoomMap.insert({ dfROOM_ECHO, pEcho });
+
+	pEchoInfo->pRoomPtr = pEcho;
+	pEchoInfo->dwRoomNumber = dfROOM_ECHO;
+	_RoomMap.insert({ dfROOM_ECHO, pEchoInfo });
+	_EchoRoomThreadHandle = (HANDLE)_beginthreadex(NULL, 0, RoomThread, pEchoInfo, 0, &_EchoRoomThreadID);
+}
+
+void RoomNetServer::AddSessionToRoom(ULONGLONG sessionID, DWORD roomNumber)
+{
+	auto it = _RoomMap.find(roomNumber);
+	if (it == _RoomMap.end())
+		return;
+
+	st_NetSession* pSession = NULL;
+	FindSession(sessionID, &pSession);
+	if (pSession == NULL)
+		return;
+
+	(*it).second->vNetSessionVec.push_back(pSession);
+}
+
+void RoomNetServer::RemoveSessionFromRoom(ULONGLONG sessionID, DWORD roomNumber)
+{
+	auto it = _RoomMap.find(roomNumber);
+	if (it == _RoomMap.end())
+		return;
+
+	for (int i = 0; i < (*it).second->vNetSessionVec.size(); i++)
+	{
+		if ((*it).second->vNetSessionVec[i]->ulSessionID == sessionID)
+		{
+			(*it).second->vNetSessionVec[i] = (*it).second->vNetSessionVec.back();
+			(*it).second->vNetSessionVec.pop_back();
+			break;
+		}
+	}
+}
+
+unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
+{
+	RoomInfo* roomPtr = (RoomInfo*)arg;
+	//IRoom* thisPtr = (IRoom*)arg;
+	vector<st_NetSession*>& pRoomVec = roomPtr->vNetSessionVec;
+	roomPtr->pRoomPtr->RegisterLog();
+
+	DWORD ret = 0;
+	while (1)
+	{
+		int size = pRoomVec.size();
+		for (int i = 0; i < size; i++)
+		{
+			// 세션별로 해야하는 작업 순회시키기
+			int qSize = pRoomVec[i]->_MessageQ->Size();
+			for (int j = 0; j < qSize; j++)
+			{
+				ULONGLONG sessionID = pRoomVec[i]->ulSessionID;
+				stRoomMessage* pMessage = NULL;
+				pRoomVec[i]->_MessageQ->Dequeue(pMessage);
+				if (pMessage != NULL)
+				{
+					roomPtr->pRoomPtr->OnMessage(sessionID, pMessage);
+				}
+			}
+		}
+
+		roomPtr->pRoomPtr->OnUpdate();
+
+		// Leave체크?
+		if (!roomPtr->pRoomPtr->SleepCheck())
+			return 0;
+	}
 }

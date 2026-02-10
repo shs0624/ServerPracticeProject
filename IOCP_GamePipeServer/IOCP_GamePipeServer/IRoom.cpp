@@ -1,4 +1,5 @@
 #include "Includes.h"
+#include "ContentsDefine.h"
 #include "NetServer_Pipe.h"
 #include "RoomNetServer.h"
 #include "IRoom.h"
@@ -14,13 +15,13 @@ void IRoom::FreeUSER(st_USER* pUser) { _pRoomNetServer->FreeUSER(pUser); }
 st_SESSION* IRoom::AllocSESSION() { return _pRoomNetServer->AllocSESSION(); }
 void IRoom::FreeSESSION(st_SESSION* pSession) { _pRoomNetServer->FreeSESSION(pSession); }
 
-bool IRoom::DequeueMessage(stRoomMessage* pOutput)
+bool IRoom::FreeMessage(stRoomMessage* pOutput)
 {
 	stRoomMessage Message;
 	stRoomMessage* ptr = &Message;
-	if (!_MessageQueue.Empty())
+	if (!_MessageQueue->Empty())
 	{
-		_MessageQueue.Dequeue(ptr);
+		_MessageQueue->Dequeue(ptr);
 
 		pOutput->sessionID = ptr->sessionID;
 		pOutput->type = ptr->type;
@@ -34,11 +35,6 @@ bool IRoom::DequeueMessage(stRoomMessage* pOutput)
 		return false;
 }
 
-void IRoom::EnqueueMessage(stRoomMessage* pMessage)
-{
-	_MessageQueue.Enqueue(pMessage);
-}
-
 void IRoom::SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer)
 {
 	_dwFrameTime = 1000 / dfFRAME;
@@ -49,5 +45,34 @@ void IRoom::SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer)
 
 	_hQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	_RoomThreadHandle = (HANDLE)_beginthreadex(NULL, 0, RoomThread, this, 0, &_RoomThreadID);
+	_MessageQueue = new LockFreeQueue<stRoomMessage*>();
+
+	//_RoomThreadHandle = (HANDLE)_beginthreadex(NULL, 0, RoomThread, this, 0, &_RoomThreadID);
+}
+
+//void IRoom::UpdateSession()
+//{
+//	for (int i = 0; i < _SessionVec.size(); i++)
+//	{
+//		st_NetSession* pSession = _SessionVec[i];
+//
+//		OnSessionUpdate(pSession->ulSessionID);
+//	}
+//}
+
+void IRoom::RegisterLog()
+{
+	LogController::GetInstance()->RegisterLogStruct(&_pLog);
+}
+
+bool IRoom::SleepCheck()
+{
+	int ret = WaitForSingleObject(_hQuitEvent, _dwFrameTime);
+	if (ret == WAIT_OBJECT_0)
+	{
+		// 서버 종료
+		return false;
+	}
+
+	return true;
 }

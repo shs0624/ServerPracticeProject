@@ -6,49 +6,100 @@
 #include "IRoom.h"
 #include "AuthRoom.h"
 
-void AuthRoom::OnJoin(ULONGLONG sessionID)
+void AuthRoom::EnqueueMessage(ULONGLONG sessionID, stRoomMessage* pMessage)
 {
-	// 리스트에 넣어도 될듯.
-	st_SESSION* pSession = AllocSESSION();
-
-	if (!_pRoomNetServer->SetPTRToSession(sessionID, pSession, dfROOM_AUTH))
-	{
-		FreeSESSION(pSession);
-		return;
-	}
-
-	_SessionMap.insert({ sessionID, pSession });
-
-	_pLog._dwAuthUserCount++;
+	// @@TODO : ENTER 메세지만 넣자.
+	_MessageQueue->Enqueue(pMessage);
 }
 
-void AuthRoom::OnLeave(ULONGLONG sessionID)
+void AuthRoom::OnJoin(ULONGLONG sessionID, stRoomMessage* pMessage)
+{
+	// Enter 메세지가 들어오는데, 이걸 내부에서 생성하는게 나을수도
+	_MessageQueue->Enqueue(pMessage);
+}
+
+void AuthRoom::OnLeave(ULONGLONG sessionID, stRoomMessage* pMessage)
+{
+	// Leave 메세지가 들어오는데, 이걸 내부에서 생성하는게 나을수도
+	_MessageQueue->Enqueue(pMessage);
+}
+
+void AuthRoom::OnMessage(ULONGLONG sessionID, stRoomMessage* pMessage)
+{
+	// @@TODO : 메세지가 도착했으니, 세션에 넣어주면 된다.
+	RoomMessageType type = pMessage->type;
+	switch (type)
+	{
+	case MESSAGE:
+		AuthProc(sessionID, pMessage->cPacket);
+		break;
+	}
+
+	_pRoomNetServer->FreeMessage(pMessage);
+}
+
+void AuthRoom::OnUpdate()
+{
+	// Enter, Leave 메세지 처리
+	while (!_MessageQueue->Empty())
+	{
+		stRoomMessage* pMessage;
+		_MessageQueue->Dequeue(pMessage);
+		if (pMessage == NULL)
+			break; // Disconnect?
+
+		RoomMessageType type = pMessage->type;
+		switch (type)
+		{
+		case ENTER:
+			//OnJoin(pMessage->sessionID);
+			EnterAuthRoom(pMessage->sessionID);
+			break;
+		case LEAVE:
+			//OnLeave(pMessage->sessionID);
+			LeaveAuthRoom(pMessage->sessionID);
+			break;
+		}
+
+		_pRoomNetServer->FreeMessage(pMessage);
+	}
+
+	// @@TODO : 타이머 체크
+
+	_pLog._dwAuthFPS++;
+}
+
+void AuthRoom::OnSessionUpdate(ULONGLONG sessionID)
 {
 	st_SESSION* pSession = NULL;
 	auto it = _SessionMap.find(sessionID);
-	if (it != _SessionMap.end())
+	if (it == _SessionMap.end())
 	{
-		pSession = (*it).second;
-
-		_pLog._dwAuthUserCount--;
-		_SessionMap.erase(sessionID);
+		return;
 	}
 
-	for (int i = 0; i < _SessionVec.size(); i++)
-	{
-		if (_SessionVec[i]->ulSessionID == sessionID)
-		{
-			// 있으니까, 제거
-			_SessionVec[i] = _SessionVec.back();
-			_SessionVec.pop_back();
-		}
-	}
+	pSession = (*it).second;
+	// 메세지 있는지 체크
+	//while (!pSession->_MessageQ->Empty())
+	//{
+	//	stRoomMessage* pMessage;
+	//	pSession->_MessageQ->Dequeue(pMessage);
+	//	if (pMessage == NULL)
+	//		break; // Disconnect?
 
-	if(pSession != NULL)
-		FreeSESSION(pSession);
+	//	RoomMessageType type = pMessage->type;
+	//	switch (type)
+	//	{
+	//	case MESSAGE:
+	//		AuthProc(sessionID, pMessage->cPacket);
+	//		break;
+	//	}
+
+	//	_pRoomNetServer->FreeMessage(pMessage);
+	//}
 }
 
-void AuthRoom::OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
+void AuthRoom::AuthProc(ULONGLONG sessionID, RefCountPointer& cPacket)
 {
 	WORD type;
 	ULONGLONG accountNum;
@@ -84,47 +135,42 @@ void AuthRoom::OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
 	_pLog._dwLoginMessageTPS++;
 }
 
-void AuthRoom::OnUpdate()
+void AuthRoom::EnterAuthRoom(ULONGLONG sessionID)
 {
-	// @@TODO : 타이머 체크
+	auto it = _SessionMap.find(sessionID);
+	if (it != _SessionMap.end())
+	{
+		return;
+	}
 
-	_pLog._dwAuthFPS++;
+	// Accept에서 설정한 세션 정보 얻어오기
+	st_SESSION* pSession = NULL;
+	if (!_pRoomNetServer->GetPTRFromSession(sessionID, (LPVOID*)&pSession))
+	{
+		return;
+	}
+
+	_SessionMap.insert({ sessionID, pSession });
+
+	_pRoomNetServer->AddSessionToRoom(sessionID, _dwRoomNumber);
+
+	_pLog._dwAuthUserCount++;
 }
 
-void AuthRoom::OnSessionUpdate(ULONGLONG sessionID)
+void AuthRoom::LeaveAuthRoom(ULONGLONG sessionID)
 {
 	st_SESSION* pSession = NULL;
 	auto it = _SessionMap.find(sessionID);
 	if (it == _SessionMap.end())
-	{
-		pSession = (*it).second;
+		return;
 
-		_pLog._dwAuthUserCount--;
-		_SessionMap.erase(sessionID);
-	}
+	pSession = (*it).second;
 
-	stRoomMessage* pMessage;
-	// 메세지 있는지 체크
-	while (!pSession->_MessageQ->Empty())
-	{
-		pSession->_MessageQ->Dequeue(pMessage);
-		if (pMessage == NULL)
-			break; // Disconnect?
+	_pLog._dwAuthUserCount--;
+	_SessionMap.erase(sessionID);
 
-		RoomMessageType type = pMessage->type;
-		switch (type)
-		{
-		case ENTER:
-			OnJoin(pMessage->sessionID);
-			break;
-		case LEAVE:
-			OnLeave(pMessage->sessionID);
-			break;
-		case MESSAGE:
-			OnMessage(pMessage->sessionID, pMessage->cPacket);
-			break;
-		}
-	}
+	if (pSession != NULL)
+		FreeSESSION(pSession);
 
-	// Enter,Leave라면 Enter는 입장처리, Leave면 표시 남기기.
+	_pRoomNetServer->RemoveSessionFromRoom(sessionID, _dwRoomNumber);
 }

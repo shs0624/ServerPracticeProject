@@ -21,8 +21,6 @@ struct st_SESSION
 	ULONGLONG ulSessionID;
 	SOCKADDR_IN ClientAddr;
 
-	LockFreeQueue<stRoomMessage*>* _MessageQ;
-
 	// 타임아웃용 시간
 	DWORD dwLastRecvTime;
 };
@@ -35,8 +33,6 @@ struct st_USER
 
 	INT64 AccountNum;
 	char SessionKey[64];
-
-	LockFreeQueue<stRoomMessage*>* _MessageQ;
 
 	// 타임아웃용 시간
 	DWORD dwLastRecvTime;

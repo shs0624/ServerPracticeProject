@@ -1,5 +1,6 @@
 #pragma once
 #include "Includes.h"
+#include "ContentsDefine.h"
 #include "NetServer_Pipe.h"
 #include "LogManager.h"
 
@@ -56,6 +57,7 @@ bool CNetServer::SetInfoToSession(ULONGLONG sessionID, LPVOID ptr, DWORD roomNum
 		DecrementIOCount(pNetSession);
 		return false;
 	}
+
 	pNetSession->dwIncludedRoom = roomNum;
 	pNetSession->pUser = ptr;
 
@@ -432,6 +434,7 @@ void CNetServer::InitializeSessions(ULONG maxConnection)
 		_sessionArr[i].bReleaseFlag = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(8000);
+		_sessionArr[i]._MessageQ = new LockFreeQueue<stRoomMessage*>();
 
 		_emptyIndexStack->push(i);
 	}
@@ -553,6 +556,50 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 
 	return true;
 }
+
+// sendBuf에 Enqueue만 진행 -> 데이터를 모아놓기 위함
+bool CNetServer::EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
+{
+	st_NetSession* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+	{
+		return false;
+	}
+
+	InterlockedIncrement(&ptr->dwIOCount);
+	if (ptr->bReleaseFlag == 1)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (pushHeader)
+	{
+		short shSize = (*cPacket)->GetDataSize();
+
+		st_NetHeader netHeader;
+		netHeader.FixedKey = _ProgramKey;
+		netHeader.RandKey = (unsigned char)rand() % 256;
+		netHeader.shLen = shSize;
+
+		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
+	}
+
+	ptr->sendBuf->Enqueue(cPacket);
+
+	_pLog._dwSendMessageTPS++;
+	DecrementIOCount(ptr);
+	return true;
+}
+
 
 bool CNetServer::PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
 {

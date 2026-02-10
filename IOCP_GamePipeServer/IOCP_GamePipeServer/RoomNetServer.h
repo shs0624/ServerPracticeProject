@@ -5,6 +5,13 @@
 
 class IRoom;
 
+struct RoomInfo
+{
+	IRoom* pRoomPtr;
+	vector<st_NetSession*> vNetSessionVec;
+	DWORD dwRoomNumber;
+};
+
 class RoomNetServer : CNetServer
 {
 public:
@@ -42,6 +49,8 @@ public:
 		return SetInfoToSession(sessionID, ptr, roomNum);
 	}
 
+	void AddSessionToRoom(ULONGLONG sessionID, DWORD roomNumber);
+	void RemoveSessionFromRoom(ULONGLONG sessionID, DWORD roomNumber);
 	void MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRoomNum);
 
 	st_USER* AllocUSER() { return _UserPool->Alloc(); }
@@ -49,7 +58,7 @@ public:
 	st_SESSION* AllocSESSION() { return _SessionPool->Alloc(); }
 	void FreeSESSION(st_SESSION* pSession) { _SessionPool->Free(pSession); }
 
-	void FreeMessage(stRoomMessage* pMessage) { _MessagePool.Free(pMessage); }
+	void FreeMessage(stRoomMessage* pMessage) { _MessagePool->Free(pMessage); }
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port);
 	virtual bool OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr);
@@ -61,11 +70,14 @@ public:
 	}
 private:
 	void InitRoom();
+	void InitPool(int maxConnection);
 
 	static unsigned int WINAPI TimerThread(LPVOID arg)
 	{
 
 	}
+
+	static unsigned int WINAPI RoomThread(LPVOID arg);
 
 	HANDLE _hQuitEvent;
 	HANDLE _hTimeoutEvent;
@@ -73,8 +85,15 @@ private:
 	HANDLE _TimerThreadHandle;
 	unsigned int _TimerThreadID;
 
+	HANDLE _AuthRoomThreadHandle;
+	unsigned int _AuthRoomThreadID;
+
+	HANDLE _EchoRoomThreadHandle;
+	unsigned int _EchoRoomThreadID;
+
 	procademy::CMemoryPool_LockFree<st_USER>* _UserPool;
 	procademy::CMemoryPool_LockFree<st_SESSION>* _SessionPool;
+	procademy::CMemoryPool_LockFree<stRoomMessage>* _MessagePool;
 
 	// AccountNum, 유저 구조체 - 중복 로그인 체크용
 	/*unordered_map<ULONGLONG, st_USER*> _AccountNumUserMap;
@@ -88,7 +107,7 @@ private:
 	//unordered_map<ULONGLONG, st_SESSION*> _SessionMap;
 	//SRWLOCK _SessionMapLock;
 
-	unordered_map<DWORD, IRoom*> _RoomMap;
+	unordered_map<DWORD, RoomInfo*> _RoomMap;
 
-	static TLSMemoryPoolManager<stRoomMessage> _MessagePool;
+	//static TLSMemoryPoolManager<stRoomMessage> _MessagePool;
 };
