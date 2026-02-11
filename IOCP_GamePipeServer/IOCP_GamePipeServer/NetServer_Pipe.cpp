@@ -728,6 +728,36 @@ void CNetServer::PostRelease(st_NetSession* ptr)
 	PostQueuedCompletionStatus(_NetIOCPHandle, 0, (ULONG_PTR)ptr, &_ReleaseOverlapped);
 }
 
+bool CNetServer::PostSend(ULONGLONG sessionID)
+{
+	st_NetSession* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+	{
+		return false;
+	}
+
+	InterlockedIncrement(&ptr->dwIOCount);
+	if (ptr->bReleaseFlag == 1)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	// 일부러 -1이 되게 Post
+	InterlockedIncrement(&ptr->dwIOCount);
+	PostQueuedCompletionStatus(_NetIOCPHandle, 0, (ULONG_PTR)ptr, &_SendOverlapped);
+
+	DecrementIOCount(ptr);
+	return true;
+}
+
 bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
 {
 	st_NetSession* ptr;

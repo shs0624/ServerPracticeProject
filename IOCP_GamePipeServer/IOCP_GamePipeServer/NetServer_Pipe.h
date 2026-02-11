@@ -59,7 +59,7 @@ public:
 	bool SetInfoToSession(ULONGLONG sessionID, LPVOID ptr, DWORD roomNum);
 	bool GetInfoFromSession(ULONGLONG sessionID, LPVOID* ptr);
 
-	bool SendPost(ULONGLONG sessionID);
+	bool PostSend(ULONGLONG sessionID);
 	bool EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
 	bool PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
 	bool SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);

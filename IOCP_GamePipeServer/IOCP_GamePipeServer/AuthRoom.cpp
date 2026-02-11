@@ -69,6 +69,17 @@ void AuthRoom::OnUpdate()
 	_pLog._dwAuthFPS++;
 }
 
+void AuthRoom::OnLateUpdate()
+{
+	//while (!_SendIDStack.empty())
+	//{
+	//	ULONGLONG sessionID = _SendIDStack.top();
+	//	_SendIDStack.pop();
+
+	//	_pNetServer->PostSend(sessionID);
+	//}
+}
+
 void AuthRoom::OnSessionUpdate(ULONGLONG sessionID)
 {
 	st_SESSION* pSession = NULL;

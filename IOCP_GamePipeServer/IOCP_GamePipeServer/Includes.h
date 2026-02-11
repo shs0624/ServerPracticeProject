@@ -12,6 +12,7 @@
 #include <mutex>
 #include <vector>
 #include <queue>
+#include <stack>
 #include <conio.h>
 
 #include "CFreeList_LockFree.h"

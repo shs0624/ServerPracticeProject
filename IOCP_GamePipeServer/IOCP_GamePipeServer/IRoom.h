@@ -29,6 +29,7 @@ public:
 	virtual void OnLeave(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
 	virtual void OnMessage(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
 	virtual void OnUpdate() = 0;
+	virtual void OnLateUpdate() = 0;
 	virtual void OnSessionUpdate(ULONGLONG sessionID) = 0;
 
 	// 비정적 멤버는 인스턴스마다 다른 메모리를 가지는데, thread_local은
@@ -43,6 +44,7 @@ protected:
 
 	// ENTER, LEAVE는 메세지 큐를 통해서 처리합니다.
 	LockFreeQueue<stRoomMessage*>* _MessageQueue;
+	std::stack<ULONGLONG> _SendIDStack;
 
 	RoomNetServer* _pRoomNetServer;
 	CNetServer* _pNetServer;

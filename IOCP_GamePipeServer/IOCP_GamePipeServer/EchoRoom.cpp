@@ -66,6 +66,17 @@ void EchoRoom::OnUpdate()
 	_pLog._dwGameFPS++;
 }
 
+void EchoRoom::OnLateUpdate()
+{
+	while (!_SendIDStack.empty())
+	{
+		ULONGLONG sessionID = _SendIDStack.top();
+		_SendIDStack.pop();
+
+		_pNetServer->PostSend(sessionID);
+	}
+}
+
 void EchoRoom::OnSessionUpdate(ULONGLONG sessionID)
 {
 	st_USER* pUser = NULL;
@@ -140,8 +151,12 @@ void EchoRoom::EchoProc(ULONGLONG sessionID, RefCountPointer& cPacket)
 	_pLog._dwEchoMessageTPS++;
 	//if (_pNetServer->PostPacket(sessionID, cPacket))
 	//	_pLog._dwSendMessageTPS++;
-	if(_pNetServer->SendPacket_UniCast(sessionID, cPacket))
+	if (_pNetServer->EnqueueSendBuffer(sessionID, cPacket))
 		_pLog._dwSendMessageTPS++;
+	//if(_pNetServer->SendPacket_UniCast(sessionID, cPacket))
+	//	_pLog._dwSendMessageTPS++;
+
+	_SendIDStack.push(sessionID);
 }
 
 void EchoRoom::EnterEchoRoom(ULONGLONG sessionID)

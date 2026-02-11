@@ -14,6 +14,7 @@ public:
 	virtual void OnLeave(ULONGLONG sessionID, stRoomMessage* pMessage);
 	virtual void OnMessage(ULONGLONG sessionID, stRoomMessage* pMessage);
 	virtual void OnUpdate();
+	virtual void OnLateUpdate();
 	virtual void OnSessionUpdate(ULONGLONG sessionID);
 private:
 	void AuthProc(ULONGLONG sessionID, RefCountPointer& cPacket);

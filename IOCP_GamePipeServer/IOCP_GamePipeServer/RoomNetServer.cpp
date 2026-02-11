@@ -206,6 +206,8 @@ unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
 
 		roomPtr->pRoomPtr->OnUpdate();
 
+		roomPtr->pRoomPtr->OnLateUpdate();
+
 		// Leaveüũ?
 		if (!roomPtr->pRoomPtr->SleepCheck())
 			return 0;
