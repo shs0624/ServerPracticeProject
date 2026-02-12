@@ -1,19 +1,48 @@
 #include <iostream>
 using namespace std;
 
+int n, m, k;
+int setArr[10001];
 int cost[10001];
-int communication[10001][10001];
 
-void CommunitySet(int c1, int c2)
+void Union(int to, int from)
 {
-	// 자기 자신
-	if (c1 == c2)
-		return;
+	for (int i = 1; i <= n; i++)
+	{
+		if (setArr[i] == from)
+			setArr[i] = to;
+	}
+}
 
-	if (cost[c1] < cost[c2])
-		cost[c2] = 0;
+int Find(int target)
+{
+	if (setArr[target] != target)
+		return Find(setArr[target]);
 	else
-		cost[c1] = 0;
+		return cost[target];
+}
+
+void SetCommunity(int c1, int c2)
+{
+	int c1Cost = Find(c1);
+	int c2Cost = Find(c2);
+
+	if (c1Cost < c2Cost)
+		Union(setArr[c1], setArr[c2]);
+	else
+		Union(setArr[c2], setArr[c1]);
+}
+
+int GetResult()
+{
+	int result = 0;
+	for (int i = 1; i <= n; i++)
+	{
+		if(setArr[i] == i)
+			result += cost[i];
+	}
+
+	return result;
 }
 
 int main()
@@ -22,14 +51,11 @@ int main()
 	cin.tie(NULL);
 	cout.tie(NULL);
 
-	int n, m, k;
-	int min = 2147483647;
 	cin >> n >> m >> k;
 	for (int i = 1; i <= n; i++)
 	{
 		cin >> cost[i];
-		if (cost[i] <= min)
-			min = cost[i];
+		setArr[i] = i;
 	}
 
 	// 친구관계
@@ -38,18 +64,10 @@ int main()
 		int c1, c2;
 		cin >> c1 >> c2;
 
-		CommunitySet(c1, c2);
+		SetCommunity(c1, c2);
 	}
 
-	int result = 0;
-	for (int i = 1; i <= n; i++)
-	{
-		result += cost[i];
-	}
-
-	// 모두가 묶이면 0인상황
-	if (result == 0)
-		result = min;
+	int result = GetResult();
 
 	if (result <= k)
 		cout << result << endl;
