@@ -113,35 +113,51 @@ unsigned int WINAPI CLanClient::IOCPWorkerThread(LPVOID arg)
 			}
 			else
 			{
-				if (ptr->sendBuf->Empty())
-				{
-					if (InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE) == TRUE)
-					{
-						if (ptr->sendBuf->Size() > 0)
-						{
-							if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
-							{
-								if (!thisPtr->SetWSASend())
-								{
-									InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+				InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE);
 
-									if (!thisPtr->DecrementIOCount())
-										continue;
-								}
-							}
+				if (ptr->sendBuf->Size() > 0)
+				{
+					if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+					{
+						if (!thisPtr->SetWSASend())
+						{
+							InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+
+							if (!thisPtr->DecrementIOCount())
+								continue;
 						}
 					}
 				}
-				else
-				{
-					if (!thisPtr->SetWSASend())
-					{
-						InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
 
-						if (!thisPtr->DecrementIOCount())
-							continue;
-					}
-				}
+				//if (ptr->sendBuf->Empty())
+				//{
+				//	if (InterlockedExchange((DWORD*)&(ptr->bSendFlag), FALSE) == TRUE)
+				//	{
+				//		if (ptr->sendBuf->Size() > 0)
+				//		{
+				//			if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
+				//			{
+				//				if (!thisPtr->SetWSASend())
+				//				{
+				//					InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+
+				//					if (!thisPtr->DecrementIOCount())
+				//						continue;
+				//				}
+				//			}
+				//		}
+				//	}
+				//}
+				//else
+				//{
+				//	if (!thisPtr->SetWSASend())
+				//	{
+				//		InterlockedExchange((LONG*)&(ptr->bSendFlag), FALSE);
+
+				//		if (!thisPtr->DecrementIOCount())
+				//			continue;
+				//	}
+				//}
 			}
 		}
 

@@ -24,7 +24,6 @@ void RoomNetServer::InitRoomNetServer(ULONG ip, LONG port, bool bNagleEnabled, i
 
 	_UserPool = new procademy::CMemoryPool_LockFree<st_USER>(maxConnection, false, false);
 	_SessionPool = new procademy::CMemoryPool_LockFree<st_SESSION>(maxConnection, false, false);
-	_MessagePool = new procademy::CMemoryPool_LockFree<stRoomMessage>(1000000, false, false);
 
 	//InitPool(maxConnection);
 
@@ -37,23 +36,15 @@ void RoomNetServer::MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRo
 	auto nowRoomit = _RoomMap.find(nowRoomNum);
 	if (nowRoomit != _RoomMap.end())
 	{
-		stRoomMessage* pMessage = _MessagePool->Alloc();
-		pMessage->sessionID = sessionID;
-		pMessage->type = RoomMessageType::LEAVE;
-
 		// 세션, 유저의 해제는 그 스레드에서 하자.
-		((*nowRoomit).second)->pRoomPtr->OnLeave(sessionID, pMessage);
+		((*nowRoomit).second)->pRoomPtr->OnLeave(sessionID);
 	}
 
 	auto moveRoomit = _RoomMap.find(moveRoomNum);
 	if (moveRoomit != _RoomMap.end())
 	{
-		stRoomMessage* pMessage = _MessagePool->Alloc();
-		pMessage->sessionID = sessionID;
-		pMessage->type = RoomMessageType::ENTER;
-
 		// 세션, 유저의 해제는 그 스레드에서 하자.
-		((*moveRoomit).second)->pRoomPtr->OnJoin(sessionID, pMessage);
+		((*moveRoomit).second)->pRoomPtr->OnJoin(sessionID);
 	}
 
 	st_NetSession* ptr;
@@ -70,10 +61,6 @@ bool RoomNetServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 	if (it == _RoomMap.end())
 		DebugBreak();
 
-	stRoomMessage* pMessage = _MessagePool->Alloc();   
-	pMessage->sessionID = sessionID;
-	pMessage->type = ENTER;
-
 	st_SESSION* pSession = AllocSESSION();
 	pSession->ulSessionID = sessionID;
 	pSession->dwLastRecvTime = timeGetTime();
@@ -84,7 +71,7 @@ bool RoomNetServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 		return false;
 	}
 
-	(*it).second->pRoomPtr->OnJoin(sessionID, pMessage);
+	(*it).second->pRoomPtr->OnJoin(sessionID);
 
 	return true;
 }
@@ -98,13 +85,7 @@ void RoomNetServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket)
 	if (it == _RoomMap.end())
 		DebugBreak();
 
-	stRoomMessage* pMessage = _MessagePool->Alloc();
-	pMessage->sessionID = sessionID;
-	pMessage->type = RoomMessageType::MESSAGE;
-	pMessage->cPacket = cpacket;
-
-	
-	ptr->_MessageQ->Enqueue(pMessage);
+	ptr->_MessageQ->Enqueue(cpacket);
 }
 
 void RoomNetServer::OnRelease(ULONGLONG sessionID)
@@ -116,12 +97,8 @@ void RoomNetServer::OnRelease(ULONGLONG sessionID)
 	if (it == _RoomMap.end())
 		DebugBreak();
 
-	stRoomMessage* pMessage = _MessagePool->Alloc();
-	pMessage->sessionID = sessionID;
-	pMessage->type = RoomMessageType::LEAVE;
-
 	// 세션, 유저의 해제는 그 스레드에서 하자.
-	((*it).second)->pRoomPtr->OnLeave(sessionID, pMessage);
+	((*it).second)->pRoomPtr->OnLeave(sessionID);
 }
 
 void RoomNetServer::InitRoom()
@@ -180,36 +157,44 @@ void RoomNetServer::RemoveSessionFromRoom(ULONGLONG sessionID, DWORD roomNumber)
 unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
 {
 	RoomInfo* roomPtr = (RoomInfo*)arg;
-	//IRoom* thisPtr = (IRoom*)arg;
+	IRoom* pIRoom = roomPtr->pRoomPtr;
+	DWORD roomNumber = pIRoom->GetRoomNumber();
+
+	//RoomInfo* roomPtr = 
+
 	vector<st_NetSession*>& pRoomVec = roomPtr->vNetSessionVec;
-	roomPtr->pRoomPtr->RegisterLog();
+	pIRoom->RegisterLog();
 
 	DWORD ret = 0;
 	while (1)
 	{
+		pIRoom->OnUpdate();
+
 		int size = pRoomVec.size();
 		for (int i = 0; i < size; i++)
 		{
+			st_NetSession* ptr = pRoomVec[i];
+			ULONGLONG sessionID = ptr->ulSessionID;
+
 			// 세션별로 해야하는 작업 순회시키기
-			int qSize = pRoomVec[i]->_MessageQ->Size();
+			int qSize = ptr->_MessageQ->Size();
 			for (int j = 0; j < qSize; j++)
 			{
-				ULONGLONG sessionID = pRoomVec[i]->ulSessionID;
-				stRoomMessage* pMessage = NULL;
-				pRoomVec[i]->_MessageQ->Dequeue(pMessage);
-				if (pMessage != NULL)
+				RefCountPointer pMessage;
 				{
-					roomPtr->pRoomPtr->OnMessage(sessionID, pMessage);
+					//Profiler("Dequeue-RoomThread");
+					ptr->_MessageQ->Dequeue(pMessage);
 				}
+				pIRoom->OnMessage(sessionID, pMessage);
 			}
+
+			pIRoom->OnSessionUpdate(sessionID);
 		}
 
-		roomPtr->pRoomPtr->OnUpdate();
-
-		roomPtr->pRoomPtr->OnLateUpdate();
+		pIRoom->OnLateUpdate();
 
 		// Leave체크?
-		if (!roomPtr->pRoomPtr->SleepCheck())
+		if (!pIRoom->SleepCheck())
 			return 0;
 	}
 }

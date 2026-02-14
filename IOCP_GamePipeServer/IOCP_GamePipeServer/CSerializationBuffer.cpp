@@ -102,65 +102,6 @@ unsigned char CPacket::GetCheckSum()
 	return checkSum;
 }
 
-void CPacket::Encode(unsigned char K, unsigned char RK)
-{
-	SetCheckSum();
-
-	unsigned char* cursorPtr = (unsigned char*)GetCheckSumPtr();
-	unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
-
-	unsigned char E = 0;
-	unsigned char P = 0;
-
-	int cnt = 1;
-	while (cursorPtr != tailPtr)
-	{
-		unsigned char D = *cursorPtr;
-
-		P = D ^ (P + RK + cnt);
-		E = P ^ (E + K + cnt);
-
-		*cursorPtr = E;
-
-		cursorPtr++;
-		cnt++;
-	}
-}
-
-bool CPacket::Decode(unsigned char K, unsigned char RK)
-{
-	unsigned char* cursorPtr = (unsigned char*)GetCheckSumPtr();
-	unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
-
-	unsigned char D = 0;
-	unsigned char P = 0;
-	unsigned char prevE = 0;
-	unsigned char prevP = 0;
-
-	int cnt = 1;
-	while (cursorPtr != tailPtr)
-	{
-		unsigned char E = *cursorPtr;
-
-		P = E ^ (prevE + K + cnt);
-		D = P ^ (prevP + RK + cnt);
-
-		prevP = P;
-		prevE = E;
-
-		*cursorPtr = D;
-		cursorPtr++;
-		cnt++;
-	}
-
-	unsigned char checkSum = GetCheckSum();
-	if (checkSum != (unsigned char)*GetCheckSumPtr())
-		return false;
-
-	return true;
-}
-
-
 int CPacket::GetData(char* chpDest, int iSize)
 {
 	int getSize = (iSize > _iDataSize) ? _iDataSize : iSize;
@@ -197,22 +138,6 @@ int	CPacket::MoveReadPos(int iSize)
 	return moveSize;
 }
 
-void CPacket::Clear(void)
-{
-	_head = 0;
-	_tail = 0;
-	_iDataSize = 0;
-	_iHeaderSize = 0;
-}
-
-void CPacket::Clear(int iHeaderSize)
-{
-	_head = iHeaderSize;
-	_tail = iHeaderSize;
-	_iDataSize = 0;
-	_iHeaderSize = iHeaderSize;
-}
-
 #ifndef MALLOC_ON_CALL
 CPacket::~CPacket()
 {
@@ -235,12 +160,3 @@ CPacket::~CPacket()
 	_iBuffer = nullptr;
 }
 #endif
-
-void CPacket::PushHeader(char* header, int headerSize)
-{
-	_head -= headerSize;
-
-	memcpy(_iBuffer + _head, header, headerSize);
-
-	_iDataSize += headerSize;
-}

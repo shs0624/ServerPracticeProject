@@ -7,7 +7,7 @@
 #define MAXCAPACITY_CHUNK 7
 #define LOGSIZE 10000
 //#define DEBUG_TLSMEMORYPOOL
-#define DEBUG_GUARDCODE
+//#define DEBUG_GUARDCODE
 
 enum LOG_WORKTYPE
 {
@@ -299,8 +299,6 @@ public:
 				for (int j = 0; j < _iTlsChunkSize - 1; j++)
 				{
 					bottomNode = bottomNode->nextPtr;
-					if (bottomNode == NULL)
-						DebugBreak();
 				}
 
 				// bottomNode는 Top과 연결,Top은 청크로 받은 노드로 변경.
@@ -315,10 +313,10 @@ public:
 		// 일단 하나씩 순회하며 카운팅해주고, 청크에서 꺼내서 반환하기. 그림은 그렸다.
 		void FreeChunk()
 		{
-//#ifdef DEBUG_TLSMEMORYPOOL
+#ifdef DEBUG_TLSMEMORYPOOL
 			if (_dwSize < _iTlsChunkSize * ALLOCCOUNT)
 				DebugBreak();
-//#endif
+#endif
 
 			// 반환할 청크 만큼 반복
 			for (int allocCnt = 0; allocCnt < ALLOCCOUNT; allocCnt++)
@@ -329,9 +327,6 @@ public:
 				st_BLOCK_NODE* tailNode = _TopNode;
 				for (int i = 0; i < _iTlsChunkSize; i++)
 				{
-					if (newTopNode == NULL)
-						DebugBreak();
-
 					tailNode = newTopNode;
 					newTopNode = newTopNode->nextPtr;
 				}
@@ -341,7 +336,6 @@ public:
 
 				// 청크 데이터를 반환
 				_Manager->FreeChunkToPool(returnChunk);
-				//_dwSize -= _iTlsChunkSize;
 				InterlockedAdd((LONG*) & _dwSize, -_iTlsChunkSize);
 			}
 		}
@@ -349,7 +343,6 @@ public:
 		bool Free(DATA* pData)
 		{
 			st_BLOCK_NODE* nodePtr = (st_BLOCK_NODE*)((char*)pData - offsetof(st_BLOCK_NODE, allocData));
-			//st_BLOCK_NODE* nodePtr = (st_BLOCK_NODE*)((BYTE*)pData - sizeof(st_BLOCK_NODE*));
 #ifdef DEBUG_GUARDCODE
 			if (nodePtr->guardCode != _guardCode)
 				DebugBreak();
@@ -365,7 +358,6 @@ public:
 			_TopNode = nodePtr;
 
 			++_dwSize;
-			//InterlockedIncrement(&_dwSize);
 
 			if (_dwSize >= _iBaseSize * 2)
 			{
@@ -396,10 +388,8 @@ public:
 #endif
 
 			_TopNode = _TopNode->nextPtr ;
-			//_workArr[_logIdx++] = { POP, oldTop };
 
 			--_dwSize;
-			//InterlockedDecrement(&_dwSize);
 
 			return &(oldTop->allocData);
 		}

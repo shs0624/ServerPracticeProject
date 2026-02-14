@@ -6,108 +6,26 @@
 #include "IRoom.h"
 #include "AuthRoom.h"
 
-void AuthRoom::EnqueueMessage(ULONGLONG sessionID, stRoomMessage* pMessage)
+void AuthRoom::OnJoin(ULONGLONG sessionID)
 {
-	// @@TODO : ENTER 메세지만 넣자.
-	_MessageQueue->Enqueue(pMessage);
+	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+	(**cPacket) << sessionID;
+	(**cPacket) << (WORD)RoomMessageType::ENTER;
+
+	_pLog._dwPacketPoolUse++;
+
+	_MessageQueue->Enqueue(cPacket);
 }
 
-void AuthRoom::OnJoin(ULONGLONG sessionID, stRoomMessage* pMessage)
+void AuthRoom::OnLeave(ULONGLONG sessionID)
 {
-	// Enter 메세지가 들어오는데, 이걸 내부에서 생성하는게 나을수도
-	_MessageQueue->Enqueue(pMessage);
-}
+	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+	(**cPacket) << sessionID;
+	(**cPacket) << (WORD)RoomMessageType::LEAVE;
 
-void AuthRoom::OnLeave(ULONGLONG sessionID, stRoomMessage* pMessage)
-{
-	// Leave 메세지가 들어오는데, 이걸 내부에서 생성하는게 나을수도
-	_MessageQueue->Enqueue(pMessage);
-}
+	_pLog._dwPacketPoolUse++;
 
-void AuthRoom::OnMessage(ULONGLONG sessionID, stRoomMessage* pMessage)
-{
-	// @@TODO : 메세지가 도착했으니, 세션에 넣어주면 된다.
-	RoomMessageType type = pMessage->type;
-	switch (type)
-	{
-	case MESSAGE:
-		AuthProc(sessionID, pMessage->cPacket);
-		break;
-	}
-
-	_pRoomNetServer->FreeMessage(pMessage);
-}
-
-void AuthRoom::OnUpdate()
-{
-	// Enter, Leave 메세지 처리
-	while (!_MessageQueue->Empty())
-	{
-		stRoomMessage* pMessage;
-		_MessageQueue->Dequeue(pMessage);
-		if (pMessage == NULL)
-			break; // Disconnect?
-
-		RoomMessageType type = pMessage->type;
-		switch (type)
-		{
-		case ENTER:
-			//OnJoin(pMessage->sessionID);
-			EnterAuthRoom(pMessage->sessionID);
-			break;
-		case LEAVE:
-			//OnLeave(pMessage->sessionID);
-			LeaveAuthRoom(pMessage->sessionID);
-			break;
-		}
-
-		_pRoomNetServer->FreeMessage(pMessage);
-	}
-
-	// @@TODO : 타이머 체크
-
-	_pLog._dwAuthFPS++;
-}
-
-void AuthRoom::OnLateUpdate()
-{
-	//while (!_SendIDStack.empty())
-	//{
-	//	ULONGLONG sessionID = _SendIDStack.top();
-	//	_SendIDStack.pop();
-
-	//	_pNetServer->PostSend(sessionID);
-	//}
-}
-
-void AuthRoom::OnSessionUpdate(ULONGLONG sessionID)
-{
-	st_SESSION* pSession = NULL;
-	auto it = _SessionMap.find(sessionID);
-	if (it == _SessionMap.end())
-	{
-		return;
-	}
-
-	pSession = (*it).second;
-	// 메세지 있는지 체크
-	//while (!pSession->_MessageQ->Empty())
-	//{
-	//	stRoomMessage* pMessage;
-	//	pSession->_MessageQ->Dequeue(pMessage);
-	//	if (pMessage == NULL)
-	//		break; // Disconnect?
-
-	//	RoomMessageType type = pMessage->type;
-	//	switch (type)
-	//	{
-	//	case MESSAGE:
-	//		AuthProc(sessionID, pMessage->cPacket);
-	//		break;
-	//	}
-
-	//	_pRoomNetServer->FreeMessage(pMessage);
-	//}
+	_MessageQueue->Enqueue(cPacket);
 }
 
 void AuthRoom::AuthProc(ULONGLONG sessionID, RefCountPointer& cPacket)

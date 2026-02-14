@@ -13,7 +13,7 @@ bool _bServerEnabled = true;
 thread_local stChatLog CNetServer::_pLog;
 
 // thread-safe 락프리 스택
-int CNetServer::FindUsableSessionIndex()
+int inline CNetServer::FindUsableSessionIndex()
 {
 	ULONGLONG idx = -1;
 	while (true)
@@ -27,7 +27,7 @@ int CNetServer::FindUsableSessionIndex()
 	return idx;
 }
 
-void CNetServer::FindSession(ULONGLONG sessionID, st_NetSession** pSession)
+void inline CNetServer::FindSession(ULONGLONG sessionID, st_NetSession** pSession)
 {
 	ULONGLONG idx = sessionID >> 48;
 	if (sessionID == _sessionArr[idx].ulSessionID)
@@ -82,9 +82,11 @@ bool CNetServer::GetInfoFromSession(ULONGLONG sessionID, LPVOID* ptr)
 	}
 
 	*ptr = (pNetSession->pUser);
+	DecrementIOCount(pNetSession);
+	return true;
 }
 
-bool CNetServer::CheckSession(st_NetSession* ptr, ULONGLONG sessionID)
+bool inline CNetServer::CheckSession(st_NetSession* ptr, ULONGLONG sessionID)
 {
 	if (ptr->bReleaseFlag == 1)
 	{
@@ -247,7 +249,6 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	ptr->bReleaseFlag = false;
 	ptr->bSendFlag = false;
 	ptr->bCanceled = false;
-	ptr->bDeleted = false;
 	ptr->sock = client_sock;
 
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
@@ -434,7 +435,8 @@ void CNetServer::InitializeSessions(ULONG maxConnection)
 		_sessionArr[i].bReleaseFlag = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(8000);
-		_sessionArr[i]._MessageQ = new LockFreeQueue<stRoomMessage*>();
+		_sessionArr[i]._MessageQ = new LockFreeQueue<RefCountPointer>();
+		_sessionArr[i].cPacketArr = (RefCountPointer*)malloc(sizeof(RefCountPointer) * MAX_PACKET_BATCH);
 
 		_emptyIndexStack->push(i);
 	}
@@ -558,96 +560,95 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 }
 
 // sendBuf에 Enqueue만 진행 -> 데이터를 모아놓기 위함
-bool CNetServer::EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
-{
-	st_NetSession* ptr;
-	FindSession(sessionID, &ptr);
-	if (ptr == NULL)
-	{
-		return false;
-	}
+//bool inline CNetServer::EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
+//{
+//	st_NetSession* ptr;
+//	FindSession(sessionID, &ptr);
+//	if (ptr == NULL)
+//	{
+//		return false;
+//	}
+//
+//	InterlockedIncrement(&ptr->dwIOCount);
+//	if (ptr->bReleaseFlag == 1)
+//	{
+//		DecrementIOCount(ptr);
+//		return false;
+//	}
+//
+//	if (sessionID != ptr->ulSessionID)
+//	{
+//		DecrementIOCount(ptr);
+//		return false;
+//	}
+//
+//	if (pushHeader)
+//	{
+//		short shSize = (*cPacket)->GetDataSize();
+//
+//		st_NetHeader netHeader;
+//		netHeader.FixedKey = _ProgramKey;
+//		netHeader.RandKey = (unsigned char)rand() % 256;
+//		netHeader.shLen = shSize;
+//
+//		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+//		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
+//	}
+//
+//	ptr->sendBuf->Enqueue(cPacket);
+//
+//	_pLog._dwSendMessageTPS++;
+//	DecrementIOCount(ptr);
+//	return true;
+//}
 
-	InterlockedIncrement(&ptr->dwIOCount);
-	if (ptr->bReleaseFlag == 1)
-	{
-		DecrementIOCount(ptr);
-		return false;
-	}
-
-	if (sessionID != ptr->ulSessionID)
-	{
-		DecrementIOCount(ptr);
-		return false;
-	}
-
-	if (pushHeader)
-	{
-		short shSize = (*cPacket)->GetDataSize();
-
-		st_NetHeader netHeader;
-		netHeader.FixedKey = _ProgramKey;
-		netHeader.RandKey = (unsigned char)rand() % 256;
-		netHeader.shLen = shSize;
-
-		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
-		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
-	}
-
-	ptr->sendBuf->Enqueue(cPacket);
-
-	_pLog._dwSendMessageTPS++;
-	DecrementIOCount(ptr);
-	return true;
-}
-
-
-bool CNetServer::PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
-{
-	st_NetSession* ptr;
-	FindSession(sessionID, &ptr);
-	if (ptr == NULL)
-	{
-		return false;
-	}
-
-	InterlockedIncrement(&ptr->dwIOCount);
-	if (ptr->bReleaseFlag == 1)
-	{
-		DecrementIOCount(ptr);
-		return false;
-	}
-
-	if (sessionID != ptr->ulSessionID)
-	{
-		DecrementIOCount(ptr);
-		return false;
-	}
-
-	if (pushHeader)
-	{
-		short shSize = (*cPacket)->GetDataSize();
-
-		st_NetHeader netHeader;
-		netHeader.FixedKey = _ProgramKey;
-		netHeader.RandKey = (unsigned char)rand() % 256;
-		netHeader.shLen = shSize;
-
-		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
-		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
-	}
-
-	ptr->sendBuf->Enqueue(cPacket);
-
-	InterlockedIncrement(&ptr->dwIOCount);
-	PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, &_SendOverlapped);
-
-	_pLog._dwSendMessageTPS++;
-	DecrementIOCount(ptr);
-	return true;
-}
+//bool CNetServer::PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
+//{
+//	st_NetSession* ptr;
+//	FindSession(sessionID, &ptr);
+//	if (ptr == NULL)
+//	{
+//		return false;
+//	}
+//
+//	InterlockedIncrement(&ptr->dwIOCount);
+//	if (ptr->bReleaseFlag == 1)
+//	{
+//		DecrementIOCount(ptr);
+//		return false;
+//	}
+//
+//	if (sessionID != ptr->ulSessionID)
+//	{
+//		DecrementIOCount(ptr);
+//		return false;
+//	}
+//
+//	if (pushHeader)
+//	{
+//		short shSize = (*cPacket)->GetDataSize();
+//
+//		st_NetHeader netHeader;
+//		netHeader.FixedKey = _ProgramKey;
+//		netHeader.RandKey = (unsigned char)rand() % 256;
+//		netHeader.shLen = shSize;
+//
+//		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+//		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
+//	}
+//
+//	ptr->sendBuf->Enqueue(cPacket);
+//
+//	InterlockedIncrement(&ptr->dwIOCount);
+//	PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, &_SendOverlapped);
+//
+//	_pLog._dwSendMessageTPS++;
+//	DecrementIOCount(ptr);
+//	return true;
+//}
 
 
-bool CNetServer::DecrementIOCount(st_NetSession* ptr)
+bool inline CNetServer::DecrementIOCount(st_NetSession* ptr)
 {
 	LONG result = InterlockedDecrement((LONG*)&(ptr->dwIOCount));
 	if (result == 0)
@@ -680,7 +681,6 @@ bool CNetServer::Disconnect(ULONGLONG sessionID)
 	}
 
 	ptr->bCanceled = true;
-	ptr->bDeleted = true;
 
 	CancelIoEx((HANDLE)ptr->sock, NULL);
 
@@ -744,15 +744,15 @@ bool CNetServer::PostSend(ULONGLONG sessionID)
 		return false;
 	}
 
-	if (sessionID != ptr->ulSessionID)
-	{
-		DecrementIOCount(ptr);
-		return false;
-	}
+	//if (sessionID != ptr->ulSessionID)
+	//{
+	//	DecrementIOCount(ptr);
+	//	return false;
+	//}
 
 	// 일부러 -1이 되게 Post
 	InterlockedIncrement(&ptr->dwIOCount);
-	PostQueuedCompletionStatus(_NetIOCPHandle, 0, (ULONG_PTR)ptr, &_SendOverlapped);
+	PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, &_SendOverlapped);
 
 	DecrementIOCount(ptr);
 	return true;

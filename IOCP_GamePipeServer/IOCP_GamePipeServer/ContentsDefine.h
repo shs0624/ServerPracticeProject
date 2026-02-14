@@ -8,13 +8,6 @@ enum RoomMessageType
 	LEAVE
 };
 
-struct stRoomMessage
-{
-	RoomMessageType type;
-	ULONGLONG sessionID;
-	RefCountPointer cPacket;
-};
-
 // 로그인 하지 않은 세션
 struct st_SESSION
 {

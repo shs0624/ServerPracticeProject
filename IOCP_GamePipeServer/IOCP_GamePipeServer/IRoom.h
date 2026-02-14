@@ -10,27 +10,34 @@ class RoomNetServer;
 class IRoom
 {
 public:
-	bool FreeMessage(stRoomMessage* pOutput);
+	DWORD inline GetRoomNumber() { return _dwRoomNumber; }
 	
 	// Init으로 해도 될듯
 	void SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer);
-
-	// ENTER, LEAVE 메세지를 넣는 함수
-	virtual void EnqueueMessage(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
 
 	void UpdateSession();
 
 	void RegisterLog();
 
-	bool SleepCheck();
+	bool inline SleepCheck()
+	{
+		int ret = WaitForSingleObject(_hQuitEvent, _dwFrameTime);
+		if (ret == WAIT_OBJECT_0)
+		{
+			// 서버 종료
+			return false;
+		}
+
+		return true;
+	}
 
 	// 지금은 Enter, Leave 메세지가 처리 됐을 때, 즉 OnMessage가 호출하는 구조라 옳지않음.
-	virtual void OnJoin(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
-	virtual void OnLeave(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
-	virtual void OnMessage(ULONGLONG sessionID, stRoomMessage* pMessage) = 0;
-	virtual void OnUpdate() = 0;
-	virtual void OnLateUpdate() = 0;
-	virtual void OnSessionUpdate(ULONGLONG sessionID) = 0;
+	virtual void OnJoin(ULONGLONG sessionID) = 0;
+	virtual void OnLeave(ULONGLONG sessionID) = 0;
+	virtual void inline OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket) = 0;
+	virtual void inline OnUpdate() = 0;
+	virtual void inline OnLateUpdate() = 0;
+	virtual void inline OnSessionUpdate(ULONGLONG sessionID) = 0;
 
 	// 비정적 멤버는 인스턴스마다 다른 메모리를 가지는데, thread_local은
 	// 인스턴스마다가 아니라, 스레드 마다 같은 메모리를 가지니 의미가 충돌한다.
@@ -43,8 +50,9 @@ protected:
 	void FreeSESSION(st_SESSION* pSession);
 
 	// ENTER, LEAVE는 메세지 큐를 통해서 처리합니다.
-	LockFreeQueue<stRoomMessage*>* _MessageQueue;
-	std::stack<ULONGLONG> _SendIDStack;
+	LockFreeQueue<RefCountPointer>* _MessageQueue;
+	//std::stack<ULONGLONG> _SendIDStack;
+	std::unordered_set<ULONGLONG> _SendIDSet;
 
 	RoomNetServer* _pRoomNetServer;
 	CNetServer* _pNetServer;

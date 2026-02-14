@@ -20,7 +20,7 @@ public:
 		}
 	}*/
 
-	static RefCountPointer MakeSharedPtr()
+	static inline RefCountPointer MakeSharedPtr()
 	{
 		RefCountPointer result;
 		result._iRefCount = new long(1);
@@ -89,17 +89,12 @@ public:
 		InterlockedIncrement((LONG*)_iRefCount);
 	}*/
 
-	void SetAccountNum(ULONGLONG accountNum)
-	{
-		_iAccountNum = accountNum;
-	}
-
-	void IncRefCount()
+	void inline IncRefCount()
 	{
 		InterlockedIncrement((LONG*)_iRefCount);
 	}
 
-	bool DecRefCount()
+	bool inline DecRefCount()
 	{
 		if (*_iRefCount < 0)
 			DebugBreak();
@@ -122,7 +117,6 @@ public:
 private:
 	CPacket* ptr;
 	long* _iRefCount;
-	ULONGLONG _iAccountNum;
 
 	//void IncRefCount()
 	//{

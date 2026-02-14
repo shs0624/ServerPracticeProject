@@ -30,9 +30,22 @@ public:
 	// Parameters: 없음.
 	// Return: 없음.
 	//////////////////////////////////////////////////////////////////////////
-	void Clear(void);
+	void inline Clear(void)
+	{
+		_head = 0;
+		_tail = 0;
+		_iDataSize = 0;
+		_iHeaderSize = 0;
+	}
 
-	void Clear(int iHeaderSize);
+	void inline Clear(int iHeaderSize)
+	{
+		_head = iHeaderSize;
+		_tail = iHeaderSize;
+		_iDataSize = 0;
+		_iHeaderSize = iHeaderSize;
+	}
+
 
 	//////////////////////////////////////////////////////////////////////////
 	// 버퍼 사이즈 얻기.
@@ -59,8 +72,30 @@ public:
 	// Parameters: 고정키, 랜덤키.
 	// Return: 없음
 	//////////////////////////////////////////////////////////////////////////
-	void Encode(unsigned char K, unsigned char RK);
+	void inline Encode(unsigned char K, unsigned char RK)
+	{
+		SetCheckSum();
 
+		unsigned char* cursorPtr = (unsigned char*)GetCheckSumPtr();
+		unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
+
+		unsigned char E = 0;
+		unsigned char P = 0;
+
+		int cnt = 1;
+		while (cursorPtr != tailPtr)
+		{
+			unsigned char D = *cursorPtr;
+
+			P = D ^ (P + RK + cnt);
+			E = P ^ (E + K + cnt);
+
+			*cursorPtr = E;
+
+			cursorPtr++;
+			cnt++;
+		}
+	}
 
 	//////////////////////////////////////////////////////////////////////////
 	// 이 직렬화 버퍼에 저장된 값을 디코딩후 체크섬까지 체크 후 결과 반환
@@ -68,7 +103,38 @@ public:
 	// Parameters: 고정키, 랜덤키.
 	// Return: (bool) 체크섬 일치 여부
 	//////////////////////////////////////////////////////////////////////////
-	bool Decode(unsigned char K, unsigned char RK);
+	bool inline Decode(unsigned char K, unsigned char RK)
+	{
+		unsigned char* cursorPtr = (unsigned char*)GetCheckSumPtr();
+		unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
+
+		unsigned char D = 0;
+		unsigned char P = 0;
+		unsigned char prevE = 0;
+		unsigned char prevP = 0;
+
+		int cnt = 1;
+		while (cursorPtr != tailPtr)
+		{
+			unsigned char E = *cursorPtr;
+
+			P = E ^ (prevE + K + cnt);
+			D = P ^ (prevP + RK + cnt);
+
+			prevP = P;
+			prevE = E;
+
+			*cursorPtr = D;
+			cursorPtr++;
+			cnt++;
+		}
+
+		unsigned char checkSum = GetCheckSum();
+		if (checkSum != (unsigned char)*GetCheckSumPtr())
+			return false;
+
+		return true;
+	}
 
 	//void Initialize(int iBufferSize, int iHeaderSize);
 	void Initialize(int iHeaderSize);
@@ -99,7 +165,14 @@ public:
 	int		MoveWritePos(int iSize);
 	int		MoveReadPos(int iSize);
 
-	void PushHeader(char* header, int headerSize);
+	void inline PushHeader(char* header, int headerSize)
+	{
+		_head -= headerSize;
+
+		memcpy(_iBuffer + _head, header, headerSize);
+
+		_iDataSize += headerSize;
+	}
 
 	CPacket& operator = (CPacket& clSrcPacket)
 	{

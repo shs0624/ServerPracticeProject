@@ -7,104 +7,26 @@
 #include "EchoRoom.h"
 #include "ProcademyProfiler.h"
 
-void EchoRoom::EnqueueMessage(ULONGLONG sessionID, stRoomMessage* pMessage)
+void EchoRoom::OnJoin(ULONGLONG sessionID)
 {
-	// 이미 설정된 유저가 있으니, 걔를 찾아오기
-	_MessageQueue->Enqueue(pMessage);
+	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+	(**cPacket) << sessionID;
+	(**cPacket) << (WORD)RoomMessageType::ENTER;
+
+	_pLog._dwPacketPoolUse++;
+
+	_MessageQueue->Enqueue(cPacket);
 }
 
-void EchoRoom::OnJoin(ULONGLONG sessionID, stRoomMessage* pMessage)
+void EchoRoom::OnLeave(ULONGLONG sessionID)
 {
-	// Enter 메세지가 들어오는데, 이걸 내부에서 생성하는게 나을수도
-	_MessageQueue->Enqueue(pMessage);
-}
+	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+	(**cPacket) << sessionID;
+	(**cPacket) << (WORD)RoomMessageType::LEAVE;
 
-void EchoRoom::OnLeave(ULONGLONG sessionID, stRoomMessage* pMessage)
-{
-	// Leave 메세지가 들어오는데, 이걸 내부에서 생성하는게 나을수도
-	_MessageQueue->Enqueue(pMessage);
-}
+	_pLog._dwPacketPoolUse++;
 
-void EchoRoom::OnMessage(ULONGLONG sessionID, stRoomMessage* pMessage)
-{
-	// @@TODO : 메세지가 도착했으니, 세션에 넣어주면 된다.
-	RoomMessageType type = pMessage->type;
-	switch (type)
-	{
-	case MESSAGE:
-		EchoProc(pMessage->sessionID, pMessage->cPacket);
-		break;
-	}
-
-	_pRoomNetServer->FreeMessage(pMessage);
-}
-
-void EchoRoom::OnUpdate()
-{
-	// Enter, Leave 메세지 처리
-	while (_MessageQueue->Size() > 0)
-	{
-		stRoomMessage* pMessage;
-		_MessageQueue->Dequeue(pMessage);
-		if (pMessage == NULL)
-			break; // Disconnect?
-
-		RoomMessageType type = pMessage->type;
-		switch (type)
-		{
-		case ENTER:
-			EnterEchoRoom(pMessage->sessionID);
-			break;
-		case LEAVE:
-			LeaveEchoRoom(pMessage->sessionID);
-			break;
-		}
-
-		_pRoomNetServer->FreeMessage(pMessage);
-	}
-
-	_pLog._dwGameFPS++;
-}
-
-void EchoRoom::OnLateUpdate()
-{
-	while (!_SendIDStack.empty())
-	{
-		ULONGLONG sessionID = _SendIDStack.top();
-		_SendIDStack.pop();
-
-		_pNetServer->PostSend(sessionID);
-	}
-}
-
-void EchoRoom::OnSessionUpdate(ULONGLONG sessionID)
-{
-	st_USER* pUser = NULL;
-	auto it = _UserMap.find(sessionID);
-	if (it == _UserMap.end())
-	{
-		return;
-	}
-
-	pUser = (*it).second;
-	// 메세지 있는지 체크
-	//while (!pUser->_MessageQ->Empty())
-	//{
-	//	stRoomMessage* pMessage;
-	//	pUser->_MessageQ->Dequeue(pMessage);
-	//	if (pMessage == NULL)
-	//		break; // Disconnect?
-
-	//	RoomMessageType type = pMessage->type;
-	//	switch (type)
-	//	{
-	//	case MESSAGE:
-	//		EchoProc(pMessage->sessionID, pMessage->cPacket);
-	//		break;
-	//	}
-
-	//	_pRoomNetServer->FreeMessage(pMessage);
-	//}
+	_MessageQueue->Enqueue(cPacket);
 }
 
 void EchoRoom::mpRESLogin(RefCountPointer& cPacket, BYTE status, ULONGLONG accountNum)
@@ -114,15 +36,6 @@ void EchoRoom::mpRESLogin(RefCountPointer& cPacket, BYTE status, ULONGLONG accou
 	(**cPacket) << type;
 	(**cPacket) << status;
 	(**cPacket) << accountNum;
-}
-
-void EchoRoom::mpRESEcho(RefCountPointer& cPacket, ULONGLONG accountNum, LONGLONG sendTick)
-{
-	WORD type = en_PACKET_CS_GAME_RES_ECHO;
-
-	(**cPacket) << type;
-	(**cPacket) << accountNum;
-	(**cPacket) << sendTick;
 }
 
 void EchoRoom::EchoProc(ULONGLONG sessionID, RefCountPointer& cPacket)
@@ -149,14 +62,14 @@ void EchoRoom::EchoProc(ULONGLONG sessionID, RefCountPointer& cPacket)
 	(*cPacket)->Clear(sizeof(st_NetHeader));
 	mpRESEcho(cPacket, accountNum, sendTick);
 	_pLog._dwEchoMessageTPS++;
-	//if (_pNetServer->PostPacket(sessionID, cPacket))
-	//	_pLog._dwSendMessageTPS++;
 	if (_pNetServer->EnqueueSendBuffer(sessionID, cPacket))
 		_pLog._dwSendMessageTPS++;
-	//if(_pNetServer->SendPacket_UniCast(sessionID, cPacket))
+	//if (_pNetServer->SendPacket_UniCast(sessionID, cPacket))
+	//	_pLog._dwSendMessageTPS++;
+	//if (_pNetServer->PostPacket(sessionID, cPacket))
 	//	_pLog._dwSendMessageTPS++;
 
-	_SendIDStack.push(sessionID);
+	//_SendIDSet.insert(sessionID);
 }
 
 void EchoRoom::EnterEchoRoom(ULONGLONG sessionID)
@@ -177,9 +90,10 @@ void EchoRoom::EnterEchoRoom(ULONGLONG sessionID)
 	if (it != _AccountUserMap.end())
 	{
 		// 중복로그인 - sessionID
-		_pNetServer->Disconnect(sessionID);
+		ULONGLONG disconnectID = (*it).second->ulSessionID;
+		_pNetServer->Disconnect(disconnectID);
 		_AccountUserMap.erase(pUser->AccountNum);
-		_UserMap.erase(sessionID);
+		_UserMap.erase(disconnectID);
 
 		_pLog._dwGameUserCount--;
 		_pLog._dwDuplicatedLoginTotal++;

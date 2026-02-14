@@ -54,11 +54,9 @@ public:
 	void MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRoomNum);
 
 	st_USER* AllocUSER() { return _UserPool->Alloc(); }
-	void FreeUSER(st_USER* pUser) { _UserPool->Free(pUser); }
+	void inline FreeUSER(st_USER* pUser) { _UserPool->Free(pUser); }
 	st_SESSION* AllocSESSION() { return _SessionPool->Alloc(); }
-	void FreeSESSION(st_SESSION* pSession) { _SessionPool->Free(pSession); }
-
-	void FreeMessage(stRoomMessage* pMessage) { _MessagePool->Free(pMessage); }
+	void inline FreeSESSION(st_SESSION* pSession) { _SessionPool->Free(pSession); }
 
 	//virtual bool OnConnectionRequest(ULONG ip, LONG port);
 	virtual bool OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr);
@@ -93,7 +91,6 @@ private:
 
 	procademy::CMemoryPool_LockFree<st_USER>* _UserPool;
 	procademy::CMemoryPool_LockFree<st_SESSION>* _SessionPool;
-	procademy::CMemoryPool_LockFree<stRoomMessage>* _MessagePool;
 
 	// AccountNum, 유저 구조체 - 중복 로그인 체크용
 	/*unordered_map<ULONGLONG, st_USER*> _AccountNumUserMap;

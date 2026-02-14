@@ -85,11 +85,12 @@ public:
         return false;
     }
 
-    void Enqueue(T t)
+    void inline Enqueue(T t)
     {
+        DWORD64 endPoint = _EndPointNode;
         st_Node* node = _NodePool.Alloc();
         node->data = t;
-        node->next = (st_Node*)_EndPointNode;
+        node->next = (st_Node*)endPoint;
 
         ULONGLONG localCnt = (ULONGLONG)InterlockedIncrement(&_dwCount) % (USHRT_MAX + 1);
         st_Node* EnqueueNode = (st_Node*)((ULONGLONG)node | localCnt << 48);
@@ -98,7 +99,7 @@ public:
         // tail을 밀어줘야 한다.
         st_Node* _t = _tail;
         st_Node* _tailP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_t);
-        if (_tailP->next != (st_Node*)_EndPointNode)
+        if (_tailP->next != (st_Node*)endPoint)
         {
             InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
         }
@@ -111,9 +112,9 @@ public:
             st_Node* tailPtr = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)tail);
             st_Node* next = tailPtr->next;
 
-            if (next == (st_Node*)_EndPointNode)
+            if (next == (st_Node*)endPoint)
             {
-                if (InterlockedCompareExchangePointer((PVOID*)&tailPtr->next, EnqueueNode, (st_Node*)_EndPointNode) == next)
+                if (InterlockedCompareExchangePointer((PVOID*)&tailPtr->next, EnqueueNode, (st_Node*)endPoint) == next)
                 {
                     DWORD nSize = InterlockedIncrement(&_size);
 #ifdef LOG_LOCKFREEQUEUE
@@ -133,8 +134,9 @@ public:
         }
     }
 
-    int Dequeue(T& t)
+    int inline Dequeue(T& t)
     {
+        DWORD64 endPoint = _EndPointNode;
         while (true)
         {
             T localData;
@@ -143,13 +145,13 @@ public:
             st_Node* headPtr = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)head);
             st_Node* next = headPtr->next;
 
-            if (next == (st_Node*)_EndPointNode)
+            if (next == (st_Node*)endPoint)
                 continue;
 
             // tail을 밀어줘야 하는지 체크
             st_Node* _t = _tail;
             st_Node* _tailP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_t);
-            if (_tailP->next != (st_Node*)_EndPointNode)
+            if (_tailP->next != (st_Node*)endPoint)
             {
                 InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
             }

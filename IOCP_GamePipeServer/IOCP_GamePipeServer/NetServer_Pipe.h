@@ -23,26 +23,26 @@ struct st_NetHeader
 
 struct st_NetSession
 {
-	OVERLAPPED sendOverlapped;
-	OVERLAPPED recvOverlapped;
 	ULONGLONG ulSessionID;
-	SOCKET sock;
-	SOCKADDR_IN clientAddr;
-	LockFreeQueue<RefCountPointer>* sendBuf;
-	CRingBuffer* recvBuf;
-	RefCountPointer cPacketArr[MAX_PACKET_BATCH];
-
-	// 소속 Room 정보를 번호로 할지 뭐로할지..
-	DWORD dwIncludedRoom;
-	LPVOID pUser;
-	LockFreeQueue<stRoomMessage*>* _MessageQ;
-
+	LockFreeQueue<RefCountPointer>* _MessageQ;
 	DWORD dwSendCount;
 	alignas(4) DWORD dwIOCount;
 	BOOL bReleaseFlag;
 	BOOL bSendFlag;
 	BOOL bCanceled;
-	BOOL bDeleted;
+
+	LockFreeQueue<RefCountPointer>* sendBuf;
+	CRingBuffer* recvBuf;
+	OVERLAPPED sendOverlapped;
+	OVERLAPPED recvOverlapped;
+	RefCountPointer* cPacketArr;
+
+	// 소속 Room 정보를 번호로 할지 뭐로할지..
+	LPVOID pUser;
+	DWORD dwIncludedRoom;
+
+	SOCKET sock;
+	SOCKADDR_IN clientAddr;
 };
 
 class CNetServer
@@ -60,8 +60,93 @@ public:
 	bool GetInfoFromSession(ULONGLONG sessionID, LPVOID* ptr);
 
 	bool PostSend(ULONGLONG sessionID);
-	bool EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
-	bool PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
+	bool inline EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true)
+	{
+		st_NetSession* ptr;
+		FindSession(sessionID, &ptr);
+		if (ptr == NULL)
+		{
+			return false;
+		}
+
+		InterlockedIncrement(&ptr->dwIOCount);
+		if (ptr->bReleaseFlag == 1)
+		{
+			DecrementIOCount(ptr);
+			return false;
+		}
+
+		if (sessionID != ptr->ulSessionID)
+		{
+			DecrementIOCount(ptr);
+			return false;
+		}
+
+		if (pushHeader)
+		{
+			short shSize = (*cPacket)->GetDataSize();
+
+			st_NetHeader netHeader;
+			netHeader.FixedKey = _ProgramKey;
+			netHeader.RandKey = (unsigned char)rand() % 256;
+			netHeader.shLen = shSize;
+
+			(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+			(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
+		}
+
+		ptr->sendBuf->Enqueue(cPacket);
+
+		_pLog._dwSendMessageTPS++;
+		DecrementIOCount(ptr);
+		return true;
+	}
+
+	bool PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true)
+	{
+		st_NetSession* ptr;
+		FindSession(sessionID, &ptr);
+		if (ptr == NULL)
+		{
+			return false;
+		}
+
+		InterlockedIncrement(&ptr->dwIOCount);
+		if (ptr->bReleaseFlag == 1)
+		{
+			DecrementIOCount(ptr);
+			return false;
+		}
+
+		if (sessionID != ptr->ulSessionID)
+		{
+			DecrementIOCount(ptr);
+			return false;
+		}
+
+		if (pushHeader)
+		{
+			short shSize = (*cPacket)->GetDataSize();
+
+			st_NetHeader netHeader;
+			netHeader.FixedKey = _ProgramKey;
+			netHeader.RandKey = (unsigned char)rand() % 256;
+			netHeader.shLen = shSize;
+
+			(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+			(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
+		}
+
+		ptr->sendBuf->Enqueue(cPacket);
+
+		InterlockedIncrement(&ptr->dwIOCount);
+		PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, &_SendOverlapped);
+
+		_pLog._dwSendMessageTPS++;
+		DecrementIOCount(ptr);
+		return true;
+	}
+
 	bool SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
 	bool SendPacket_MultiCast(ULONGLONG* sessionIDArr, WORD count, RefCountPointer& cPacket);
 
