@@ -21,5 +21,11 @@
     <ClCompile Include="Baekjoon16562.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="Inflearn_DFS04.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Inflearn_DFS05.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
