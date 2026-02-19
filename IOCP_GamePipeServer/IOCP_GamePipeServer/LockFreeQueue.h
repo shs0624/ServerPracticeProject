@@ -18,9 +18,11 @@ private:
     DWORD _dwMaxSize;
     DWORD _size;
     DWORD _dwCount;
+    DWORD64 _EndPointNode;
+#ifdef LOG_LOCKFREEQUEUE
     DWORD _dwLogCount;
     DWORD _dwTailLogCount;
-    DWORD64 _EndPointNode;
+#endif
 
     struct st_Node
     {
@@ -50,7 +52,10 @@ public:
     LockFreeQueue()
     {
         _EndPointNode = (DWORD64)&_EndPointNode;
-
+        _dwCount = 0;
+#ifdef LOG_LOCKFREEQUEUE
+        _dwLogCount = 0;
+#endif
         _size = 0;
         _head = _NodePool.Alloc();
         _head->next = (st_Node*)_EndPointNode;
@@ -85,7 +90,7 @@ public:
         return false;
     }
 
-    void inline Enqueue(T t)
+    void Enqueue(T t)
     {
         DWORD64 endPoint = _EndPointNode;
         st_Node* node = _NodePool.Alloc();
@@ -131,15 +136,51 @@ public:
                     break;
                 }
             }
+            else
+                YieldProcessor();
         }
     }
 
-    int inline Dequeue(T& t)
+    void Enqueue_NoLockFree(T t)
+    {
+        DWORD64 endPoint = _EndPointNode;
+        st_Node* node = _NodePool.Alloc();
+        node->data = t;
+        node->next = (st_Node*)endPoint;
+
+        ULONGLONG localCnt = (++_dwCount) % (USHRT_MAX + 1);
+        st_Node* EnqueueNode = (st_Node*)((ULONGLONG)node | localCnt << 48);
+
+        st_Node* tailPtr = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_tail);
+        st_Node* next = tailPtr->next;
+        tailPtr->next = EnqueueNode;
+
+        _tail = EnqueueNode;
+
+        InterlockedIncrement(&_size);
+    }
+
+    // 하나의 스레드에서만 디큐하는 경우를 위한 함수. 한 스레드만 건드린다고 가정하고 짜봄.
+    int Dequeue_NoLockFree(T& t)
+    {
+        st_Node* headPtr = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_head);
+        st_Node* next = headPtr->next;
+
+        _head = next;
+        InterlockedDecrement(&_size);
+
+        st_Node* dataNode = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)next);
+        t = dataNode->data;
+
+        _NodePool.Free(headPtr);
+        return 0;
+    }
+
+    int Dequeue(T& t)
     {
         DWORD64 endPoint = _EndPointNode;
         while (true)
         {
-            T localData;
             st_Node* head = _head;
 
             st_Node* headPtr = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)head);
@@ -159,7 +200,6 @@ public:
             if (InterlockedCompareExchangePointer((PVOID*)&_head, next, head) == head)
             {
                 st_Node* localNode = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)next);
-                localData = localNode->data;
 
                 DWORD nSize = InterlockedDecrement(&_size);
 #ifdef LOG_LOCKFREEQUEUE
@@ -172,11 +212,13 @@ public:
                 _workArr[logIdx]._dwThreadID = GetCurrentThreadId();
 #endif
 
-                t = localData;
+                t = localNode->data;
 
                 _NodePool.Free(headPtr);
                 break;
             }
+            else
+                YieldProcessor();
         }
 
         return 0;

@@ -18,6 +18,7 @@ void IRoom::FreeSESSION(st_SESSION* pSession) { _pRoomNetServer->FreeSESSION(pSe
 void IRoom::SetRoomInfo(DWORD roomNumber, RoomNetServer* pRoomNetServer)
 {
 	_dwFrameTime = 1000 / dfFRAME;
+	_dwNextFrameTick = GetTickCount64() + _dwFrameTime;
 	_dwRoomNumber = roomNumber;
 
 	_pRoomNetServer = pRoomNetServer;

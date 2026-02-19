@@ -10,6 +10,7 @@
 
 //#define MALLOC_ON_CALL
 //#define LOG_CPACKET
+//#define DEBUG_CPACKET
 
 enum en_PACKET
 {
@@ -19,10 +20,46 @@ enum en_PACKET
 class CPacket
 {
 public:
-	CPacket();
+#pragma warning(disable:26495)
+	CPacket()
+	{
+		_iBufferSize = PROTOCOL_MAX_SIZE;
+		_head = 0;
+		_tail = 0;
+		_iDataSize = 0;
+		_iHeaderSize = 0;
+		_iBuffer = (char*)malloc(_iBufferSize);
+		if (_iBuffer == nullptr)
+		{
+			DebugBreak();
+			return;
+		}
+	}
+#pragma warning(default:26495)}
 	//CPacket(int iBufferSize);
 
-	virtual ~CPacket();
+#ifndef MALLOC_ON_CALL
+	virtual ~CPacket()
+	{
+#ifdef LOG_CPACEKT
+		int idx = InterlockedIncrement(&_iLogFreeIdx) % CPACKET_LOGSIZE;
+		_freeLog[idx] = (LPVOID)this;
+#endif
+	}
+#endif
+
+#ifdef MALLOC_ON_CALL
+	~CPacket()
+	{
+#ifdef LOG_CPACEKT
+		int idx = InterlockedIncrement(&_iLogFreeIdx) % CPACKET_LOGSIZE;
+		_freeLog[idx] = (LPVOID)this;
+#endif
+
+		free(_iBuffer);
+		_iBuffer = nullptr;
+	}
+#endif
 
 	//////////////////////////////////////////////////////////////////////////
 	// 패킷 청소.
@@ -62,9 +99,39 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	int		GetDataSize(void) { return _iDataSize; }
 
-	unsigned char GetCheckSum();
+	unsigned char GetCheckSum()
+	{
+		unsigned char* payloadPtr = (unsigned char*)_iBuffer + _iHeaderSize;
+		unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
 
-	void SetCheckSum();
+		unsigned long sum = 0;
+		while (payloadPtr != tailPtr)
+		{
+			sum += (unsigned char)*payloadPtr;
+			payloadPtr++;
+		}
+
+		unsigned char checkSum = (unsigned char)(sum % 256);
+		return checkSum;
+	}
+
+	void SetCheckSum()
+	{
+		unsigned char* payloadPtr = (unsigned char*)_iBuffer + _iHeaderSize;
+		unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
+
+		unsigned long sum = 0;
+		while (payloadPtr != tailPtr)
+		{
+			//sum += (unsigned char)*(_iBuffer + _iHeaderSize) + 1;
+			sum += (unsigned char)*payloadPtr;
+			payloadPtr++;
+		}
+
+		unsigned char checkSum = (unsigned char)(sum % 256);
+		*(GetCheckSumPtr()) = checkSum;
+	}
+
 
 	//////////////////////////////////////////////////////////////////////////
 	// 이 직렬화 버퍼에 저장된 값을 인코딩
@@ -72,7 +139,7 @@ public:
 	// Parameters: 고정키, 랜덤키.
 	// Return: 없음
 	//////////////////////////////////////////////////////////////////////////
-	void inline Encode(unsigned char K, unsigned char RK)
+	void Encode(unsigned char K, unsigned char RK)
 	{
 		SetCheckSum();
 
@@ -103,7 +170,7 @@ public:
 	// Parameters: 고정키, 랜덤키.
 	// Return: (bool) 체크섬 일치 여부
 	//////////////////////////////////////////////////////////////////////////
-	bool inline Decode(unsigned char K, unsigned char RK)
+	bool Decode(unsigned char K, unsigned char RK)
 	{
 		unsigned char* cursorPtr = (unsigned char*)GetCheckSumPtr();
 		unsigned char* tailPtr = (unsigned char*)_iBuffer + _tail;
@@ -136,8 +203,21 @@ public:
 		return true;
 	}
 
-	//void Initialize(int iBufferSize, int iHeaderSize);
-	void Initialize(int iHeaderSize);
+	// 미리 생성해놓는 경우 사용할 Initialize
+#ifndef MALLOC_ON_CALL
+	void Initialize(int iHeaderSize)
+	{
+		_head = iHeaderSize;
+		_tail = iHeaderSize;
+		_iDataSize = 0;
+		_iHeaderSize = iHeaderSize;
+
+#ifdef LOG_CPACEKT
+		int idx = InterlockedIncrement(&_iLogAllocIdx) % CPACKET_LOGSIZE;
+		_allocLog[idx] = (LPVOID)this;
+#endif
+	}
+#endif
 
 	//////////////////////////////////////////////////////////////////////////
 	// 버퍼 포인터 얻기.
@@ -162,8 +242,20 @@ public:
 	// Parameters: (int) 이동 사이즈.
 	// Return: (int) 이동된 사이즈.
 	//////////////////////////////////////////////////////////////////////////
-	int		MoveWritePos(int iSize);
-	int		MoveReadPos(int iSize);
+	int	MoveWritePos(int iSize)
+	{
+		int moveSize = (_tail + iSize > _iBufferSize) ? ((_tail + iSize) - _iBufferSize) : iSize;
+		_iDataSize += moveSize;
+		_tail += moveSize;
+		return moveSize;
+	}
+	int	MoveReadPos(int iSize)
+	{
+		int moveSize = (iSize > _iDataSize) ? _iDataSize : iSize;
+		_head += moveSize;
+		_iDataSize -= moveSize;
+		return moveSize;
+	}
 
 	void inline PushHeader(char* header, int headerSize)
 	{
@@ -191,8 +283,10 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	CPacket& operator << (const unsigned char byValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(unsigned char) > _iBufferSize)
 			return *this;
+#endif
 
 		*(unsigned char*)(_iBuffer + _tail) = byValue;
 		_tail += sizeof(unsigned char);
@@ -201,8 +295,10 @@ public:
 	}
 	CPacket& operator << (const char chValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(char) > _iBufferSize)
 			return *this;
+#endif 
 
 		*(char*)(_iBuffer + _tail) = chValue;
 		_tail += sizeof(char);
@@ -212,8 +308,10 @@ public:
 
 	CPacket& operator << (const short shValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(short) > _iBufferSize)
 			return *this;
+#endif 
 
 		*(short*)(_iBuffer + _tail) = shValue;
 		_tail += sizeof(short);
@@ -222,8 +320,10 @@ public:
 	}
 	CPacket& operator << (const unsigned short wValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(unsigned short) > _iBufferSize)
 			return *this;
+#endif 
 
 		*(unsigned short*)(_iBuffer + _tail) = wValue;
 		_tail += sizeof(unsigned short);
@@ -244,8 +344,10 @@ public:
 
 	CPacket& operator << (const DWORD dwValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(DWORD) > _iBufferSize)
 			return *this;
+#endif
 
 		*(int*)(_iBuffer + _tail) = dwValue;
 		_tail += sizeof(DWORD);
@@ -255,8 +357,10 @@ public:
 
 	CPacket& operator << (const int iValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(int) > _iBufferSize)
 			return *this;
+#endif
 
 		*(int*)(_iBuffer + _tail) = iValue;
 		_tail += sizeof(int);
@@ -265,8 +369,10 @@ public:
 	}
 	CPacket& operator << (const long lValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(long) > _iBufferSize)
 			return *this;
+#endif
 
 		*(long*)(_iBuffer + _tail) = lValue;
 		_tail += sizeof(long);
@@ -275,8 +381,10 @@ public:
 	}
 	CPacket& operator << (const float fValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(float) > _iBufferSize)
 			return *this;
+#endif
 
 		*((float*)(_iBuffer + _tail)) = fValue;
 		_tail += sizeof(float);
@@ -286,8 +394,10 @@ public:
 
 	CPacket& operator << (const __int64 iValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(__int64) > _iBufferSize)
 			return *this;
+#endif
 
 		*(__int64*)(_iBuffer + _tail) = iValue;
 		_tail += sizeof(__int64);
@@ -296,8 +406,10 @@ public:
 	}
 	CPacket& operator << (const double dValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(double) > _iBufferSize)
 			return *this;
+#endif
 
 		*((double*)(_iBuffer + _tail)) = dValue;
 		_tail += sizeof(double);
@@ -307,8 +419,10 @@ public:
 
 	CPacket& operator << (const ULONGLONG dValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_tail + sizeof(ULONGLONG) > _iBufferSize)
 			return *this;
+#endif
 
 		*((ULONGLONG*)(_iBuffer + _tail)) = dValue;
 		_tail += sizeof(ULONGLONG);
@@ -321,8 +435,10 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	CPacket& operator >> (BYTE& byValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(BYTE))
 			return *this;
+#endif
 
 		byValue = *((BYTE*)(_iBuffer + _head));
 
@@ -332,8 +448,10 @@ public:
 	}
 	CPacket& operator >> (char& chValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(char))
 			return *this;
+#endif
 
 		chValue = *((char*)(_iBuffer + _head));
 
@@ -344,8 +462,10 @@ public:
 
 	CPacket& operator >> (short& shValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(short))
 			return *this;
+#endif
 
 		shValue = *((short*)(_iBuffer + _head));
 
@@ -355,8 +475,10 @@ public:
 	}
 	CPacket& operator >> (WORD& wValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(WORD))
 			return *this;
+#endif
 
 		wValue = *((WORD*)(_iBuffer + _head));
 
@@ -367,8 +489,10 @@ public:
 
 	CPacket& operator >> (int& iValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(int))
 			return *this;
+#endif
 
 		iValue = *((int*)(_iBuffer + _head));
 
@@ -378,8 +502,10 @@ public:
 	}
 	CPacket& operator >> (DWORD& dwValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(DWORD))
 			return *this;
+#endif
 
 		dwValue = *((DWORD*)(_iBuffer + _head));
 
@@ -389,8 +515,10 @@ public:
 	}
 	CPacket& operator >> (float& fValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(float))
 			return *this;
+#endif
 
 		fValue = *((float*)(_iBuffer + _head));
 
@@ -401,8 +529,10 @@ public:
 
 	CPacket& operator >> (__int64& iValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(__int64))
 			return *this;
+#endif
 
 		iValue = *((__int64*)(_iBuffer + _head));
 
@@ -412,8 +542,10 @@ public:
 	}
 	CPacket& operator >> (double& dValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(double))
 			return *this;
+#endif
 
 		dValue = *((double*)(_iBuffer + _head));
 
@@ -424,8 +556,10 @@ public:
 
 	CPacket& operator >> (ULONGLONG& dValue)
 	{
+#ifdef DEBUG_CPACKET
 		if (_iDataSize < sizeof(ULONGLONG))
 			return *this;
+#endif
 
 		dValue = *((ULONGLONG*)(_iBuffer + _head));
 
@@ -440,7 +574,15 @@ public:
 	// Parameters: (char *)Dest 포인터. (int)Size.
 	// Return: (int)복사한 사이즈.
 	//////////////////////////////////////////////////////////////////////////
-	int	GetData(char* chpDest, int iSize);
+	int	GetData(char* chpDest, int iSize)
+	{
+		int getSize = (iSize > _iDataSize) ? _iDataSize : iSize;
+		memcpy(chpDest, _iBuffer + _head, getSize);
+
+		_iDataSize -= getSize;
+		_head += getSize;
+		return getSize;
+	}
 
 	//////////////////////////////////////////////////////////////////////////
 	// 데이타 삽입.
@@ -448,7 +590,15 @@ public:
 	// Parameters: (char *)Src 포인터. (int)SrcSize.
 	// Return: (int)복사한 사이즈.
 	//////////////////////////////////////////////////////////////////////////
-	int	PutData(char* chpSrc, int iSrcSize);
+	int	PutData(char* chpDest, int iSize)
+	{
+		int putSize = (_tail + iSize > _iBufferSize) ? ((_tail + iSize) - _iBufferSize) : iSize;
+		memcpy(_iBuffer + _tail, chpDest, putSize);
+
+		_iDataSize += putSize;
+		_tail += putSize;
+		return putSize;
+	}
 
 #ifdef LOG_CPACKET
 	static DWORD _iLogFreeIdx;

@@ -15,10 +15,34 @@ public:
 	virtual void inline OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
 	{
 		//Profiler("OnMessage-Echo");
-		// @@TODO : 메세지가 도착했으니, 세션에 넣어주면 된다.
-		EchoProc(sessionID, cPacket);
-		//if (!cPacket.DecRefCount())
-		//	_pLog._dwPacketPoolUse--;
+		WORD type;
+		ULONGLONG accountNum;
+		LONGLONG sendTick;
+
+		(**cPacket) >> type;
+		if (type != en_PACKET_CS_GAME_REQ_ECHO)
+		{
+			_pNetServer->Disconnect(sessionID);
+
+			if (!cPacket.DecRefCount())
+				_pLog._dwPacketPoolUse--;
+			//cPacket.FreeRefPointer();
+			//_pLog._dwPacketPoolUse--;
+
+			// @@TODO : 로그 추가
+			return;
+		}
+
+		(**cPacket) >> accountNum;
+		(**cPacket) >> sendTick;
+
+		// @@TODO : 타이머는 라이브러리에서 하기.
+
+		(*cPacket)->Clear(sizeof(st_NetHeader));
+		mpRESEcho(cPacket, accountNum, sendTick);
+		_pLog._dwEchoMessageTPS++;
+		if (_pNetServer->EnqueueSendBuffer(sessionID, cPacket))
+			_pLog._dwSendMessageTPS++;
 	}
 
 	virtual void inline OnUpdate()
@@ -27,7 +51,7 @@ public:
 		while (_MessageQueue->Size() > 0)
 		{
 			RefCountPointer cPacket;
-			_MessageQueue->Dequeue(cPacket);
+			_MessageQueue->Dequeue_NoLockFree(cPacket);
 
 			ULONGLONG sessionID;
 			WORD type;
@@ -35,18 +59,15 @@ public:
 			(**cPacket) >> sessionID;
 			(**cPacket) >> type;
 
-			switch (type)
-			{
-			case ENTER:
+			if (type == ENTER)
 				EnterEchoRoom(sessionID);
-				break;
-			case LEAVE:
+			else if (type == LEAVE)
 				LeaveEchoRoom(sessionID);
-				break;
-			}
 
 			if (!cPacket.DecRefCount())
 				_pLog._dwPacketPoolUse--;
+			//cPacket.FreeRefPointer();
+			//_pLog._dwPacketPoolUse--;
 		}
 
 		_pLog._dwGameFPS++;
@@ -66,6 +87,7 @@ public:
 
 	virtual void inline OnSessionUpdate(ULONGLONG sessionID)
 	{
+		// 이 전에 뭔가 해야할것같은데
 		_pNetServer->PostSend(sessionID);
 	}
 private:

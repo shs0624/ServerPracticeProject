@@ -135,6 +135,7 @@
     <ClInclude Include="CCrashDump.h" />
     <ClInclude Include="CFreeList_LockFree.h" />
     <ClInclude Include="CommonProtocol.h" />
+    <ClInclude Include="CPacketRingBuffer.h" />
     <ClInclude Include="CPUUsage.h" />
     <ClInclude Include="CRingBuffer.h" />
     <ClInclude Include="CSerializationBuffer.h" />

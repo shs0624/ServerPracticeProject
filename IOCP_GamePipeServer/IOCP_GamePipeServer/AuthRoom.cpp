@@ -37,8 +37,6 @@ void AuthRoom::AuthProc(ULONGLONG sessionID, RefCountPointer& cPacket)
 	(**cPacket) >> type;
 	if (type != en_PACKET_CS_GAME_REQ_LOGIN)
 	{
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
 		return;
 	}
 

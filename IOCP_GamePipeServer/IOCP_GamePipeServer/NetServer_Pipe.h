@@ -24,7 +24,7 @@ struct st_NetHeader
 struct st_NetSession
 {
 	ULONGLONG ulSessionID;
-	LockFreeQueue<RefCountPointer>* _MessageQ;
+	CPacketRingBuffer* _MessageQ;
 	DWORD dwSendCount;
 	alignas(4) DWORD dwIOCount;
 	BOOL bReleaseFlag;
@@ -60,47 +60,8 @@ public:
 	bool GetInfoFromSession(ULONGLONG sessionID, LPVOID* ptr);
 
 	bool PostSend(ULONGLONG sessionID);
-	bool inline EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true)
-	{
-		st_NetSession* ptr;
-		FindSession(sessionID, &ptr);
-		if (ptr == NULL)
-		{
-			return false;
-		}
 
-		InterlockedIncrement(&ptr->dwIOCount);
-		if (ptr->bReleaseFlag == 1)
-		{
-			DecrementIOCount(ptr);
-			return false;
-		}
-
-		if (sessionID != ptr->ulSessionID)
-		{
-			DecrementIOCount(ptr);
-			return false;
-		}
-
-		if (pushHeader)
-		{
-			short shSize = (*cPacket)->GetDataSize();
-
-			st_NetHeader netHeader;
-			netHeader.FixedKey = _ProgramKey;
-			netHeader.RandKey = (unsigned char)rand() % 256;
-			netHeader.shLen = shSize;
-
-			(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
-			(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
-		}
-
-		ptr->sendBuf->Enqueue(cPacket);
-
-		_pLog._dwSendMessageTPS++;
-		DecrementIOCount(ptr);
-		return true;
-	}
+	bool EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true);
 
 	bool PostPacket(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader = true)
 	{

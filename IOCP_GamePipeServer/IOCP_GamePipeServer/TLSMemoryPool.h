@@ -133,8 +133,8 @@ public:
 				}*/
 
 
-				InterlockedIncrement(&_iUseChunk);
-				InterlockedDecrement(&_iLeftChunk);
+				//InterlockedIncrement(&_iUseChunk);
+				//InterlockedDecrement(&_iLeftChunk);
 
 				return chunkPtr;
 			}
@@ -169,8 +169,8 @@ public:
 				_LogArr[localCnt].type = FREE_TLSPOOL;
 #endif
 
-				InterlockedIncrement(&_iLeftChunk);
-				InterlockedDecrement(&_iUseChunk);
+				//InterlockedIncrement(&_iLeftChunk);
+				//InterlockedDecrement(&_iUseChunk);
 				break;
 			}
 		}
@@ -183,7 +183,6 @@ public:
 		if (_TlsIdx == 0)
 			DebugBreak();
 #endif
-
 		// 스레드의 메모리풀 주소 얻어오기
 		TLSMemoryPool* pMemoryPool = (TLSMemoryPool*)TlsGetValue(_TlsIdx);
 		if (pMemoryPool == NULL)
@@ -200,7 +199,7 @@ public:
 			data = new(data) DATA();
 		}
 
-		InterlockedIncrement(&_dwAllocCount);
+		//InterlockedIncrement(&_dwAllocCount);
 
 		return data;
 	}
@@ -212,7 +211,6 @@ public:
 		if (_TlsIdx == 0)
 			DebugBreak();
 #endif
-
 		// 스레드의 메모리풀 주소 얻어오기
 		TLSMemoryPool* pMemoryPool = (TLSMemoryPool*)TlsGetValue(_TlsIdx);
 		if (pMemoryPool == NULL)
@@ -229,7 +227,7 @@ public:
 
 		pMemoryPool->Free(pData);
 
-		InterlockedIncrement(&_dwFreeCount);
+		//InterlockedIncrement(&_dwFreeCount);
 	}
 
 	void CreateChunk()
@@ -237,9 +235,10 @@ public:
 		st_BLOCK_NODE* pChunkNode = NULL;
 		st_BLOCK_NODE* prevNode = NULL;
 
+		st_BLOCK_NODE* pStart = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE) * _iChunkSize);
 		for (int i = 0; i < _iChunkSize; i++)
 		{
-			pChunkNode = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE));
+			pChunkNode = pStart + i;
 			pChunkNode->guardCode = (st_BLOCK_NODE*)_pGuardCode;
 			pChunkNode->nextPtr = prevNode;
 
@@ -248,6 +247,19 @@ public:
 
 			prevNode = pChunkNode;
 		}
+
+
+		//for (int i = 0; i < _iChunkSize; i++)
+		//{
+		//	pChunkNode = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE));
+		//	pChunkNode->guardCode = (st_BLOCK_NODE*)_pGuardCode;
+		//	pChunkNode->nextPtr = prevNode;
+
+		//	if (_bCreateNew)
+		//		new(&(pChunkNode->allocData))DATA;
+
+		//	prevNode = pChunkNode;
+		//}
 
 		ULONGLONG localIdx = (ULONGLONG)(InterlockedIncrement(&_dwIDCnt)) % (USHRT_MAX + 1);
 		localIdx = localIdx << 48;
@@ -281,6 +293,7 @@ public:
 			_dwSize = 0;
 			_iBaseChunk = baseChunk;
 			_iBaseSize = baseChunk * _iTlsChunkSize;
+			_iMaxSize = _iBaseSize * 2;
 
 			_guardCode = manager;
 			_Manager = manager;
@@ -305,12 +318,10 @@ public:
 				bottomNode->nextPtr = _TopNode;
 				_TopNode = chunkTop;
 
-				//_dwSize += _iTlsChunkSize;
-				InterlockedAdd((LONG*)&_dwSize, _iTlsChunkSize);
+				_dwSize += _iTlsChunkSize;
 			}
 		}
 
-		// 일단 하나씩 순회하며 카운팅해주고, 청크에서 꺼내서 반환하기. 그림은 그렸다.
 		void FreeChunk()
 		{
 #ifdef DEBUG_TLSMEMORYPOOL
@@ -319,7 +330,7 @@ public:
 #endif
 
 			// 반환할 청크 만큼 반복
-			for (int allocCnt = 0; allocCnt < ALLOCCOUNT; allocCnt++)
+			for (int allocCnt = 0; allocCnt < _iBaseChunk; allocCnt++)
 			{ 
 				// 현재 노드에서 Size만큼 탐색하며 그 다음 노드를 Top으로 설정
 				st_BLOCK_NODE* returnChunk = _TopNode;
@@ -336,7 +347,8 @@ public:
 
 				// 청크 데이터를 반환
 				_Manager->FreeChunkToPool(returnChunk);
-				InterlockedAdd((LONG*) & _dwSize, -_iTlsChunkSize);
+
+				_dwSize -= _iTlsChunkSize;
 			}
 		}
 
@@ -359,7 +371,7 @@ public:
 
 			++_dwSize;
 
-			if (_dwSize >= _iBaseSize * 2)
+			if (_dwSize >= _iMaxSize)
 			{
 				FreeChunk();
 			}

@@ -235,8 +235,19 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 		ptr->sendBuf->Dequeue(cPacket);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+		//cPacket.FreeRefPointer();
+		//_pLog._dwPacketPoolUse--;
 	}
 	ptr->recvBuf->ClearBuffer();
+
+	while (!ptr->_MessageQ->Empty())
+	{
+		RefCountPointer cPacket;
+		ptr->_MessageQ->Dequeue(cPacket);
+		if (!cPacket.DecRefCount())
+			_pLog._dwPacketPoolUse--;
+	}
+	ptr->_MessageQ->Clear();
 
 	// 수정이 필요함
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
@@ -307,7 +318,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			continue;
 		}
 
-		InterlockedIncrement(&ptr->dwIOCount);
+		//InterlockedIncrement(&ptr->dwIOCount);
 		if (ptr->bReleaseFlag == TRUE)
 		{
 			continue;
@@ -315,8 +326,8 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 
 		if (ptr->bCanceled)
 		{
-			if (!thisPtr->DecrementIOCount(ptr))
-				continue;
+			//if (!thisPtr->DecrementIOCount(ptr))
+			//	continue;
 			if (!thisPtr->DecrementIOCount(ptr))
 				continue;
 
@@ -325,7 +336,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 
 		if (retval == 0 || cbTransferred == 0)
 		{
-			thisPtr->DecrementIOCount(ptr);
+			//thisPtr->DecrementIOCount(ptr);
 			thisPtr->DecrementIOCount(ptr);
 
 			continue;
@@ -343,7 +354,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 				}
 			}
 
-			thisPtr->DecrementIOCount(ptr);
+			//thisPtr->DecrementIOCount(ptr);
 			thisPtr->DecrementIOCount(ptr);
 			continue;
 		}
@@ -418,8 +429,8 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 		if (!thisPtr->DecrementIOCount(ptr))
 			continue;
 		// 여긴 세션 참조에 대한 IO차감
-		if (!thisPtr->DecrementIOCount(ptr))
-			continue;
+		//if (!thisPtr->DecrementIOCount(ptr))
+		//	continue;
 	}
 }
 
@@ -435,7 +446,7 @@ void CNetServer::InitializeSessions(ULONG maxConnection)
 		_sessionArr[i].bReleaseFlag = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(8000);
-		_sessionArr[i]._MessageQ = new LockFreeQueue<RefCountPointer>();
+		_sessionArr[i]._MessageQ = new CPacketRingBuffer(MAX_PACKET_BATCH);
 		_sessionArr[i].cPacketArr = (RefCountPointer*)malloc(sizeof(RefCountPointer) * MAX_PACKET_BATCH);
 
 		_emptyIndexStack->push(i);
@@ -480,6 +491,7 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 	while (1)
 	{
 		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
+		//RefCountPointer csPacket = RefCountPointer::MakePtr();
 		(*csPacket)->Initialize(sizeof(st_NetHeader));
 		_pLog._dwPacketPoolUse++;
 
@@ -495,6 +507,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 				Disconnect(ptr->ulSessionID);
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
+				//csPacket.FreeRefPointer();
+				//_pLog._dwPacketPoolUse--;
 
 				_pLog._dwDisconnectLenOverMax++;
 				return false;
@@ -505,6 +519,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			{
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
+				//csPacket.FreeRefPointer();
+				//_pLog._dwPacketPoolUse--;
 				break;
 			}
 
@@ -513,6 +529,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			{
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
+				//csPacket.FreeRefPointer();
+				//_pLog._dwPacketPoolUse--;
 				break;
 			}
 
@@ -522,7 +540,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 				Disconnect(ptr->ulSessionID);
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
-
+				//csPacket.FreeRefPointer();
+				//_pLog._dwPacketPoolUse--;
 				_pLog._dwDisconnectLenOverMax++;
 				return false;
 			}
@@ -532,6 +551,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			{
 				if (!csPacket.DecRefCount())
 					_pLog._dwPacketPoolUse--;
+				//csPacket.FreeRefPointer();
+				//_pLog._dwPacketPoolUse--;
 				break;
 			}
 
@@ -547,6 +568,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			Disconnect(ptr->ulSessionID);
 			if (!csPacket.DecRefCount())
 				_pLog._dwPacketPoolUse--;
+			//csPacket.FreeRefPointer();
+			//_pLog._dwPacketPoolUse--;
 
 			return false;
 		} 
@@ -744,16 +767,58 @@ bool CNetServer::PostSend(ULONGLONG sessionID)
 		return false;
 	}
 
-	//if (sessionID != ptr->ulSessionID)
-	//{
-	//	DecrementIOCount(ptr);
-	//	return false;
-	//}
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
 
 	// 일부러 -1이 되게 Post
 	InterlockedIncrement(&ptr->dwIOCount);
 	PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, &_SendOverlapped);
 
+	DecrementIOCount(ptr);
+	return true;
+}
+
+bool CNetServer::EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket, bool pushHeader)
+{
+	st_NetSession* ptr;
+	FindSession(sessionID, &ptr);
+	if (ptr == NULL)
+	{
+		return false;
+	}
+
+	InterlockedIncrement(&ptr->dwIOCount);
+	if (ptr->bReleaseFlag == 1)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (sessionID != ptr->ulSessionID)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
+	if (pushHeader)
+	{
+		short shSize = (*cPacket)->GetDataSize();
+
+		st_NetHeader netHeader;
+		netHeader.FixedKey = _ProgramKey;
+		netHeader.RandKey = (unsigned char)rand() % 256;
+		netHeader.shLen = shSize;
+
+		(*cPacket)->PushHeader((char*)&netHeader, sizeof(st_NetHeader));
+		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
+	}
+
+	ptr->sendBuf->Enqueue(cPacket);
+
+	_pLog._dwSendMessageTPS++;
 	DecrementIOCount(ptr);
 	return true;
 }
@@ -766,6 +831,8 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	{
 		if(!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+		//cPacket.FreeRefPointer();
+		//_pLog._dwPacketPoolUse--;
 
 		return false;
 	}
@@ -776,6 +843,8 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 		DecrementIOCount(ptr);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+		//cPacket.FreeRefPointer();
+		//_pLog._dwPacketPoolUse--;
 
 		return false;
 	}
@@ -785,6 +854,8 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 		DecrementIOCount(ptr);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+		//cPacket.FreeRefPointer();
+		//_pLog._dwPacketPoolUse--;
 
 		return false;
 	}
@@ -794,6 +865,8 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 		DecrementIOCount(ptr);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+		//cPacket.FreeRefPointer();
+		//_pLog._dwPacketPoolUse--;
 
 		return false;
 	}
@@ -836,6 +909,8 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 			DecrementIOCount(ptr);
 			if (!cPacket.DecRefCount())
 				_pLog._dwPacketPoolUse--;
+			//cPacket.FreeRefPointer();
+			//_pLog._dwPacketPoolUse--;
 
 			return false;
 		}
@@ -877,7 +952,7 @@ bool CNetServer::SetWSARecv(st_NetSession* ptr)
 	DWORD flags = 0, recvbytes = 0;
 
 	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
-	WSABUF recvWsa[MAX_PACKET_BATCH];
+	WSABUF recvWsa[2];
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
 
 	if (ptr->bCanceled)
@@ -932,8 +1007,8 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 
 	RefCountPointer cpacket;
 	int loopCnt = ptr->sendBuf->Size();
-	if (loopCnt >= MAX_PACKET_BATCH)
-		DebugBreak();
+	//if (loopCnt >= MAX_PACKET_BATCH)
+	//	DebugBreak();
 
 	for (int i = 0; i < loopCnt; i++)
 	{
@@ -966,6 +1041,8 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 			{
 				if (!ptr->cPacketArr[i].DecRefCount())
 					_pLog._dwPacketPoolUse--;
+				//ptr->cPacketArr[i].FreeRefPointer();
+				//_pLog._dwPacketPoolUse--;
 			}
 			ptr->dwSendCount = 0;
 			return false;
@@ -996,6 +1073,8 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 		ptr->sendBuf->Dequeue(cPacket);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+		//cPacket.FreeRefPointer();
+		//_pLog._dwPacketPoolUse--;
 	}
 
 	int cnt = ptr->dwSendCount;
@@ -1003,6 +1082,8 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	{
 		if (!ptr->cPacketArr[i].DecRefCount())
 			_pLog._dwPacketPoolUse--;
+		//ptr->cPacketArr[i].FreeRefPointer();
+		//_pLog._dwPacketPoolUse--;
 	}
 
 	ptr->dwSendCount = 0;

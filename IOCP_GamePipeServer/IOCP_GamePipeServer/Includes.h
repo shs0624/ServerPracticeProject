@@ -20,6 +20,7 @@
 #include "ProcademyProfiler.h"
 #include "CSerializationBuffer.h"
 #include "RefCountPointer.h"
+#include "CPacketRingBuffer.h"
 #include "CRingBuffer.h"
 #include "LockFreeQueue.h"
 #include "LockFreeStack_Re.h"
@@ -27,5 +28,5 @@
 #include "CCrashDump.h"
 #include "DebugLog.h"
 
-#define IOCP_THREADCOUNT 20
+#define IOCP_THREADCOUNT 30
 #define LOGCOUNT 10000

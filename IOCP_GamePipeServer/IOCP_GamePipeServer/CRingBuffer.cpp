@@ -31,11 +31,6 @@ CRingBuffer::~CRingBuffer(void)
 	free(arr);
 }
 
-int CRingBuffer::GetBufferSize()
-{
-	return max;
-}
-
 int CRingBuffer::GetFreeSize()
 {
 	int tempHead = head;
@@ -149,37 +144,6 @@ int CRingBuffer::DirectEnqueueSize(void)
 int CRingBuffer::DirectDequeueSize(void)
 {
 	return max - head;
-}
-
-// 호출 전에 FreeSize를 체크하고 넣을거다.
-int CRingBuffer::MoveRear(int iSize)
-{
-	tail += iSize;
-	tail = tail % max;
-	return iSize;
-}
-
-// 호출 전에 UseSize를 체크하고 넣을거다.
-int CRingBuffer::MoveFront(int iSize)
-{
-	head += iSize;
-	head = head % max;
-	return iSize;
-}
-
-char* CRingBuffer::GetFrontBufferPtr(void)
-{
-	return (arr + head);
-}
-
-char* CRingBuffer::GetRearBufferPtr(void)
-{
-	return (arr + tail);
-}
-
-char* CRingBuffer::GetArrPtr(void)
-{
-	return arr;
 }
 
 void CRingBuffer::ClearBuffer(void)

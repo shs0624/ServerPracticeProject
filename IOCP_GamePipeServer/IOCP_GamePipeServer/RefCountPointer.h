@@ -33,6 +33,19 @@ public:
 		return result;
 	}
 
+	// 그냥 생 포인터로 사용할 때
+	static inline RefCountPointer MakePtr()
+	{
+		RefCountPointer result;
+		{
+			//Profiler("Alloc");
+			result.ptr = CPacket::_CPacketPool.Alloc();
+			result.ptr->Clear();
+		}
+
+		return result;
+	}
+
 	/*
 	static RefCountPointer<T> MakeSharedPtr(bool isAuto)
 	{
@@ -112,6 +125,13 @@ public:
 		/*if (*_iRefCount < 0)
 			DebugBreak();*/
 		return true;
+	}
+
+	// 그냥 생 포인터로 사용할 때
+	void inline FreeRefPointer()
+	{
+		ptr->Clear();
+		CPacket::_CPacketPool.Free(ptr);
 	}
 
 private:

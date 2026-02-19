@@ -21,13 +21,27 @@ public:
 
 	bool inline SleepCheck()
 	{
-		int ret = WaitForSingleObject(_hQuitEvent, _dwFrameTime);
-		if (ret == WAIT_OBJECT_0)
+		const ULONGLONG now = GetTickCount64();
+
+		// 초과: 바로 다음 루프로 진행 (Sleep 없음)
+		if (now >= _dwNextFrameTick)
 		{
-			// 서버 종료
-			return false;
+			// 여러 프레임 초과분을 한 번에 보정.
+			ULONGLONG late = now - _dwNextFrameTick;
+			ULONGLONG skip = late / _dwFrameTime + 1;
+			_dwNextFrameTick += skip * _dwFrameTime;
+
+			// 종료 이벤트만 즉시 확인
+			return (WaitForSingleObject(_hQuitEvent, 0) != WAIT_OBJECT_0);
 		}
 
+		// 남은 시간: 그만큼만 대기
+		DWORD waitMs = (_dwNextFrameTick - now);
+		int ret = WaitForSingleObject(_hQuitEvent, waitMs);
+		if (ret == WAIT_OBJECT_0)
+			return false;
+
+		_dwNextFrameTick += _dwFrameTime;
 		return true;
 	}
 
@@ -57,37 +71,9 @@ protected:
 	RoomNetServer* _pRoomNetServer;
 	CNetServer* _pNetServer;
 
+	DWORD _dwNextFrameTick;
 	DWORD _dwRoomNumber;
 private:
-	//static unsigned int WINAPI RoomThread(LPVOID arg)
-	//{
-	//	IRoom* thisPtr = (IRoom*)arg;
-	//	LogController::GetInstance()->RegisterLogStruct(&_pLog);
-
-	//	DWORD ret = 0;
-	//	while (1)
-	//	{
-	//		// 세션별로 해야하는 작업 순회시키기
-	//		for (int i = 0; i < thisPtr->_SessionVec.size(); i++)
-	//		{
-	//			st_NetSession* pSession = thisPtr->_SessionVec[i];
-	//			
-	//			thisPtr->OnSessionUpdate(pSession->ulSessionID);
-	//		}
-
-	//		thisPtr->OnUpdate();
-
-	//		// Leave체크?
-
-	//		ret = WaitForSingleObject(thisPtr->_hQuitEvent, thisPtr->_dwFrameTime);
-	//		if (ret == WAIT_OBJECT_0)
-	//		{
-	//			// 서버 종료
-	//			return 0;
-	//		}
-	//	}
-	//}
-
 	HANDLE _hQuitEvent;
 
 	HANDLE _RoomThreadHandle;

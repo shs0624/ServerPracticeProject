@@ -111,6 +111,9 @@
     <ClInclude Include="Structs.h">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="CPacketRingBuffer.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CPUUsage.cpp">

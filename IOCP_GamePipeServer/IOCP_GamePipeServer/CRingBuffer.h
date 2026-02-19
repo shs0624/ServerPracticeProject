@@ -15,7 +15,10 @@ public:
 	void Resize(int size);
 
 	// 버퍼 사이즈 얻기
-	int GetBufferSize(void);
+	int GetBufferSize(void)
+	{
+		return max;
+	}
 	// 사용중인 용량 얻기
 	int GetUseSize(void);
 	// 버퍼에 남은 용량 얻기
@@ -52,8 +55,21 @@ public:
 	// Parameters: 없음.
 	// Return: (int)이동크기
 	/////////////////////////////////////////////////////////////////////////
-	int MoveRear(int iSize);
-	int MoveFront(int iSize);
+	// 호출 전에 FreeSize를 체크하고 넣을거다.
+	int MoveRear(int iSize)
+	{
+		tail += iSize;
+		tail = tail % max;
+		return iSize;
+	}
+
+	// 호출 전에 UseSize를 체크하고 넣을거다.
+	int MoveFront(int iSize)
+	{
+		head += iSize;
+		head = head % max;
+		return iSize;
+	}
 
 	/////////////////////////////////////////////////////////////////////////
 	// 버퍼의 Front 포인터 얻음.
@@ -61,7 +77,10 @@ public:
 	// Parameters: 없음.
 	// Return: (char *) 버퍼 포인터.
 	/////////////////////////////////////////////////////////////////////////
-	char* GetFrontBufferPtr(void);
+	char* GetFrontBufferPtr(void)
+	{
+		return (arr + head);
+	}
 
 
 	/////////////////////////////////////////////////////////////////////////
@@ -70,11 +89,16 @@ public:
 	// Parameters: 없음.
 	// Return: (char *) 버퍼 포인터.
 	/////////////////////////////////////////////////////////////////////////
-	char* GetRearBufferPtr(void);
+	char* GetRearBufferPtr(void)
+	{
+		return (arr + tail);
+	}
 
 	// arr 포인터 반환
-	char* GetArrPtr(void);
-
+	char* GetArrPtr(void)
+	{
+		return arr;
+	}
 
 public:
 	char* arr;

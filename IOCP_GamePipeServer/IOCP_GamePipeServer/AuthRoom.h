@@ -17,6 +17,8 @@ public:
 		AuthProc(sessionID, cPacket);
 		if (!cPacket.DecRefCount())
 			_pLog._dwPacketPoolUse--;
+		//cPacket.FreeRefPointer();
+		//_pLog._dwPacketPoolUse--;
 	}
 
 	virtual void inline OnUpdate()

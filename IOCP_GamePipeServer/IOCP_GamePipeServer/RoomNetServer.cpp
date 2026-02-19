@@ -81,10 +81,6 @@ void RoomNetServer::OnRecv(ULONGLONG sessionID, RefCountPointer& cpacket)
 	st_NetSession* ptr;
 	FindSession(sessionID, &ptr);
 
-	auto it = _RoomMap.find(ptr->dwIncludedRoom);
-	if (it == _RoomMap.end())
-		DebugBreak();
-
 	ptr->_MessageQ->Enqueue(cpacket);
 }
 
@@ -94,8 +90,8 @@ void RoomNetServer::OnRelease(ULONGLONG sessionID)
 	FindSession(sessionID, &ptr);
 
 	auto it = _RoomMap.find(ptr->dwIncludedRoom);
-	if (it == _RoomMap.end())
-		DebugBreak();
+	//if (it == _RoomMap.end())
+	//	DebugBreak();
 
 	// 세션, 유저의 해제는 그 스레드에서 하자.
 	((*it).second)->pRoomPtr->OnLeave(sessionID);
@@ -160,8 +156,6 @@ unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
 	IRoom* pIRoom = roomPtr->pRoomPtr;
 	DWORD roomNumber = pIRoom->GetRoomNumber();
 
-	//RoomInfo* roomPtr = 
-
 	vector<st_NetSession*>& pRoomVec = roomPtr->vNetSessionVec;
 	pIRoom->RegisterLog();
 
@@ -176,22 +170,23 @@ unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
 			st_NetSession* ptr = pRoomVec[i];
 			ULONGLONG sessionID = ptr->ulSessionID;
 
+			if (ptr->dwIncludedRoom != roomNumber)
+				continue;
+
 			// 세션별로 해야하는 작업 순회시키기
-			int qSize = ptr->_MessageQ->Size();
+			int qSize = ptr->_MessageQ->GetUseSize();
 			for (int j = 0; j < qSize; j++)
 			{
 				RefCountPointer pMessage;
-				{
-					//Profiler("Dequeue-RoomThread");
-					ptr->_MessageQ->Dequeue(pMessage);
-				}
-				pIRoom->OnMessage(sessionID, pMessage);
+				if(ptr->_MessageQ->Dequeue(pMessage))
+					pIRoom->OnMessage(sessionID, pMessage);
 			}
 
-			pIRoom->OnSessionUpdate(sessionID);
+			if(qSize > 0)
+				pIRoom->OnSessionUpdate(sessionID);
 		}
 
-		pIRoom->OnLateUpdate();
+		//pIRoom->OnLateUpdate();
 
 		// Leave체크?
 		if (!pIRoom->SleepCheck())

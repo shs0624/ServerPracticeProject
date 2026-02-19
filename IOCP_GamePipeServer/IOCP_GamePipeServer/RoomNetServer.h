@@ -34,11 +34,6 @@ public:
 			return false;
 	}
 
-	void DisconnectSession(ULONGLONG sessionID)
-	{
-		Disconnect(sessionID);
-	}
-
 	bool GetPTRFromSession(ULONGLONG sessionID, LPVOID* ptr)
 	{
 		return GetInfoFromSession(sessionID, ptr);

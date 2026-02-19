@@ -40,30 +40,32 @@ void EchoRoom::mpRESLogin(RefCountPointer& cPacket, BYTE status, ULONGLONG accou
 
 void EchoRoom::EchoProc(ULONGLONG sessionID, RefCountPointer& cPacket)
 {
-	WORD type;
-	ULONGLONG accountNum;
-	LONGLONG sendTick;
+	//WORD type;
+	//ULONGLONG accountNum;
+	//LONGLONG sendTick;
 
-	(**cPacket) >> type;
-	if (type != en_PACKET_CS_GAME_REQ_ECHO)
-	{
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		_pNetServer->Disconnect(sessionID);
-		// @@TODO : 로그 추가
-		return;
-	}
+	//(**cPacket) >> type;
+	//if (type != en_PACKET_CS_GAME_REQ_ECHO)
+	//{
+	//	if (!cPacket.DecRefCount())
+	//		_pLog._dwPacketPoolUse--;
+	//	_pNetServer->Disconnect(sessionID);
+	//	// @@TODO : 로그 추가
+	//	return;
+	//}
 
-	(**cPacket) >> accountNum;
-	(**cPacket) >> sendTick;
+	//(**cPacket) >> accountNum;
+	//(**cPacket) >> sendTick;
 
-	// @@TODO : 타이머는 라이브러리에서 하기.
+	//// @@TODO : 타이머는 라이브러리에서 하기.
 
-	(*cPacket)->Clear(sizeof(st_NetHeader));
-	mpRESEcho(cPacket, accountNum, sendTick);
-	_pLog._dwEchoMessageTPS++;
-	if (_pNetServer->EnqueueSendBuffer(sessionID, cPacket))
-		_pLog._dwSendMessageTPS++;
+	//(*cPacket)->Clear(sizeof(st_NetHeader));
+	//mpRESEcho(cPacket, accountNum, sendTick);
+	//_pLog._dwEchoMessageTPS++;
+	//if (_pNetServer->EnqueueSendBuffer(sessionID, cPacket))
+	//	_pLog._dwSendMessageTPS++;
+
+
 	//if (_pNetServer->SendPacket_UniCast(sessionID, cPacket))
 	//	_pLog._dwSendMessageTPS++;
 	//if (_pNetServer->PostPacket(sessionID, cPacket))
@@ -109,6 +111,7 @@ void EchoRoom::EnterEchoRoom(ULONGLONG sessionID)
 
 	// RES Send
 	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+	//RefCountPointer cPacket = RefCountPointer::MakePtr();
 	(*cPacket)->Initialize(sizeof(st_NetHeader));
 	mpRESLogin(cPacket, true, pUser->AccountNum);
 	_pNetServer->SendPacket_UniCast(sessionID, cPacket);
