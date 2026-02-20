@@ -125,6 +125,8 @@
   <ItemGroup>
     <ClCompile Include="Baekjoon1003.cpp" />
     <ClCompile Include="Baekjoon16562.cpp" />
+    <ClCompile Include="Baekjoon1915.cpp" />
+    <ClCompile Include="Baekjoon2616.cpp" />
     <ClCompile Include="Inflearn_DFS04.cpp" />
     <ClCompile Include="Inflearn_DFS05.cpp" />
   </ItemGroup>
