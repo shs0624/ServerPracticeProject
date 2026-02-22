@@ -7,26 +7,14 @@
 #include "EchoRoom.h"
 #include "ProcademyProfiler.h"
 
-void EchoRoom::OnJoin(ULONGLONG sessionID)
+void EchoRoom::OnEnter(ULONGLONG sessionID)
 {
-	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-	(**cPacket) << sessionID;
-	(**cPacket) << (WORD)RoomMessageType::ENTER;
-
-	_pLog._dwPacketPoolUse++;
-
-	_MessageQueue->Enqueue(cPacket);
+	EnterEchoRoom(sessionID);
 }
 
 void EchoRoom::OnLeave(ULONGLONG sessionID)
 {
-	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-	(**cPacket) << sessionID;
-	(**cPacket) << (WORD)RoomMessageType::LEAVE;
-
-	_pLog._dwPacketPoolUse++;
-
-	_MessageQueue->Enqueue(cPacket);
+	LeaveEchoRoom(sessionID);
 }
 
 void EchoRoom::mpRESLogin(RefCountPointer& cPacket, BYTE status, ULONGLONG accountNum)
@@ -97,21 +85,21 @@ void EchoRoom::EnterEchoRoom(ULONGLONG sessionID)
 		_AccountUserMap.erase(pUser->AccountNum);
 		_UserMap.erase(disconnectID);
 
-		_pLog._dwGameUserCount--;
-		_pLog._dwDuplicatedLoginTotal++;
+		_pRoomLog._dwGameUserCount--;
+		_pRoomLog._dwDuplicatedLoginTotal++;
 	}
 
 	_UserMap.insert({ sessionID, pUser });
 	_AccountUserMap.insert({ pUser->AccountNum, pUser });
 
-	_pRoomNetServer->AddSessionToRoom(sessionID, _dwRoomNumber);
-
-	_pLog._dwGameUserCount++;
-	_pLog._dwLoginMessageTPS++;
+	_pRoomLog._dwGameUserCount++;
+	_pRoomLog._dwLoginMessageTPS++;
 
 	// RES Send
-	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-	//RefCountPointer cPacket = RefCountPointer::MakePtr();
+	//RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
+	RefCountPointer cPacket = RefCountPointer::MakePtr();
+	_pRoomLog._dwPacketPoolUse++;
+
 	(*cPacket)->Initialize(sizeof(st_NetHeader));
 	mpRESLogin(cPacket, true, pUser->AccountNum);
 	_pNetServer->SendPacket_UniCast(sessionID, cPacket);
@@ -132,8 +120,6 @@ void EchoRoom::LeaveEchoRoom(ULONGLONG sessionID)
 		}
 
 		FreeUSER(pUser);
-		_pLog._dwGameUserCount--;
-
-		_pRoomNetServer->RemoveSessionFromRoom(sessionID, _dwRoomNumber);
+		_pRoomLog._dwGameUserCount--;
 	}
 }

@@ -44,7 +44,7 @@ public:
 		return SetInfoToSession(sessionID, ptr, roomNum);
 	}
 
-	void AddSessionToRoom(ULONGLONG sessionID, DWORD roomNumber);
+	bool AddSessionToRoom(ULONGLONG sessionID, DWORD roomNumber);
 	void RemoveSessionFromRoom(ULONGLONG sessionID, DWORD roomNumber);
 	void MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRoomNum);
 

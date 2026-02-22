@@ -8,51 +8,22 @@ public:
 	AuthRoom() {};
 
 	// Enter, Leave 했을 때
-	virtual void OnJoin(ULONGLONG sessionID);
+	virtual void OnEnter(ULONGLONG sessionID);
 	virtual void OnLeave(ULONGLONG sessionID);
 
 	virtual void inline OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
 	{
 		// @@TODO : 메세지가 도착했으니, 세션에 넣어주면 된다.
 		AuthProc(sessionID, cPacket);
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		//cPacket.FreeRefPointer();
-		//_pLog._dwPacketPoolUse--;
+		//if (!cPacket.DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		cPacket.FreeRefPointer();
+		_pRoomLog._dwPacketPoolUse--;
 	}
 
 	virtual void inline OnUpdate()
 	{
-		// Enter, Leave 메세지 처리
-		while (!_MessageQueue->Empty())
-		{
-			RefCountPointer cPacket;
-			_MessageQueue->Dequeue(cPacket);
-
-			ULONGLONG sessionID;
-			WORD type;
-
-			(**cPacket) >> sessionID;
-			(**cPacket) >> type;
-
-			switch (type)
-			{
-			case ENTER:
-				//OnJoin(pMessage->sessionID);
-				EnterAuthRoom(sessionID);
-				break;
-			case LEAVE:
-				//OnLeave(pMessage->sessionID);
-				LeaveAuthRoom(sessionID);
-				break;
-			}
-
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-		}
-
-		// @@TODO : 타이머 체크
-		_pLog._dwAuthFPS++;
+		_pRoomLog._dwAuthFPS++;
 	}
 
 	virtual void inline OnLateUpdate()

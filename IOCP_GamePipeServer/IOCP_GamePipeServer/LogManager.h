@@ -105,7 +105,7 @@ public:
 			_stPrintLog._dwPacketPoolUse += _LogStructArr[i]->_dwPacketPoolUse;
 			_stPrintLog._dwPlayerPoolUse += _LogStructArr[i]->_dwPlayerPoolUse;
 
-			_stPrintLog._dwSessionCount = (_LogStructArr[i]->_dwAuthUserCount + _LogStructArr[i]->_dwGameUserCount);
+			_stPrintLog._dwSessionCount += (_LogStructArr[i]->_dwAuthUserCount + _LogStructArr[i]->_dwGameUserCount);
 		}
 	}
 

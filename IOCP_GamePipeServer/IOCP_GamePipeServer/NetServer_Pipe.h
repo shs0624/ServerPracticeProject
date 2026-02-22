@@ -30,6 +30,7 @@ struct st_NetSession
 	BOOL bReleaseFlag;
 	BOOL bSendFlag;
 	BOOL bCanceled;
+	BOOL bReleaseCheck;
 
 	LockFreeQueue<RefCountPointer>* sendBuf;
 	CRingBuffer* recvBuf;
@@ -164,6 +165,7 @@ protected:
 	void InitializeSessions(ULONG maxConnection);
 	bool Init(int maxConnection);
 
+	void SetReleaseToSession(st_NetSession* ptr);
 	void PostRelease(st_NetSession* ptr);
 
 	int FindUsableSessionIndex();

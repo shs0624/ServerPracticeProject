@@ -10,7 +10,7 @@ public:
 	EchoRoom() {}
 
 	// Enter, Leave 했을 때
-	virtual void OnJoin(ULONGLONG sessionID);
+	virtual void OnEnter(ULONGLONG sessionID);
 	virtual void OnLeave(ULONGLONG sessionID);
 	virtual void inline OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket)
 	{
@@ -24,10 +24,10 @@ public:
 		{
 			_pNetServer->Disconnect(sessionID);
 
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-			//cPacket.FreeRefPointer();
-			//_pLog._dwPacketPoolUse--;
+			//if (!cPacket.DecRefCount())
+			//	_pLog._dwPacketPoolUse--;
+			cPacket.FreeRefPointer();
+			_pRoomLog._dwPacketPoolUse--;
 
 			// @@TODO : 로그 추가
 			return;
@@ -40,37 +40,14 @@ public:
 
 		(*cPacket)->Clear(sizeof(st_NetHeader));
 		mpRESEcho(cPacket, accountNum, sendTick);
-		_pLog._dwEchoMessageTPS++;
+		_pRoomLog._dwEchoMessageTPS++;
 		if (_pNetServer->EnqueueSendBuffer(sessionID, cPacket))
-			_pLog._dwSendMessageTPS++;
+			_pRoomLog._dwSendMessageTPS++;
 	}
 
 	virtual void inline OnUpdate()
 	{
-		// Enter, Leave 메세지 처리
-		while (_MessageQueue->Size() > 0)
-		{
-			RefCountPointer cPacket;
-			_MessageQueue->Dequeue_NoLockFree(cPacket);
-
-			ULONGLONG sessionID;
-			WORD type;
-
-			(**cPacket) >> sessionID;
-			(**cPacket) >> type;
-
-			if (type == ENTER)
-				EnterEchoRoom(sessionID);
-			else if (type == LEAVE)
-				LeaveEchoRoom(sessionID);
-
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-			//cPacket.FreeRefPointer();
-			//_pLog._dwPacketPoolUse--;
-		}
-
-		_pLog._dwGameFPS++;
+		_pRoomLog._dwGameFPS++;
 	}
 
 	virtual void inline OnLateUpdate()

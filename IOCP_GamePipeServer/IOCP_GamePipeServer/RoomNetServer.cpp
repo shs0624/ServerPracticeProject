@@ -37,14 +37,14 @@ void RoomNetServer::MoveRoom(ULONGLONG sessionID, DWORD nowRoomNum, DWORD moveRo
 	if (nowRoomit != _RoomMap.end())
 	{
 		// 세션, 유저의 해제는 그 스레드에서 하자.
-		((*nowRoomit).second)->pRoomPtr->OnLeave(sessionID);
+		((*nowRoomit).second)->pRoomPtr->EnqueueEntryMessage(sessionID, LEAVE);
 	}
 
 	auto moveRoomit = _RoomMap.find(moveRoomNum);
 	if (moveRoomit != _RoomMap.end())
 	{
 		// 세션, 유저의 해제는 그 스레드에서 하자.
-		((*moveRoomit).second)->pRoomPtr->OnJoin(sessionID);
+		((*moveRoomit).second)->pRoomPtr->EnqueueEntryMessage(sessionID, ENTER);
 	}
 
 	st_NetSession* ptr;
@@ -71,7 +71,7 @@ bool RoomNetServer::OnAccept(ULONGLONG sessionID, SOCKADDR_IN clientAddr)
 		return false;
 	}
 
-	(*it).second->pRoomPtr->OnJoin(sessionID);
+	(*it).second->pRoomPtr->EnqueueEntryMessage(sessionID, ENTER);
 
 	return true;
 }
@@ -94,7 +94,7 @@ void RoomNetServer::OnRelease(ULONGLONG sessionID)
 	//	DebugBreak();
 
 	// 세션, 유저의 해제는 그 스레드에서 하자.
-	((*it).second)->pRoomPtr->OnLeave(sessionID);
+	((*it).second)->pRoomPtr->EnqueueEntryMessage(sessionID, LEAVE);
 }
 
 void RoomNetServer::InitRoom()
@@ -119,18 +119,22 @@ void RoomNetServer::InitRoom()
 	_EchoRoomThreadHandle = (HANDLE)_beginthreadex(NULL, 0, RoomThread, pEchoInfo, 0, &_EchoRoomThreadID);
 }
 
-void RoomNetServer::AddSessionToRoom(ULONGLONG sessionID, DWORD roomNumber)
+bool RoomNetServer::AddSessionToRoom(ULONGLONG sessionID, DWORD roomNumber)
 {
 	auto it = _RoomMap.find(roomNumber);
 	if (it == _RoomMap.end())
-		return;
+		return false;
 
 	st_NetSession* pSession = NULL;
 	FindSession(sessionID, &pSession);
 	if (pSession == NULL)
-		return;
+		return false;
+
+	if (pSession->bReleaseFlag)
+		return false;
 
 	(*it).second->vNetSessionVec.push_back(pSession);
+	return true;
 }
 
 void RoomNetServer::RemoveSessionFromRoom(ULONGLONG sessionID, DWORD roomNumber)
@@ -139,12 +143,20 @@ void RoomNetServer::RemoveSessionFromRoom(ULONGLONG sessionID, DWORD roomNumber)
 	if (it == _RoomMap.end())
 		return;
 
+	st_NetSession* pSession = NULL;
 	for (int i = 0; i < (*it).second->vNetSessionVec.size(); i++)
 	{
 		if ((*it).second->vNetSessionVec[i]->ulSessionID == sessionID)
 		{
+			pSession = (*it).second->vNetSessionVec[i];
+
 			(*it).second->vNetSessionVec[i] = (*it).second->vNetSessionVec.back();
 			(*it).second->vNetSessionVec.pop_back();
+
+			if (pSession->bReleaseCheck)
+			{
+				ReleaseSession(sessionID);
+			}
 			break;
 		}
 	}
@@ -162,7 +174,7 @@ unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
 	DWORD ret = 0;
 	while (1)
 	{
-		pIRoom->OnUpdate();
+		pIRoom->UpdateRoom();
 
 		int size = pRoomVec.size();
 		for (int i = 0; i < size; i++)
@@ -188,7 +200,6 @@ unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
 
 		//pIRoom->OnLateUpdate();
 
-		// Leave체크?
 		if (!pIRoom->SleepCheck())
 			return 0;
 	}

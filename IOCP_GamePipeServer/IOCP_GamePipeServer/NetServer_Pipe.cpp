@@ -233,10 +233,10 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	{
 		RefCountPointer cPacket;
 		ptr->sendBuf->Dequeue(cPacket);
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		//cPacket.FreeRefPointer();
-		//_pLog._dwPacketPoolUse--;
+		//if (!cPacket.DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		cPacket.FreeRefPointer();
+		_pLog._dwPacketPoolUse--;
 	}
 	ptr->recvBuf->ClearBuffer();
 
@@ -244,8 +244,10 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	{
 		RefCountPointer cPacket;
 		ptr->_MessageQ->Dequeue(cPacket);
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
+		//if (!cPacket.DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		cPacket.FreeRefPointer();
+		_pLog._dwPacketPoolUse--;
 	}
 	ptr->_MessageQ->Clear();
 
@@ -260,12 +262,16 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	ptr->bReleaseFlag = false;
 	ptr->bSendFlag = false;
 	ptr->bCanceled = false;
+	ptr->bReleaseCheck = false;
 	ptr->sock = client_sock;
 
 	InterlockedIncrement((LONG*)&_iAcceptTPS);
 
 	if (!OnAccept(ptr->ulSessionID, clientaddr))
 		return false;
+
+	// AcceptThread가 Room안의 Log TLS 구조체를 건드리면 집계가 안되니 여기서 추가
+	_pLog._dwPacketPoolUse++;
 
 	// 소켓을 IOCP에 등록
 	CreateIoCompletionPort((HANDLE)client_sock, _NetIOCPHandle, (ULONG_PTR)ptr, 0);
@@ -376,8 +382,10 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
-				if (!ptr->cPacketArr[i].DecRefCount())
-					_pLog._dwPacketPoolUse--;
+				//if (!ptr->cPacketArr[i].DecRefCount())
+				//	_pLog._dwPacketPoolUse--;
+				ptr->cPacketArr[i].FreeRefPointer();
+				_pLog._dwPacketPoolUse--;
 			}
 			ptr->dwSendCount = 0;
 
@@ -490,8 +498,8 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 	// 받은 데이터 ChatServer에 전달
 	while (1)
 	{
-		RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
-		//RefCountPointer csPacket = RefCountPointer::MakePtr();
+		//RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
+		RefCountPointer csPacket = RefCountPointer::MakePtr();
 		(*csPacket)->Initialize(sizeof(st_NetHeader));
 		_pLog._dwPacketPoolUse++;
 
@@ -505,10 +513,10 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			if(leftSize < sizeof(st_NetHeader))
 			{
 				Disconnect(ptr->ulSessionID);
-				if (!csPacket.DecRefCount())
-					_pLog._dwPacketPoolUse--;
-				//csPacket.FreeRefPointer();
-				//_pLog._dwPacketPoolUse--;
+				//if (!csPacket.DecRefCount())
+				//	_pLog._dwPacketPoolUse--;
+				csPacket.FreeRefPointer();
+				_pLog._dwPacketPoolUse--;
 
 				_pLog._dwDisconnectLenOverMax++;
 				return false;
@@ -517,20 +525,20 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			int useSize = ptr->recvBuf->GetUseSize();
 			if (useSize < sizeof(st_NetHeader))
 			{
-				if (!csPacket.DecRefCount())
-					_pLog._dwPacketPoolUse--;
-				//csPacket.FreeRefPointer();
-				//_pLog._dwPacketPoolUse--;
+				//if (!csPacket.DecRefCount())
+				//	_pLog._dwPacketPoolUse--;
+				csPacket.FreeRefPointer();
+				_pLog._dwPacketPoolUse--;
 				break;
 			}
 
 			int peekRet = ptr->recvBuf->Peek((char*)(*csPacket)->GetBufferPtr(), sizeof(st_NetHeader));
 			if (peekRet != sizeof(st_NetHeader))
 			{
-				if (!csPacket.DecRefCount())
-					_pLog._dwPacketPoolUse--;
-				//csPacket.FreeRefPointer();
-				//_pLog._dwPacketPoolUse--;
+				//if (!csPacket.DecRefCount())
+				//	_pLog._dwPacketPoolUse--;
+				csPacket.FreeRefPointer();
+				_pLog._dwPacketPoolUse--;
 				break;
 			}
 
@@ -538,10 +546,10 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			if (len < 0 || len > PROTOCOL_MAX_SIZE) 
 			{
 				Disconnect(ptr->ulSessionID);
-				if (!csPacket.DecRefCount())
-					_pLog._dwPacketPoolUse--;
-				//csPacket.FreeRefPointer();
-				//_pLog._dwPacketPoolUse--;
+				//if (!csPacket.DecRefCount())
+				//	_pLog._dwPacketPoolUse--;
+				csPacket.FreeRefPointer();
+				_pLog._dwPacketPoolUse--;
 				_pLog._dwDisconnectLenOverMax++;
 				return false;
 			}
@@ -549,10 +557,10 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 			RK = ((st_NetHeader*)((*csPacket)->GetBufferPtr()))->RandKey;
 			if (useSize < sizeof(st_NetHeader) + len)
 			{
-				if (!csPacket.DecRefCount())
-					_pLog._dwPacketPoolUse--;
-				//csPacket.FreeRefPointer();
-				//_pLog._dwPacketPoolUse--;
+				//if (!csPacket.DecRefCount())
+				//	_pLog._dwPacketPoolUse--;
+				csPacket.FreeRefPointer();
+				_pLog._dwPacketPoolUse--;
 				break;
 			}
 
@@ -566,10 +574,10 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 		if (!(*csPacket)->Decode(_FixedKey, RK))
 		{
 			Disconnect(ptr->ulSessionID);
-			if (!csPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-			//csPacket.FreeRefPointer();
-			//_pLog._dwPacketPoolUse--;
+			//if (!csPacket.DecRefCount())
+			//	_pLog._dwPacketPoolUse--;
+			csPacket.FreeRefPointer();
+			_pLog._dwPacketPoolUse--;
 
 			return false;
 		} 
@@ -676,7 +684,8 @@ bool inline CNetServer::DecrementIOCount(st_NetSession* ptr)
 	LONG result = InterlockedDecrement((LONG*)&(ptr->dwIOCount));
 	if (result == 0)
 	{
-		PostRelease(ptr);
+		//PostRelease(ptr);
+		SetReleaseToSession(ptr);
 		return false;
 	}
 
@@ -742,6 +751,18 @@ bool CNetServer::GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len)
 	DecrementIOCount(ptr);
 	return false;
 
+}
+
+// 세션에 Release 예정 표시
+void CNetServer::SetReleaseToSession(st_NetSession* ptr)
+{
+	// 일부러 -1이 되게 Post
+	ptr->bReleaseCheck = true;
+
+	OnRelease(ptr->ulSessionID);
+
+	// IRoom의 로그를 건드려서 집계가 안되니까, 여기서 ++
+	_pLog._dwPacketPoolUse++;
 }
 
 void CNetServer::PostRelease(st_NetSession* ptr)
@@ -829,10 +850,10 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	FindSession(sessionID, &ptr);
 	if (ptr == NULL)
 	{
-		if(!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		//cPacket.FreeRefPointer();
-		//_pLog._dwPacketPoolUse--;
+		//if(!cPacket.DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		cPacket.FreeRefPointer();
+		_pLog._dwPacketPoolUse--;
 
 		return false;
 	}
@@ -841,10 +862,10 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	if (ptr->bReleaseFlag == 1)
 	{
 		DecrementIOCount(ptr);
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		//cPacket.FreeRefPointer();
-		//_pLog._dwPacketPoolUse--;
+		//if (!cPacket.DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		cPacket.FreeRefPointer();
+		_pLog._dwPacketPoolUse--;
 
 		return false;
 	}
@@ -852,10 +873,10 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	if (sessionID != ptr->ulSessionID)
 	{
 		DecrementIOCount(ptr);
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		//cPacket.FreeRefPointer();
-		//_pLog._dwPacketPoolUse--;
+		//if (!cPacket.DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		cPacket.FreeRefPointer();
+		_pLog._dwPacketPoolUse--;
 
 		return false;
 	}
@@ -863,10 +884,10 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	if (ptr->bCanceled)
 	{
 		DecrementIOCount(ptr);
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		//cPacket.FreeRefPointer();
-		//_pLog._dwPacketPoolUse--;
+		//if (!cPacket.DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		cPacket.FreeRefPointer();
+		_pLog._dwPacketPoolUse--;
 
 		return false;
 	}
@@ -907,10 +928,11 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 
 			DecrementIOCount(ptr);
 			DecrementIOCount(ptr);
-			if (!cPacket.DecRefCount())
-				_pLog._dwPacketPoolUse--;
-			//cPacket.FreeRefPointer();
-			//_pLog._dwPacketPoolUse--;
+
+			//if (!cPacket.DecRefCount())
+			//	_pLog._dwPacketPoolUse--;
+			cPacket.FreeRefPointer();
+			_pLog._dwPacketPoolUse--;
 
 			return false;
 		}
@@ -1039,10 +1061,10 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
-				if (!ptr->cPacketArr[i].DecRefCount())
-					_pLog._dwPacketPoolUse--;
-				//ptr->cPacketArr[i].FreeRefPointer();
-				//_pLog._dwPacketPoolUse--;
+				//if (!ptr->cPacketArr[i].DecRefCount())
+				//	_pLog._dwPacketPoolUse--;
+				ptr->cPacketArr[i].FreeRefPointer();
+				_pLog._dwPacketPoolUse--;
 			}
 			ptr->dwSendCount = 0;
 			return false;
@@ -1064,26 +1086,26 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 		return;
 
 	ULONGLONG idx = (ulSessionID) >> 48;
-	OnRelease(ptr->ulSessionID);
+	//OnRelease(ptr->ulSessionID);
 
 	ptr->recvBuf->ClearBuffer();
 	while (ptr->sendBuf->Size() > 0)
 	{
 		RefCountPointer cPacket;
 		ptr->sendBuf->Dequeue(cPacket);
-		if (!cPacket.DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		//cPacket.FreeRefPointer();
-		//_pLog._dwPacketPoolUse--;
+		//if (!cPacket.DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		cPacket.FreeRefPointer();
+		_pLog._dwPacketPoolUse--;
 	}
 
 	int cnt = ptr->dwSendCount;
 	for (int i = 0; i < cnt; i++)
 	{
-		if (!ptr->cPacketArr[i].DecRefCount())
-			_pLog._dwPacketPoolUse--;
-		//ptr->cPacketArr[i].FreeRefPointer();
-		//_pLog._dwPacketPoolUse--;
+		//if (!ptr->cPacketArr[i].DecRefCount())
+		//	_pLog._dwPacketPoolUse--;
+		ptr->cPacketArr[i].FreeRefPointer();
+		_pLog._dwPacketPoolUse--;
 	}
 
 	ptr->dwSendCount = 0;

@@ -6,26 +6,14 @@
 #include "IRoom.h"
 #include "AuthRoom.h"
 
-void AuthRoom::OnJoin(ULONGLONG sessionID)
+void AuthRoom::OnEnter(ULONGLONG sessionID)
 {
-	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-	(**cPacket) << sessionID;
-	(**cPacket) << (WORD)RoomMessageType::ENTER;
-
-	_pLog._dwPacketPoolUse++;
-
-	_MessageQueue->Enqueue(cPacket);
+	EnterAuthRoom(sessionID);
 }
 
 void AuthRoom::OnLeave(ULONGLONG sessionID)
 {
-	RefCountPointer cPacket = RefCountPointer::MakeSharedPtr();
-	(**cPacket) << sessionID;
-	(**cPacket) << (WORD)RoomMessageType::LEAVE;
-
-	_pLog._dwPacketPoolUse++;
-
-	_MessageQueue->Enqueue(cPacket);
+	LeaveAuthRoom(sessionID);
 }
 
 void AuthRoom::AuthProc(ULONGLONG sessionID, RefCountPointer& cPacket)
@@ -59,7 +47,7 @@ void AuthRoom::AuthProc(ULONGLONG sessionID, RefCountPointer& cPacket)
 
 	// MoveRoom도 그냥 방식이 바뀌면 된다. 수정하기
 	_pRoomNetServer->MoveRoom(sessionID, _dwRoomNumber, dfROOM_ECHO);
-	_pLog._dwLoginMessageTPS++;
+	_pRoomLog._dwLoginMessageTPS++;
 }
 
 void AuthRoom::EnterAuthRoom(ULONGLONG sessionID)
@@ -79,9 +67,7 @@ void AuthRoom::EnterAuthRoom(ULONGLONG sessionID)
 
 	_SessionMap.insert({ sessionID, pSession });
 
-	_pRoomNetServer->AddSessionToRoom(sessionID, _dwRoomNumber);
-
-	_pLog._dwAuthUserCount++;
+	_pRoomLog._dwAuthUserCount++;
 }
 
 void AuthRoom::LeaveAuthRoom(ULONGLONG sessionID)
@@ -93,11 +79,9 @@ void AuthRoom::LeaveAuthRoom(ULONGLONG sessionID)
 
 	pSession = (*it).second;
 
-	_pLog._dwAuthUserCount--;
+	_pRoomLog._dwAuthUserCount--;
 	_SessionMap.erase(sessionID);
 
 	if (pSession != NULL)
 		FreeSESSION(pSession);
-
-	_pRoomNetServer->RemoveSessionFromRoom(sessionID, _dwRoomNumber);
 }
