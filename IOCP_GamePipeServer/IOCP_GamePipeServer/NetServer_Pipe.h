@@ -21,6 +21,12 @@ struct st_NetHeader
 };
 #pragma pack(pop)
 
+struct st_IORefCheck
+{
+	unsigned long IO_Count = 0;
+	unsigned long releaseCheck;
+};
+
 struct st_NetSession
 {
 	ULONGLONG ulSessionID;

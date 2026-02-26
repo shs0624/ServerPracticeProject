@@ -155,7 +155,8 @@ void RoomNetServer::RemoveSessionFromRoom(ULONGLONG sessionID, DWORD roomNumber)
 
 			if (pSession->bReleaseCheck)
 			{
-				ReleaseSession(sessionID);
+				//ReleaseSession(sessionID);
+				PostRelease(pSession);
 			}
 			break;
 		}

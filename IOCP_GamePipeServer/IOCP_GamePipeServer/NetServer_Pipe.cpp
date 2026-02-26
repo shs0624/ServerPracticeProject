@@ -1029,8 +1029,10 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 
 	RefCountPointer cpacket;
 	int loopCnt = ptr->sendBuf->Size();
-	//if (loopCnt >= MAX_PACKET_BATCH)
-	//	DebugBreak();
+	if (loopCnt >= MAX_PACKET_BATCH)
+	{
+		loopCnt = MAX_PACKET_BATCH;
+	}
 
 	for (int i = 0; i < loopCnt; i++)
 	{
@@ -1061,8 +1063,6 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
-				//if (!ptr->cPacketArr[i].DecRefCount())
-				//	_pLog._dwPacketPoolUse--;
 				ptr->cPacketArr[i].FreeRefPointer();
 				_pLog._dwPacketPoolUse--;
 			}
@@ -1093,8 +1093,6 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	{
 		RefCountPointer cPacket;
 		ptr->sendBuf->Dequeue(cPacket);
-		//if (!cPacket.DecRefCount())
-		//	_pLog._dwPacketPoolUse--;
 		cPacket.FreeRefPointer();
 		_pLog._dwPacketPoolUse--;
 	}
@@ -1102,8 +1100,6 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	int cnt = ptr->dwSendCount;
 	for (int i = 0; i < cnt; i++)
 	{
-		//if (!ptr->cPacketArr[i].DecRefCount())
-		//	_pLog._dwPacketPoolUse--;
 		ptr->cPacketArr[i].FreeRefPointer();
 		_pLog._dwPacketPoolUse--;
 	}

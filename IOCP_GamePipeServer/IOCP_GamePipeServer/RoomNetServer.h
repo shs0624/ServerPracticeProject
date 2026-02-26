@@ -63,7 +63,6 @@ public:
 	}
 private:
 	void InitRoom();
-	void InitPool(int maxConnection);
 
 	static unsigned int WINAPI TimerThread(LPVOID arg)
 	{

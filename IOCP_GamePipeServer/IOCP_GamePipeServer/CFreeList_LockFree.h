@@ -75,7 +75,7 @@ namespace procademy
 				st_BLOCK_NODE* node = (st_BLOCK_NODE*)malloc(sizeof(st_BLOCK_NODE));
 
 				ULONGLONG localIdx = _IDCnt++;
-				localIdx = localIdx << 47;
+				localIdx = localIdx << 48;
 
 				if (bCreateNew)
 				{
@@ -95,7 +95,7 @@ namespace procademy
 		{
 			while (_pTopNode != nullptr)
 			{
-				st_BLOCK_NODE* node = (st_BLOCK_NODE*)((ULONGLONG)_pTopNode & 0x00007fffffffffff);
+				st_BLOCK_NODE* node = (st_BLOCK_NODE*)((ULONGLONG)_pTopNode & 0x0000ffffffffffff);
 				st_BLOCK_NODE* next = node->nextPtr;
 
 				if (m_bCreateNew || m_bPlacementNew)
@@ -108,7 +108,7 @@ namespace procademy
 			/*int subCount = (m_iCapacity - m_iUseCount);
 			for (int i = 0; i < subCount; i++)
 			{
-				st_BLOCK_NODE* node = (st_BLOCK_NODE*)((ULONGLONG)_pTopNode & 0x00007fffffffffff);
+				st_BLOCK_NODE* node = (st_BLOCK_NODE*)((ULONGLONG)_pTopNode & 0x0000ffffffffffff);
 				st_BLOCK_NODE* next = node->nextPtr;
 
 				if(m_bCreateNew || m_bPlacementNew)
@@ -138,7 +138,7 @@ namespace procademy
 					
 				st_BLOCK_NODE* oldTopNode = _pTopNode;
 
-				st_BLOCK_NODE* NodePtr = (st_BLOCK_NODE*)(0x00007fffffffffff & (ULONGLONG)oldTopNode);
+				st_BLOCK_NODE* NodePtr = (st_BLOCK_NODE*)(0x0000ffffffffffff & (ULONGLONG)oldTopNode);
 				st_BLOCK_NODE* newNode = NodePtr->nextPtr;
 
 #ifdef __GUARDTEST__
@@ -175,7 +175,7 @@ namespace procademy
 		bool Free(DATA* pData)
 		{
 			LONGLONG localIdx = InterlockedIncrement(&_IDCnt);
-			localIdx = localIdx << 47;
+			localIdx = localIdx << 48;
 			st_BLOCK_NODE* nodePtr = (st_BLOCK_NODE*)((char*)pData - sizeof(void*));
 			st_BLOCK_NODE* newNode = (st_BLOCK_NODE*)((ULONGLONG)nodePtr | localIdx);
 

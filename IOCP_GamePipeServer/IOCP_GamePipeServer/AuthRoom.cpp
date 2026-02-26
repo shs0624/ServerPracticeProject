@@ -47,7 +47,6 @@ void AuthRoom::AuthProc(ULONGLONG sessionID, RefCountPointer& cPacket)
 
 	// MoveRoom도 그냥 방식이 바뀌면 된다. 수정하기
 	_pRoomNetServer->MoveRoom(sessionID, _dwRoomNumber, dfROOM_ECHO);
-	_pRoomLog._dwLoginMessageTPS++;
 }
 
 void AuthRoom::EnterAuthRoom(ULONGLONG sessionID)
