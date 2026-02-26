@@ -21,6 +21,12 @@ struct st_NetHeader
 };
 #pragma pack(pop)
 
+struct st_IORefCheck
+{
+	unsigned long ulIOCount;
+	unsigned long ulReleaseCheck;
+};
+
 struct st_NetSession
 {
 	OVERLAPPED sendOverlapped;
@@ -30,11 +36,13 @@ struct st_NetSession
 	SOCKADDR_IN clientAddr;
 	LockFreeQueue<RefCountPointer>* sendBuf;
 	CRingBuffer* recvBuf;
-	RefCountPointer cPacketArr[MAX_PACKET_BATCH];
+	//RefCountPointer cPacketArr[MAX_PACKET_BATCH];
+	RefCountPointer* cPacketArr;
 
+	alignas(8) st_IORefCheck stIORefCount;
 	DWORD dwSendCount;
-	alignas(4) DWORD dwIOCount;
-	BOOL bReleaseFlag;
+	//alignas(4) DWORD dwIOCount;
+	//BOOL bReleaseFlag;
 	BOOL bSendFlag;
 	BOOL bCanceled;
 	BOOL bDeleted;

@@ -155,8 +155,8 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	st_NetSession* ptr = &_sessionArr[idx];
 
 	// 다른 곳에서 Send후 Dec로 해제되는 걸 막기위해 먼저 Inc
-	ptr->dwIOCount = 0;
-	if (InterlockedIncrement(&ptr->dwIOCount) != 1)
+	ptr->stIORefCount.ulIOCount = 0;
+	if (InterlockedIncrement(&ptr->stIORefCount.ulIOCount) != 1)
 		DebugBreak();
 
 	while (ptr->sendBuf->Size() > 0)
@@ -176,7 +176,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	ptr->dwSendCount = 0;
 	ptr->clientAddr = clientaddr;
 	ptr->ulSessionID = (ulIdx | id);
-	ptr->bReleaseFlag = false;
+	ptr->stIORefCount.ulReleaseCheck = 0;
 	ptr->bSendFlag = false;
 	ptr->bCanceled = false;
 	ptr->bDeleted = false;
@@ -192,7 +192,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 
 	if (!SetWSARecv(ptr))
 	{
-		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+		if (InterlockedDecrement(&(ptr->stIORefCount.ulIOCount)) == 0)
 		{
 			// 연결 끊기
 			thisPtr->ReleaseSession(ptr->ulSessionID);
@@ -200,7 +200,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 		}
 	}
 
-	if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
+	if (InterlockedDecrement(&(ptr->stIORefCount.ulIOCount)) == 0)
 	{
 		thisPtr->ReleaseSession(ptr->ulSessionID);
 		return false;
@@ -238,16 +238,16 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			continue;
 		}
 
-		InterlockedIncrement(&ptr->dwIOCount);
-		if (ptr->bReleaseFlag == TRUE)
+		//InterlockedIncrement(&ptr->dwIOCount);
+		if (ptr->stIORefCount.ulReleaseCheck == TRUE)
 		{
 			continue;
 		}
 
 		if (ptr->bCanceled)
 		{
-			if (!thisPtr->DecrementIOCount(ptr))
-				continue;
+			//if (!thisPtr->DecrementIOCount(ptr))
+			//	continue;
 			if (!thisPtr->DecrementIOCount(ptr))
 				continue;
 
@@ -256,7 +256,7 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 
 		if (retval == 0 || cbTransferred == 0)
 		{
-			thisPtr->DecrementIOCount(ptr);
+			//thisPtr->DecrementIOCount(ptr);
 			thisPtr->DecrementIOCount(ptr);
 
 			continue;
@@ -332,8 +332,8 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 		if (!thisPtr->DecrementIOCount(ptr))
 			continue;
 		// 여긴 세션 참조에 대한 IO차감
-		if (!thisPtr->DecrementIOCount(ptr))
-			continue;
+		//if (!thisPtr->DecrementIOCount(ptr))
+		//	continue;
 	}
 }
 
@@ -346,9 +346,10 @@ void CNetServer::InitializeSessions(ULONG maxConnection)
 
 	for (ULONGLONG i = 0; i < maxConnection; i++)
 	{
-		_sessionArr[i].bReleaseFlag = false;
+		_sessionArr[i].stIORefCount.ulReleaseCheck = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(5000);
+		_sessionArr[i].cPacketArr = (RefCountPointer*)malloc(sizeof(RefCountPointer) * MAX_PACKET_BATCH);
 
 		_emptyIndexStack->push(i);
 	}
@@ -473,7 +474,7 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 
 bool CNetServer::DecrementIOCount(st_NetSession* ptr)
 {
-	LONG result = InterlockedDecrement((LONG*)&(ptr->dwIOCount));
+	LONG result = InterlockedDecrement(&(ptr->stIORefCount.ulIOCount));
 	if (result == 0)
 	{
 		PostRelease(ptr);
@@ -490,7 +491,7 @@ bool CNetServer::Disconnect(ULONGLONG sessionID)
 	if (ptr == NULL)
 		return false;
 
-	InterlockedIncrement(&ptr->dwIOCount);
+	InterlockedIncrement(&ptr->stIORefCount.ulIOCount);
 	if (sessionID != ptr->ulSessionID)
 	{
 		DecrementIOCount(ptr);
@@ -522,8 +523,8 @@ bool CNetServer::GetClientAddr(ULONGLONG sessionID, WCHAR* buffer, int len)
 		return false;
 	}
 
-	InterlockedIncrement(&ptr->dwIOCount);
-	if (ptr->bReleaseFlag == 1)
+	InterlockedIncrement(&ptr->stIORefCount.ulIOCount);
+	if (ptr->stIORefCount.ulReleaseCheck == 1)
 	{
 		DecrementIOCount(ptr);
 		return false;
@@ -564,8 +565,8 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 		return false;
 	}
 
-	InterlockedIncrement(&ptr->dwIOCount);
-	if (ptr->bReleaseFlag == 1)
+	InterlockedIncrement(&ptr->stIORefCount.ulIOCount);
+	if (ptr->stIORefCount.ulReleaseCheck == 1)
 	{
 		DecrementIOCount(ptr);
 		if (!cPacket.DecRefCount())
@@ -671,7 +672,7 @@ bool CNetServer::SetWSARecv(st_NetSession* ptr)
 	int recvRet, recvCount = 0;
 	DWORD flags = 0, recvbytes = 0;
 
-	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
+	InterlockedIncrement(&(ptr->stIORefCount.ulIOCount));
 	WSABUF recvWsa[MAX_PACKET_BATCH];
 	ZeroMemory(&(ptr->recvOverlapped), sizeof(OVERLAPPED));
 
@@ -719,7 +720,7 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 	int retval, sendCount = 0;
 	DWORD sendbytes;
 
-	InterlockedIncrement((DWORD*)&(ptr->dwIOCount));
+	InterlockedIncrement(&(ptr->stIORefCount.ulIOCount));
 	WSABUF sendWsa[MAX_PACKET_BATCH];
 
 	if (ptr->bCanceled)
@@ -778,7 +779,12 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 		return;
 
 	// dwIOCount가 0이면서 Release가 False(0)이면 Release를 1로 변경
-	if (_InterlockedCompareExchange64((LONGLONG*)&ptr->dwIOCount, 0x0000000100000000, 0x0000000000000000) != 0x0000000000000000)
+	st_IORefCheck Target = { 0, 0 };
+	st_IORefCheck Fix = { 0, 1 };
+
+	long long result = _InterlockedCompareExchange64((long long*)&ptr->stIORefCount, (*(long long*)&Fix), (*(long long*)&Target));
+	st_IORefCheck stResult = *((st_IORefCheck*)&result);
+	if (stResult.ulIOCount != Target.ulIOCount || stResult.ulReleaseCheck != Target.ulReleaseCheck)
 		return;
 
 	ULONGLONG idx = (ulSessionID) >> 48;
@@ -801,7 +807,6 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	}
 
 	ptr->dwSendCount = 0;
-	ptr->dwIOCount = 0;
 	closesocket(ptr->sock);
 
 	_emptyIndexStack->push(idx);
