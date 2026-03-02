@@ -23,7 +23,7 @@ public:
 		while (_MessageQueue->Size() > 0)
 		{
 			RefCountPointer cPacket;
-			_MessageQueue->Dequeue_NoLockFree(cPacket);
+			_MessageQueue->Dequeue(cPacket);
 
 			ULONGLONG sessionID;
 			WORD type;
@@ -36,8 +36,6 @@ public:
 			else if (type == LEAVE)
 				LeaveRoom(sessionID);
 
-			//if (!cPacket.DecRefCount())
-			//	_pLog._dwPacketPoolUse--;
 			cPacket.FreeRefPointer();
 			_pRoomLog._dwPacketPoolUse--;
 		}

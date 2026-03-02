@@ -101,18 +101,20 @@ public:
         st_Node* EnqueueNode = (st_Node*)((ULONGLONG)node | localCnt << 48);
         // 이걸 넣어야지
 
+        // tail을 밀어줘야 한다.
+        st_Node* _t = _tail;
+        st_Node* _tailP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_t);
+        if (_tailP->next != (st_Node*)endPoint)
+        {
+            InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
+        }
+
         while (true)
         {
             // tail도 원상복귀 필요
             st_Node* tail = _tail;
-
-            // tail을 밀어줘야 한다.
             st_Node* tailPtr = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)tail);
             st_Node* next = tailPtr->next;
-            if (next != (st_Node*)endPoint)
-            {
-                InterlockedCompareExchangePointer((PVOID*)&_tail, tailPtr->next, tail);
-            }
 
             if (next == (st_Node*)endPoint)
             {
