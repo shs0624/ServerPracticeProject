@@ -1,5 +1,7 @@
 #pragma once
 #include <Windows.h>
+#include <unordered_map>
+using namespace std;
 
 #define PROFILE
 #ifdef PROFILE
