@@ -25,8 +25,10 @@ public:
 		RefCountPointer result;
 		result._iRefCount = new long(1);
 		{
-			//Profiler("Alloc");
-			result.ptr = CPacket::_CPacketPool.Alloc();
+			{
+				Profiler("Alloc");
+				result.ptr = CPacket::_CPacketPool.Alloc();
+			}
 			result.ptr->Clear();
 		}
 
@@ -106,10 +108,12 @@ public:
 
 		if (InterlockedDecrement((LONG*)_iRefCount) == 0)
 		{
-			//Profiler("Free");
 			delete(_iRefCount);
 			ptr->Clear();
-			CPacket::_CPacketPool.Free(ptr);
+			{
+				Profiler("Free");
+				CPacket::_CPacketPool.Free(ptr);
+			}
 
 			return false;
 		}

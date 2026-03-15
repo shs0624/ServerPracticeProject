@@ -84,7 +84,7 @@ namespace procademy
 	
 				node->guardCode = m_guardCode;
 				node->nextPtr = _pTopNode;
-				memset(&node->allocPtr, 0, sizeof(DATA));
+				//memset(&node->allocPtr, 0, sizeof(DATA));
 				//node->allocPtr = NULL;
 				node = (st_BLOCK_NODE*)((ULONGLONG)node | localIdx);
 				_pTopNode = node;				

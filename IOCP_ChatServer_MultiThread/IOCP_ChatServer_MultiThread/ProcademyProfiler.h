@@ -1,13 +1,15 @@
 #pragma once
 #include <Windows.h>
+#include <unordered_map>
+using namespace std;
 
 #define PROFILE
 #ifdef PROFILE
-	#define PRO_BEGIN(TagName) ProfileBegin(TagName)
-	#define PRO_END(TagName) ProfileEnd(TagName)
+#define PRO_BEGIN(TagName) ProfileBegin(TagName)
+#define PRO_END(TagName) ProfileEnd(TagName)
 #elif
-	#define PRO_BEGIN(TagName)  
-	#define PRO_END(TagName)  
+#define PRO_BEGIN(TagName)  
+#define PRO_END(TagName)  
 #endif
 
 class Profiler

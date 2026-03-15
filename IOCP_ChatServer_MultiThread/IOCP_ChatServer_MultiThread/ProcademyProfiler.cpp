@@ -1,15 +1,15 @@
 ﻿#include "ProcademyProfiler.h"
 #include <iostream>
-#define STRUCT_ARR_MAX 50
-#define THREAD_ARR_MAX 21
+
+#define STRUCT_ARR_MAX 100
+#define THREAD_ARR_MAX 101
 
 CHAR _Line[200] = "--------------------------------------------------------------------------------------------------\n";
 CHAR _Header[200] = "               Name |          Average |             Min |              Max |       Call |\n";
 
-
-// TLS에 애초에 구조체를 저장?
-// TLS에서 받은 인덱스는 저장해야함. 테이블에 매핑해서 따라가게 해야함.
-// TLS에서 인덱스 얻어서?
+// 측정을 위한 자료구조 / 측정 결과를 담는 자료구조 두 개가 필요함.
+// 측정은 TLS를 이용하면 된다. 하지만 결과는 굳이 TLS가 아니어도 되지않나.
+// 그렇다면 측정은 TLS에서 얻어오고, 거기서 측정을 시작하기 (map)
 struct Profile_Struct
 {
 	DWORD _ThreadID;
@@ -26,7 +26,7 @@ struct Profile_Struct
 struct ProfilePerThread
 {
 	DWORD _ThreadID;
-	Profile_Struct* _ProfileArr;
+	vector<Profile_Struct*> _ProfileVec;
 	bool _IsUsing = false;
 };
 
@@ -43,7 +43,7 @@ class PrivateProfiler
 public:
 	PrivateProfiler()
 	{
-		QueryPerformanceFrequency(&_Freq); 
+		QueryPerformanceFrequency(&_Freq);
 		InitializeSRWLock(&_Lock);
 		_TlsIdx = TlsAlloc();
 		_ThreadTlsIdx = TlsAlloc();
@@ -69,80 +69,83 @@ public:
 		return false;
 	}
 
-	void AddProfile(int* idx, LARGE_INTEGER starTime, const CHAR* tag, Profile_Struct* profileArr)
+	DWORD AddProfile(const CHAR* tag, Profile_Struct* pStruct)
 	{
-		*idx = -1;
-		for (int i = 0; i < STRUCT_ARR_MAX; i++)
-		{
-			if (false == profileArr[i]._IsUsing)
-			{
-				*idx = i;
-				break;
-			}
-		}
+		// 스레드 정보 저장 배열에 새로 할당
+		DWORD setValue = InterlockedIncrement(&_ThreadIdx);
+		TlsSetValue(_ThreadTlsIdx, (LPVOID)setValue);
+		_ThreadProfileArr[setValue]._ThreadID = GetCurrentThreadId();
 
-		if (*idx == -1)
-		{
-			throw -1;
-		}
-
-		// 스레드의 배열 인덱스를 TLS에 저장
-		DWORD _tidx = (DWORD)TlsGetValue(_ThreadTlsIdx);
-		if (_tidx == 0)
-		{
-			DWORD setValue = InterlockedIncrement(&_ThreadIdx);
-			TlsSetValue(_ThreadTlsIdx, (LPVOID)setValue);
-			_ThreadProfileArr[setValue]._ThreadID = GetCurrentThreadId();
-			_ThreadProfileArr[setValue]._ProfileArr = (Profile_Struct*)malloc(sizeof(Profile_Struct) * STRUCT_ARR_MAX);
-		}
-
-		profileArr[*idx]._IsUsing = true;
-		profileArr[*idx]._StartTime = starTime;
-		profileArr[*idx]._MinTime = LLONG_MAX;
-		profileArr[*idx]._TotalTime = 0;
-		profileArr[*idx]._CallCount = 0;
-		strcpy_s(profileArr[*idx]._Tag, 64, tag);
+		return setValue;
 	}
 
-	bool BeginCount(int idx, LARGE_INTEGER starTime, Profile_Struct* profileArr)
+	bool BeginCount(LARGE_INTEGER starTime, Profile_Struct* pProfile)
 	{
-		if (true == profileArr[idx]._IsCounting)
+		if (true == pProfile->_IsCounting)
 		{
 			return false;
 		}
 
-		profileArr[idx]._StartTime = starTime;
-		profileArr[idx]._IsCounting = true;
+		pProfile->_StartTime = starTime;
+		pProfile->_IsCounting = true;
 		return true;
 	}
 
-	bool EndCount(int idx, LARGE_INTEGER endTime, Profile_Struct* profileArr)
+	bool EndCount(LARGE_INTEGER endTime, Profile_Struct* pProfile)
 	{
-		if (false == profileArr[idx]._IsCounting)
+		if (false == pProfile->_IsCounting)
 		{
 			return false;
 		}
 
-		__int64 time = endTime.QuadPart - profileArr[idx]._StartTime.QuadPart;
-		profileArr[idx]._TotalTime += time;
-		profileArr[idx]._MaxTime = max(profileArr[idx]._MaxTime, time);
-		profileArr[idx]._MinTime = min(profileArr[idx]._MinTime, time);
-		profileArr[idx]._CallCount++;
-		profileArr[idx]._IsCounting = false;
+		__int64 time = endTime.QuadPart - pProfile->_StartTime.QuadPart;
+		pProfile->_TotalTime += time;
+		pProfile->_MaxTime = max(pProfile->_MaxTime, time);
+		pProfile->_MinTime = min(pProfile->_MinTime, time);
+		pProfile->_CallCount++;
+		pProfile->_IsCounting = false;
 
 		// 스레드의 배열 인덱스를 TLS에서 얻어옴
 		DWORD threadidx = (DWORD)TlsGetValue(_ThreadTlsIdx);
 		if (threadidx == 0)
 		{
-			DebugBreak();
+			// 결산 배열에 등록안된거니까 등록해야함.
+			threadidx = AddProfile(pProfile->_Tag, pProfile);
 		}
 
-		//_ThreadProfileArr[threadidx]._ProfileArr[idx];
-		AcquireSRWLockShared(&_Lock);
-		memcpy_s(&(_ThreadProfileArr[threadidx]._ProfileArr[idx]), sizeof(Profile_Struct), &profileArr[idx], sizeof(Profile_Struct));
-		ReleaseSRWLockShared(&_Lock);
+		SaveCount(threadidx, pProfile);
 
 		return true;
+	}
+
+	void SaveCount(DWORD index, Profile_Struct* pProfile)
+	{
+		AcquireSRWLockExclusive(&_Lock);
+
+		ProfilePerThread* pThreadProfile = &_ThreadProfileArr[index];
+
+		DWORD idx = -1;
+		auto it = pThreadProfile->_ProfileVec.begin();
+		for (; it != pThreadProfile->_ProfileVec.end(); it++)
+		{
+			if (!strcmp((*it)->_Tag, pProfile->_Tag))
+			{
+				break;
+			}
+		}
+
+		// 전체 계산 벡터에 없는 경우
+		if (it == pThreadProfile->_ProfileVec.end())
+		{
+			pThreadProfile->_ProfileVec.push_back(pProfile);
+		}
+		// 있는 경우, 갱신(메모리 통복사)
+		else
+		{
+			memcpy_s((*it), sizeof(Profile_Struct), pProfile, sizeof(Profile_Struct));
+		}
+
+		ReleaseSRWLockExclusive(&_Lock);
 	}
 
 	void WriteFile(FILE* file)
@@ -152,21 +155,20 @@ public:
 		AcquireSRWLockExclusive(&_Lock);
 		for (int threadIdx = 1; threadIdx <= _ThreadIdx; threadIdx++)
 		{
-			sprintf_s(context, 200, "Thread ID : %d\n",_ThreadProfileArr[threadIdx]._ThreadID);
+			sprintf_s(context, 200, "Thread ID : %d\n", _ThreadProfileArr[threadIdx]._ThreadID);
 			fwrite(&context, strlen(context), 1, file);
 			fwrite(_Line, strlen(_Line), 1, file);
-			for (int i = 1; i < STRUCT_ARR_MAX; i++)
-			{
-				Profile_Struct* ptr = &_ThreadProfileArr[threadIdx]._ProfileArr[i];
-				if (false == ptr->_IsUsing)
-				{
-					break;
-				}
 
+			ProfilePerThread* pThreadProfile = &_ThreadProfileArr[threadIdx];
+			for (auto it = pThreadProfile->_ProfileVec.begin(); it != pThreadProfile->_ProfileVec.end(); it++)
+			{
+				Profile_Struct* ptr = (*it);
+
+				long long callCount = (ptr->_CallCount > 2) ? ptr->_CallCount - 2 : ptr->_CallCount;
 				double average = ptr->_TotalTime - (ptr->_MaxTime + ptr->_MinTime);
-				average = ((average / (ptr->_CallCount - 2))) * (1000000.0f / (float)_Freq.QuadPart);
-				double min = (double)((double)ptr->_MinTime) * (1000000.0f / (float)_Freq.QuadPart);
-				double max = (double)((double)ptr->_MaxTime) * (1000000.0f / (float)_Freq.QuadPart);
+				average = (((average / callCount)) * _Freq.QuadPart) * (1 / 1000000.0f);
+				double min = (double)((ptr->_MinTime) * _Freq.QuadPart) * (1 / 1000000.0f);
+				double max = (double)((ptr->_MaxTime) * _Freq.QuadPart) * (1 / 1000000.0f);
 				sprintf_s(context, 200, "%20s | %.4f㎲ | %.4f㎲ | %.4f㎲ | %lld\n",
 					ptr->_Tag, average, min, max, ptr->_CallCount);
 				fwrite(&context, strlen(context), 1, file);
@@ -182,13 +184,10 @@ public:
 		AcquireSRWLockExclusive(&_Lock);
 		for (int threadIdx = 1; threadIdx <= _ThreadIdx; threadIdx++)
 		{
-			for (int i = 0; i < STRUCT_ARR_MAX; i++)
+			ProfilePerThread* pThreadProfile = &_ThreadProfileArr[threadIdx];
+			for (auto it = pThreadProfile->_ProfileVec.begin(); it != pThreadProfile->_ProfileVec.end(); it++)
 			{
-				Profile_Struct* ptr = &_ThreadProfileArr[threadIdx]._ProfileArr[i];
-				if (false == ptr->_IsUsing)
-				{
-					break;
-				}
+				Profile_Struct* ptr = (*it);
 
 				ptr->_TotalTime = 0;
 				ptr->_MaxTime = 0;
@@ -200,13 +199,12 @@ public:
 	}
 
 	// ThreadProfileArr 저장된 갯수
-	DWORD _ThreadIdx;
-	// 해당 스레드의 ProfileStruct 배열이 몇 번 TLS 인덱스에 저장되어 있는가
+	DWORD _ThreadIdx = 0;
+	// 해당 스레드의 측정정보를 담는 unordered_map의 주소를 담을 TLS 인덱스
 	DWORD _TlsIdx = -1;
-	// ThreadProfileArr에 해당 스레드가 몇 번 인덱스에 저장되어 있는가
+	// 해당 스레드가 결과를 담는 배열의 몇 번 인덱스에 있는지 얻어오는 TLS 인덱스
 	DWORD _ThreadTlsIdx;
 private:
-	Profile_Struct _ProfileArr[STRUCT_ARR_MAX];
 	ProfilePerThread _ThreadProfileArr[THREAD_ARR_MAX];
 	SRWLOCK _Lock;
 	LARGE_INTEGER _Freq;
@@ -231,22 +229,34 @@ void ProfileBegin(const CHAR* tagName)
 	int idx;
 	LARGE_INTEGER startTime;
 
-	Profile_Struct* ptr = (Profile_Struct*)TlsGetValue(_Profiler._TlsIdx);
-	if (ptr == NULL)
+	std::unordered_map<char*, Profile_Struct*>* pProfileMap;
+	pProfileMap = (std::unordered_map<char*, Profile_Struct*>*)TlsGetValue(_Profiler._TlsIdx);
+	if (pProfileMap == NULL)
 	{
-		ptr = (Profile_Struct*)malloc(sizeof(Profile_Struct) * STRUCT_ARR_MAX);
-		TlsSetValue(_Profiler._TlsIdx, ptr);
+		pProfileMap = new std::unordered_map<char*, Profile_Struct*>();
+		TlsSetValue(_Profiler._TlsIdx, pProfileMap);
 	}
 
+	Profile_Struct* pStruct = NULL;
 	QueryPerformanceCounter(&startTime);
-	if (false == _Profiler.FindProfile(&idx, tagName, ptr))
+
+	auto it = pProfileMap->find((char*)tagName);
+	if (it == pProfileMap->end())
 	{
-		//구조체 추가
-		_Profiler.AddProfile(&idx, startTime, tagName, ptr);
+		pStruct = (Profile_Struct*)malloc(sizeof(Profile_Struct));
+		memset(pStruct, 0, sizeof(Profile_Struct));
+		pStruct->_MinTime = INT64_MAX;
+
+		int len = strlen(tagName);
+		memcpy_s(pStruct->_Tag, len, tagName, len);
+		//strcpy_s(pStruct->_Tag, len, tagName);
+		pProfileMap->insert({ (char*)tagName, pStruct });
 	}
+	else
+		pStruct = (*it).second;
 
 	// Begin-Begin 구조인지 확인
-	if (false == _Profiler.BeginCount(idx, startTime, ptr))
+	if (false == _Profiler.BeginCount(startTime, pStruct))
 	{
 		// Begin-Begin구조면 크래쉬
 		throw 1;
@@ -258,21 +268,23 @@ void ProfileEnd(const CHAR* tagName)
 	int idx;
 	LARGE_INTEGER endTime;
 
-	Profile_Struct* ptr = (Profile_Struct*)TlsGetValue(_Profiler._TlsIdx);
-	if (ptr == NULL)
+	std::unordered_map<char*, Profile_Struct*>* pProfileMap;
+	pProfileMap = (std::unordered_map<char*, Profile_Struct*>*)TlsGetValue(_Profiler._TlsIdx);
+	if (pProfileMap == NULL)
 	{
-		ptr = (Profile_Struct*)malloc(sizeof(Profile_Struct) * STRUCT_ARR_MAX);
-	}
-
-	QueryPerformanceCounter(&endTime);
-	if (false == _Profiler.FindProfile(&idx, tagName, ptr))
-	{
-		// 없는 태그를 End했음. 이걸 알려야 할까?
+		//pProfileMap = new std::unordered_map<char*, Profile_Struct*>();
+		//TlsSetValue(_Profiler._TlsIdx, pProfileMap);
 		DebugBreak();
 		return;
 	}
 
-	if (false == _Profiler.EndCount(idx, endTime, ptr))
+	Profile_Struct* pStruct = NULL;
+	QueryPerformanceCounter(&endTime);
+
+	auto it = pProfileMap->find((char*)tagName);
+	pStruct = (*it).second;
+
+	if (false == _Profiler.EndCount(endTime, pStruct))
 	{
 		// End-End 구조면 크래쉬
 		throw 1;
