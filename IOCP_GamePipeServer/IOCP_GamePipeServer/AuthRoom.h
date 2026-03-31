@@ -26,21 +26,9 @@ public:
 		_pRoomLog._dwAuthFPS++;
 	}
 
-	virtual void inline OnLateUpdate()
-	{
-
-	}
-
 	virtual inline void OnSessionUpdate(ULONGLONG sessionID)
 	{
-		st_SESSION* pSession = NULL;
-		auto it = _SessionMap.find(sessionID);
-		if (it == _SessionMap.end())
-		{
-			return;
-		}
-
-		pSession = (*it).second;
+		
 	}
 private:
 	void AuthProc(ULONGLONG sessionID, RefCountPointer& cPacket);

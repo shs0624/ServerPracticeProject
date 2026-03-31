@@ -25,10 +25,7 @@ public:
 		RefCountPointer result;
 		result._iRefCount = new long(1);
 		{
-			{
-				Profiler("Alloc_MakeSharedPtr");
-				result.ptr = CPacket::_CPacketPool.Alloc();
-			}
+			result.ptr = CPacket::_CPacketPool.Alloc();
 			result.ptr->Clear();
 		}
 
@@ -40,10 +37,7 @@ public:
 	{
 		RefCountPointer result;
 		{
-			{
-				Profiler("Alloc_MakePtr");
-				result.ptr = CPacket::_CPacketPool.Alloc();
-			}
+			result.ptr = CPacket::_CPacketPool.Alloc();
 			result.ptr->Clear();
 		}
 
@@ -120,10 +114,7 @@ public:
 		{
 			delete(_iRefCount);
 			ptr->Clear();
-			{
-				Profiler("Free_DecRefCount");
-				CPacket::_CPacketPool.Free(ptr);
-			}
+			CPacket::_CPacketPool.Free(ptr);
 
 			return false;
 		}
@@ -137,11 +128,7 @@ public:
 	void inline FreeRefPointer()
 	{
 		ptr->Clear();
-
-		{
-			Profiler("Free_FreeRefPointer");
-			CPacket::_CPacketPool.Free(ptr);
-		}
+		CPacket::_CPacketPool.Free(ptr);
 	}
 
 private:

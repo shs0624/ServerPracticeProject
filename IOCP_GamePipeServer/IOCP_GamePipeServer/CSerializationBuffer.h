@@ -4,6 +4,8 @@
 #define _CPACKET_
 #include <Windows.h>
 #include <new>
+#include "CFreeList.h"
+#include "CFreeList_LockFree.h"
 #include "TLSMemoryPool.h"
 #define CPACKET_LOGSIZE 10000
 #define PROTOCOL_MAX_SIZE 100
@@ -606,6 +608,8 @@ public:
 	static DWORD _iLogAllocIdx;
 	static LPVOID _allocLog[CPACKET_LOGSIZE];
 #endif
+	//static procademy::CMemoryPool<CPacket> _CPacketPool;
+	//static procademy::CMemoryPool_LockFree<CPacket> _CPacketPool;
 	static TLSMemoryPoolManager<CPacket> _CPacketPool;
 	friend class TLSMemoryPoolManager<CPacket>;
 protected:

@@ -6,7 +6,7 @@
 #include "MonitorProtocol.h"
 #include "MonitorClient.h"
 #define dfLOG_MAX 10000
-#define MONITORING_ON
+//#define MONITORING_ON
 
 struct stChatLog
 {

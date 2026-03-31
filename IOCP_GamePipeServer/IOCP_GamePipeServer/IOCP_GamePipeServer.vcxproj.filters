@@ -114,6 +114,9 @@
     <ClInclude Include="CPacketRingBuffer.h">
       <Filter>Lib</Filter>
     </ClInclude>
+    <ClInclude Include="CFreeList.h">
+      <Filter>Lib</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CPUUsage.cpp">

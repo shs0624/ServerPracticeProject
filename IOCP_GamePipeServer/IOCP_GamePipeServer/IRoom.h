@@ -10,8 +10,19 @@ class RoomNetServer;
 class IRoom
 {
 public:
-	DWORD inline GetRoomNumber() { return _dwRoomNumber; }
+	DWORD GetRoomNumber() { return _dwRoomNumber; }
 	
+	// Enter, Leave 메세지가 처리 됐을 때 이벤트
+	virtual void OnEnter(ULONGLONG sessionID) = 0;
+	virtual void OnLeave(ULONGLONG sessionID) = 0;
+
+	// 패킷이 도착했다는 메세지를 꺼낸 경우 호출하는 이벤트
+	virtual void OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket) = 0;
+
+	// 매 프레임마다 호출하는 함수. Session별로 업데이트가 필요해서 SessionUpdate도 추가
+	virtual void OnUpdate() = 0;
+	virtual void OnSessionUpdate(ULONGLONG sessionID) = 0;
+
 	void EnqueueEntryMessage(ULONGLONG sessionID, WORD type);
 
 	// Init으로 해도 될듯
@@ -70,14 +81,6 @@ public:
 		_ulNextFrameTick += _dwFrameTime;
 		return true;
 	}
-
-	// 지금은 Enter, Leave 메세지가 처리 됐을 때, 즉 OnMessage가 호출하는 구조라 옳지않음.
-	virtual void OnEnter(ULONGLONG sessionID) = 0;
-	virtual void OnLeave(ULONGLONG sessionID) = 0;
-	virtual void inline OnMessage(ULONGLONG sessionID, RefCountPointer& cPacket) = 0;
-	virtual void inline OnUpdate() = 0;
-	virtual void inline OnLateUpdate() = 0;
-	virtual void inline OnSessionUpdate(ULONGLONG sessionID) = 0;
 
 	// 비정적 멤버는 인스턴스마다 다른 메모리를 가지는데, thread_local은
 	// 인스턴스마다가 아니라, 스레드 마다 같은 메모리를 가지니 의미가 충돌한다.

@@ -38,6 +38,8 @@ struct st_NetSession
 	BOOL bCanceled;
 	BOOL bReleaseCheck;
 
+	//std::mutex* _pSendBufMutex;
+	//std::queue<RefCountPointer>* sendBuf;
 	LockFreeQueue<RefCountPointer>* sendBuf;
 	CRingBuffer* recvBuf;
 	OVERLAPPED sendOverlapped;
@@ -105,7 +107,10 @@ public:
 			(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
 		}
 
+		//ptr->_pSendBufMutex->lock();
 		ptr->sendBuf->Enqueue(cPacket);
+		//ptr->sendBuf->push(cPacket);
+		//ptr->_pSendBufMutex->unlock();
 
 		InterlockedIncrement(&ptr->dwIOCount);
 		PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, &_SendOverlapped);

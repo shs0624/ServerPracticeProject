@@ -133,6 +133,7 @@
   <ItemGroup>
     <ClInclude Include="AuthRoom.h" />
     <ClInclude Include="CCrashDump.h" />
+    <ClInclude Include="CFreeList.h" />
     <ClInclude Include="CFreeList_LockFree.h" />
     <ClInclude Include="CommonProtocol.h" />
     <ClInclude Include="CPacketRingBuffer.h" />

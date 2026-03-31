@@ -92,6 +92,7 @@ public:
 
     void Enqueue(T t)
     {
+        //Profiler("SendBuf_Enqueue");
         DWORD64 endPoint = _EndPointNode;
         st_Node* node = _NodePool.Alloc();
         node->data = t;
@@ -135,8 +136,6 @@ public:
                     break;
                 }
             }
-            else
-                YieldProcessor();
         }
     }
 
@@ -177,7 +176,17 @@ public:
 
     int Dequeue(T& t)
     {
+        //Profiler("SendBuf_Dequeue");
         DWORD64 endPoint = _EndPointNode;
+
+        // tail을 밀어줘야 하는지 체크
+        st_Node* _t = _tail;
+        st_Node* _tailP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_t);
+        if (_tailP->next != (st_Node*)endPoint)
+        {
+            InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
+        }
+
         while (true)
         {
             st_Node* head = _head;
@@ -187,14 +196,6 @@ public:
 
             if (next == (st_Node*)endPoint)
                 continue;
-
-            // tail을 밀어줘야 하는지 체크
-            st_Node* _t = _tail;
-            st_Node* _tailP = (st_Node*)(0x0000ffffffffffff & (ULONGLONG)_t);
-            if (_tailP->next != (st_Node*)endPoint)
-            {
-                InterlockedCompareExchangePointer((PVOID*)&_tail, _tailP->next, _t);
-            }
 
             if (InterlockedCompareExchangePointer((PVOID*)&_head, next, head) == head)
             {
@@ -216,8 +217,6 @@ public:
                 _NodePool.Free(headPtr);
                 break;
             }
-            else
-                YieldProcessor();
         }
 
         return 0;

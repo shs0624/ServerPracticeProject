@@ -186,7 +186,7 @@ unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
 			if (ptr->dwIncludedRoom != roomNumber)
 				continue;
 
-			// 세션별로 해야하는 작업 순회시키기
+			// 수신 버퍼에서 메세지를 꺼내 처리
 			int qSize = ptr->_MessageQ->GetUseSize();
 			for (int j = 0; j < qSize; j++)
 			{
@@ -195,11 +195,9 @@ unsigned int WINAPI RoomNetServer::RoomThread(LPVOID arg)
 					pIRoom->OnMessage(sessionID, pMessage);
 			}
 
-			if(qSize > 0)
-				pIRoom->OnSessionUpdate(sessionID);
+			// 세션별로 Update가 필요하다면 호출하는 OnSessionUpdate
+			pIRoom->OnSessionUpdate(sessionID);
 		}
-
-		//pIRoom->OnLateUpdate();
 
 		if (!pIRoom->SleepCheck())
 			return 0;

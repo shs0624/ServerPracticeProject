@@ -229,15 +229,22 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 	if (InterlockedIncrement(&ptr->dwIOCount) != 1)
 		DebugBreak();
 
+	//ptr->_pSendBufMutex->lock();
 	while (ptr->sendBuf->Size() > 0)
 	{
 		RefCountPointer cPacket;
-		ptr->sendBuf->Dequeue(cPacket);
-		//if (!cPacket.DecRefCount())
-		//	_pLog._dwPacketPoolUse--;
+		{
+			Profiler("SendBuf_Dequeue");
+			ptr->sendBuf->Dequeue(cPacket);
+			//cPacket = ptr->sendBuf->front();
+			//ptr->sendBuf->pop();
+		}
+
 		cPacket.FreeRefPointer();
 		_pLog._dwPacketPoolUse--;
 	}
+	//ptr->_pSendBufMutex->unlock();
+
 	ptr->recvBuf->ClearBuffer();
 
 	while (!ptr->_MessageQ->Empty())
@@ -278,6 +285,7 @@ bool CNetServer::AcceptProc(CNetServer* thisPtr)
 
 	if (!SetWSARecv(ptr))
 	{
+		// 실패 시 참조 카운트 감소
 		if (InterlockedDecrement((DWORD*)&(ptr->dwIOCount)) == 0)
 		{
 			// 연결 끊기
@@ -332,8 +340,6 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 
 		if (ptr->bCanceled)
 		{
-			//if (!thisPtr->DecrementIOCount(ptr))
-			//	continue;
 			if (!thisPtr->DecrementIOCount(ptr))
 				continue;
 
@@ -342,7 +348,6 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 
 		if (retval == 0 || cbTransferred == 0)
 		{
-			//thisPtr->DecrementIOCount(ptr);
 			thisPtr->DecrementIOCount(ptr);
 
 			continue;
@@ -360,7 +365,6 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 				}
 			}
 
-			//thisPtr->DecrementIOCount(ptr);
 			thisPtr->DecrementIOCount(ptr);
 			continue;
 		}
@@ -382,8 +386,6 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 			int cnt = ptr->dwSendCount;
 			for (int i = 0; i < cnt; i++)
 			{
-				//if (!ptr->cPacketArr[i].DecRefCount())
-				//	_pLog._dwPacketPoolUse--;
 				ptr->cPacketArr[i].FreeRefPointer();
 				_pLog._dwPacketPoolUse--;
 			}
@@ -436,9 +438,6 @@ unsigned int WINAPI CNetServer::IOCPWorkerThread(LPVOID arg)
 		// 완료 통지에 대한 IO차감
 		if (!thisPtr->DecrementIOCount(ptr))
 			continue;
-		// 여긴 세션 참조에 대한 IO차감
-		//if (!thisPtr->DecrementIOCount(ptr))
-		//	continue;
 	}
 }
 
@@ -453,9 +452,11 @@ void CNetServer::InitializeSessions(ULONG maxConnection)
 	{
 		_sessionArr[i].bReleaseFlag = false;
 		_sessionArr[i].sendBuf = new LockFreeQueue<RefCountPointer>();
+		//_sessionArr[i].sendBuf = new std::queue<RefCountPointer>();
 		_sessionArr[i].recvBuf = new CRingBuffer(8000);
 		_sessionArr[i]._MessageQ = new CPacketRingBuffer(MAX_PACKET_BATCH);
 		_sessionArr[i].cPacketArr = (RefCountPointer*)malloc(sizeof(RefCountPointer) * MAX_PACKET_BATCH);
+		//_sessionArr[i]._pSendBufMutex = new std::mutex();
 
 		_emptyIndexStack->push(i);
 	}
@@ -498,7 +499,6 @@ bool CNetServer::RecvProc_Net(st_NetSession* ptr, DWORD cbTransferred)
 	// 받은 데이터 ChatServer에 전달
 	while (1)
 	{
-		//RefCountPointer csPacket = RefCountPointer::MakeSharedPtr();
 		RefCountPointer csPacket = RefCountPointer::MakePtr();
 		(*csPacket)->Initialize(sizeof(st_NetHeader));
 		_pLog._dwPacketPoolUse++;
@@ -794,6 +794,12 @@ bool CNetServer::PostSend(ULONGLONG sessionID)
 		return false;
 	}
 
+	if (ptr->sendBuf->Size() == 0)
+	{
+		DecrementIOCount(ptr);
+		return false;
+	}
+
 	// 일부러 -1이 되게 Post
 	InterlockedIncrement(&ptr->dwIOCount);
 	PostQueuedCompletionStatus(_NetIOCPHandle, 1, (ULONG_PTR)ptr, &_SendOverlapped);
@@ -837,7 +843,10 @@ bool CNetServer::EnqueueSendBuffer(ULONGLONG sessionID, RefCountPointer& cPacket
 		(*cPacket)->Encode(_FixedKey, netHeader.RandKey);
 	}
 
+	//ptr->_pSendBufMutex->lock();
 	ptr->sendBuf->Enqueue(cPacket);
+	//ptr->sendBuf->push(cPacket);
+	//ptr->_pSendBufMutex->unlock();
 
 	_pLog._dwSendMessageTPS++;
 	DecrementIOCount(ptr);
@@ -906,7 +915,10 @@ bool CNetServer::SendPacket_UniCast(ULONGLONG sessionID, RefCountPointer& cPacke
 	}
 
 	//cPacket.IncRefCount();
+	//ptr->_pSendBufMutex->lock();
 	ptr->sendBuf->Enqueue(cPacket);
+	//ptr->sendBuf->push(cPacket);
+	//ptr->_pSendBufMutex->unlock();
 
 	if (InterlockedExchange((LONG*)&(ptr->bSendFlag), TRUE) != TRUE)
 	{
@@ -1028,6 +1040,8 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 		return false;
 
 	RefCountPointer cpacket;
+
+	//ptr->_pSendBufMutex->lock();
 	int loopCnt = ptr->sendBuf->Size();
 	if (loopCnt >= MAX_PACKET_BATCH)
 	{
@@ -1036,13 +1050,16 @@ bool CNetServer::SetWSASend(st_NetSession* ptr)
 
 	for (int i = 0; i < loopCnt; i++)
 	{
-		(ptr->sendBuf->Dequeue(cpacket));
+		//cpacket = ptr->sendBuf->front();
+		//ptr->sendBuf->pop();
+		ptr->sendBuf->Dequeue(cpacket);
 		ptr->cPacketArr[i] = cpacket;
 
 		sendWsa[i].buf = (*cpacket)->GetBufferPtr();
 		sendWsa[i].len = (*cpacket)->GetDataSize();
 		sendCount++;
 	}
+	//ptr->_pSendBufMutex->unlock();
 
 	if (sendCount == 0)
 	{
@@ -1089,13 +1106,19 @@ void CNetServer::ReleaseSession(ULONGLONG ulSessionID)
 	//OnRelease(ptr->ulSessionID);
 
 	ptr->recvBuf->ClearBuffer();
+
+	//ptr->_pSendBufMutex->lock();
 	while (ptr->sendBuf->Size() > 0)
 	{
 		RefCountPointer cPacket;
+
+		//cPacket = ptr->sendBuf->front();
+		//ptr->sendBuf->pop();
 		ptr->sendBuf->Dequeue(cPacket);
 		cPacket.FreeRefPointer();
 		_pLog._dwPacketPoolUse--;
 	}
+	//ptr->_pSendBufMutex->unlock();
 
 	int cnt = ptr->dwSendCount;
 	for (int i = 0; i < cnt; i++)

@@ -24,8 +24,6 @@ public:
 		{
 			_pNetServer->Disconnect(sessionID);
 
-			//if (!cPacket.DecRefCount())
-			//	_pLog._dwPacketPoolUse--;
 			cPacket.FreeRefPointer();
 			_pRoomLog._dwPacketPoolUse--;
 
@@ -48,18 +46,6 @@ public:
 	virtual void inline OnUpdate()
 	{
 		_pRoomLog._dwGameFPS++;
-	}
-
-	virtual void inline OnLateUpdate()
-	{
-		//for (auto it = _SendIDSet.begin(); it != _SendIDSet.end(); it++)
-		//{
-		//	ULONGLONG sessionID = (*it);
-
-		//	_pNetServer->PostSend(sessionID);
-		//}
-
-		//_SendIDSet.clear();
 	}
 
 	virtual void inline OnSessionUpdate(ULONGLONG sessionID)
