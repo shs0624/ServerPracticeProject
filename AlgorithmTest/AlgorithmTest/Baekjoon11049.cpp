@@ -1,96 +1,57 @@
-#include <iostream>
-#include <vector>
-#include <algorithm>
-using namespace std;
-
-struct Matrix
-{
-	int r;
-	int c;
-};
-
-int N;
-Matrix _MatrixArr[501];
-unsigned int _dp[501];
-unsigned int _dpReverse[501];
-unsigned int _dpResult[501];
-unsigned int _result;
-
-void Solution()
-{
-	_dp[1] = 0;
-
-	if (N == 1)
-	{
-		_result = 0;
-		return;
-	}
-
-	_dp[2] = _MatrixArr[1].r * _MatrixArr[1].c * _MatrixArr[2].c;
-	for (int i = 3; i <= N; i++)
-	{
-		unsigned int oldMulResult = _dp[i - 1] + _MatrixArr[1].r * _MatrixArr[i].r * _MatrixArr[i].c;
-		unsigned int newMulResult = _dp[i - 2] + (_MatrixArr[i - 1].r * _MatrixArr[i].r * _MatrixArr[i].c)
-			+ (_MatrixArr[1].r * _MatrixArr[i - 2].c * _MatrixArr[i].c);
-
-		if (oldMulResult > newMulResult)
-		{
-			_dp[i] = newMulResult;
-		}
-		else
-		{
-			_dp[i] = oldMulResult;
-		}
-	}
-
-	_result = _dp[N];
-
-	_dpReverse[N] = 0;
-	_dpReverse[N - 1] = _MatrixArr[N - 1].r * _MatrixArr[N].r * _MatrixArr[N].c;
-	for (int i = N - 2; i >= 1; i--)
-	{
-		unsigned int oldMulResult = _dpReverse[i + 1] + _MatrixArr[N].c * _MatrixArr[i].r * _MatrixArr[i].c;
-		unsigned int newMulResult = _dpReverse[i + 2] + (_MatrixArr[i + 1].c * _MatrixArr[i].r * _MatrixArr[i].c)
-			+ (_MatrixArr[N].c * _MatrixArr[i + 2].r * _MatrixArr[i].c);
-
-		if (oldMulResult > newMulResult)
-		{
-			_dpReverse[i] = newMulResult;
-		}
-		else
-		{
-			_dpReverse[i] = oldMulResult;
-		}
-	}
-
-	for (int i = 1; i < N; i++)
-	{
-		_dpResult[i] = _dp[i] + _dpReverse[i + 1];
-		_dpResult[i] += _MatrixArr[1].r * _MatrixArr[i].c * _MatrixArr[N].c;
-
-		_result = min(_dpResult[i], _result);
-	}
-
-	int b = 5;
-}
-
-int main()
-{
-	ios::sync_with_stdio(false);
-	cin.tie(NULL);
-	cout.tie(NULL);
-
-	_result = 0xffffffff;
-
-	cin >> N;
-	for (int i = 1; i <= N; i++)
-	{
-		cin >> _MatrixArr[i].r >> _MatrixArr[i].c;
-	}
-
-	Solution();
-
-	cout << _result << endl;
-
-	return 0;
-}
+//#include <iostream>
+//#include <vector>
+//#include <algorithm>
+//using namespace std;
+//
+//struct Matrix
+//{
+//	int r;
+//	int c;
+//};
+//
+//int N, _result;
+//Matrix _MatrixArr[501];
+//unsigned int _dp[501][501];
+//
+//void Solution()
+//{
+//	// term = term만큼의 행렬을 묶어서 연산하겠다.
+//	for (int term = 1; term < N; term++)
+//	{
+//		// i = 곱셈을 시작하는 인덱스
+//		for (int i = 1; term + i <= N; i++)
+//		{
+//			_dp[i][term + i] = 2147000000;
+//			// 시작점 i부터 i+term까지 탐색하며 i부터 i+term까지의 행렬곱 최솟값을 구한다.
+//			// 구한 값을 _dp[시작][끝]에 저장
+//			for (int j = i; j <= term + i; j++)
+//			{
+//				_dp[i][term + i] = min(_dp[i][term + i],
+//					_dp[i][j] + _dp[j + 1][term + i] + _MatrixArr[i].r * _MatrixArr[j].c * _MatrixArr[term + i].c);
+//			}
+//		}
+//	}
+//
+//	_result = _dp[1][N];
+//}
+//
+//int main()
+//{
+//	ios::sync_with_stdio(false);
+//	cin.tie(NULL);
+//	cout.tie(NULL);
+//
+//	_result = 0xffffffff;
+//
+//	cin >> N;
+//	for (int i = 1; i <= N; i++)
+//	{
+//		cin >> _MatrixArr[i].r >> _MatrixArr[i].c;
+//	}
+//
+//	Solution();
+//
+//	cout << _result << endl;
+//
+//	return 0;
+//}
