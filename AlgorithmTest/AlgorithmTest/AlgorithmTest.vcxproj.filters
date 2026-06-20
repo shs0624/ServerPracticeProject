@@ -54,5 +54,8 @@
     <ClCompile Include="Inflearn_1017.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="Inflearn_1018.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
