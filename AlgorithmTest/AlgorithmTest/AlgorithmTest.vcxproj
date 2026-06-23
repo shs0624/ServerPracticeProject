@@ -131,6 +131,7 @@
     <ClCompile Include="Baekjoon1712.cpp" />
     <ClCompile Include="Baekjoon1915.cpp" />
     <ClCompile Include="Baekjoon2616.cpp" />
+    <ClCompile Include="Inflearn_1021.cpp" />
     <ClCompile Include="Inflearn_1014.cpp" />
     <ClCompile Include="Inflearn_1015.cpp" />
     <ClCompile Include="Inflearn_1016.cpp" />
