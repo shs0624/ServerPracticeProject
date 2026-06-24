@@ -140,6 +140,7 @@
     <ClCompile Include="Inflearn_1019.cpp" />
     <ClCompile Include="Inflearn_1020.cpp" />
     <ClCompile Include="Inflearn_1020_answer.cpp" />
+    <ClCompile Include="Inflearn_1027.cpp" />
     <ClCompile Include="Inflearn_DFS04.cpp" />
     <ClCompile Include="Inflearn_DFS05.cpp" />
   </ItemGroup>
