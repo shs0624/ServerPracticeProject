@@ -145,6 +145,7 @@
     <ClCompile Include="Inflearn_1029.cpp" />
     <ClCompile Include="Inflearn_1030.cpp" />
     <ClCompile Include="Inflearn_1031.cpp" />
+    <ClCompile Include="Inflearn_1042.cpp" />
     <ClCompile Include="Inflearn_DFS04.cpp" />
     <ClCompile Include="Inflearn_DFS05.cpp" />
   </ItemGroup>
