@@ -30,9 +30,9 @@
 **`[개발 내용]`**
 
 - 네트워크 IO는 IOCP 스레드가 맡고, 인증과 게임 서버를 각각 별도 스레드가 매 프레임 소속 세션의 메세지를 처리하도록 구현 
-  - [링크](https://github.com/shs0624/ServerPracticeProject/blob/3cc4f45d1c68777c1125a2944ab8311a2ac7e6ba/Portfolio/IOCP_GamePipeServer/IOCP_GamePipeServer/RoomNetServer.cpp#L166-L205)
+  - [RoomThread 구현](https://github.com/shs0624/ServerPracticeProject/blob/3cc4f45d1c68777c1125a2944ab8311a2ac7e6ba/Portfolio/IOCP_GamePipeServer/IOCP_GamePipeServer/RoomNetServer.cpp#L166-L205)
 - 컨텐츠 스레드마다 락프리큐를 두고, 그 큐로 컨텐츠 영역으로의 세션의 입장/퇴장을 관리하는 구조로 구현 
-  - [링크](https://github.com/shs0624/ServerPracticeProject/blob/3cc4f45d1c68777c1125a2944ab8311a2ac7e6ba/Portfolio/IOCP_GamePipeServer/IOCP_GamePipeServer/IRoom.h#L31-L55)
+  - [Enter,Leave 구현](https://github.com/shs0624/ServerPracticeProject/blob/3cc4f45d1c68777c1125a2944ab8311a2ac7e6ba/Portfolio/IOCP_GamePipeServer/IOCP_GamePipeServer/IRoom.h#L31-L55)
 - 송신 과정에서 락경합을 최소화하기 위해 송신 버퍼에 락프리큐 적용 
   - [락프리큐](https://github.com/shs0624/ServerPracticeProject/blob/3cc4f45d1c68777c1125a2944ab8311a2ac7e6ba/Portfolio/IOCP_GamePipeServer/IOCP_GamePipeServer/LockFreeQueue.h#L52)
 - 락프리큐의 노드 할당과 반환도 락경합을 최소화하기 위해 TLS(Thread Local Storage)메모리 풀을 구현하여 적용 
@@ -66,10 +66,10 @@
 
 **`[개발 내용]`**
 
-- 로그인 과정의 DB 통신 부하를 덜기 위해, 로그인 서버를 분리 후 클라이언트가 제시한 세션키를 MySQL로 계정 유효성 검증한 뒤 Redis에 캐싱한 뒤, 게임 서버가 Redis에서 재인증하여 DB에 접근하지 않도록 구현 
+- 로그인 과정의 DB 통신 부하를 덜기 위해, 로그인 서버를 분리 후 클라이언트가 제시한 세션키를 MySQL로 계정 유효성 검증한 뒤 Redis에 캐싱한 뒤, 채팅 서버가 Redis에서 재인증하여 DB에 접근하지 않도록 구현 
   - [로그인과정](https://github.com/shs0624/ServerPracticeProject/blob/3cc4f45d1c68777c1125a2944ab8311a2ac7e6ba/Portfolio/IOCP_ChatServer_MultiThread/IOCP_ChatServer_MultiThread/ChatServer_Message.cpp#L8)
 - 스레드 아키텍처는 IO 완료통지를 처리하는 IOCP 스레드가 별도의 구분 없이 컨텐츠 영역의 작업까지 도맡아 하는 구조로, 이벤트 함수를 가상함수로 제공하고 이를 컨텐츠 서버가 오버라이드 하는 형태로 구현
-  - [링크](https://github.com/shs0624/ServerPracticeProject/blob/39464c47358f6a5a4f2d9403a2907bcd1a28bce8/Portfolio/IOCP_ChatServer_MultiThread/IOCP_ChatServer_MultiThread/NetServer.h#L51-L80)
+  - [NetServer 헤더](https://github.com/shs0624/ServerPracticeProject/blob/39464c47358f6a5a4f2d9403a2907bcd1a28bce8/Portfolio/IOCP_ChatServer_MultiThread/IOCP_ChatServer_MultiThread/NetServer.h#L51-L80)
 - 섹터링 방식을 적용해 유저는 자기 섹터와 주변 8방향의 유저에게 채팅을 전송하거나, 섹터를 이동하는 동작이 가능하도록 구현
 
 **`[사용기술]`**
