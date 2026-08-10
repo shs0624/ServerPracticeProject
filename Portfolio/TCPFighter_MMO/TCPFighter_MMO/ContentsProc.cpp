@@ -25,7 +25,7 @@ extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
 extern unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
-extern procademy::CMemoryPool<st_CHARACTER> _CharacterPool;
+extern NetLib::CMemoryPool<st_CHARACTER> _CharacterPool;
 
 bool AttackProc(st_CHARACTER* player, BYTE type, BYTE xRange, BYTE yRange, char damage);
 

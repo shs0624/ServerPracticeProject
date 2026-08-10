@@ -52,8 +52,6 @@
     <ClInclude Include="SectorProc.h" />
     <ClInclude Include="TCPDefine.h" />
     <ClInclude Include="TCPNetwork.h" />
-    <ClInclude Include="NetworkProc.h" />
-    <ClInclude Include="PacketProc.h" />
     <ClInclude Include="CStack.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -15,7 +15,7 @@
 HANDLE _controlThreadHandle;
 unsigned int _controlThreadID;
 
-procademy::CCrashDump cCrashDump;
+NetLib::CCrashDump cCrashDump;
 bool m_bShutdown = false;
 
 unsigned int WINAPI GetControl(LPVOID arg);
@@ -42,10 +42,6 @@ int wmain(int argc, WCHAR* argv[])
 		{
 			Update();
 		}
-		
-		// 시간처리 할 때
-		/*if (Skip())
-			Update();*/
 
 		Monitor();
 	}

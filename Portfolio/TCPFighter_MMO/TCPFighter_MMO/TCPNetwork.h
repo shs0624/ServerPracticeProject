@@ -20,5 +20,3 @@ void DisconnectDeletedSession();
 
 void Send_BroadCast(DWORD dwsessionID, st_PACKET_HEADER* header, char* packet);
 bool Send_UniCast(st_SESSION* pSession, CPacket* cPacket);
-//void SendPacket_SectorOne(int iSectorX, int iSectorY, CPacket* cPacket, st_SESSION* pExceptSession);
-//void SendPacket_Around(st_SESSION* pSession, CPacket* cPacket, bool bSendMe = false);

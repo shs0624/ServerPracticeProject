@@ -26,7 +26,7 @@ DWORD m_IDCnt = 1;
 
 CStack<st_SESSION*> _disconnectStack;
 unordered_map<SOCKET, st_SESSION*> _sessionMap;
-procademy::CMemoryPool<st_SESSION> _sessionPool (dfMAX_CONNECT, false, false);
+NetLib::CMemoryPool<st_SESSION> _sessionPool (dfMAX_CONNECT, false, false);
 
 extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
@@ -115,7 +115,6 @@ void netSelectIO()
 
 	_selectIOFrame++;
 
-	int loopCount = 0;
 	fd_set readSet, writeSet;
 	FD_ZERO(&readSet);
 	FD_ZERO(&writeSet);
@@ -123,7 +122,6 @@ void netSelectIO()
 
 	unordered_map<SOCKET, st_SESSION*>::iterator it;
 
-	int cnt = 0;
 	{
 		//Profiler("Select_netSelectIO");
 		it = _sessionMap.begin();
@@ -263,7 +261,6 @@ void netProc_Recv(SOCKET socket)
 		return;
 
 	CRingBuffer* recvBuffer = pSession->RecvQ;
-	int freeSize = recvBuffer->GetFreeSize();
 	int recvSize = (recvBuffer->DirectEnqueueSize() > PROTOCOL_MAXSIZE)
 		? PROTOCOL_MAXSIZE : recvBuffer->DirectEnqueueSize();
 

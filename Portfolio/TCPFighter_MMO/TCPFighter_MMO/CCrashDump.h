@@ -6,7 +6,7 @@
 #include <iostream>
 #include <minidumpapiset.h>
 
-namespace procademy
+namespace NetLib
 {
 	class CCrashDump
 	{

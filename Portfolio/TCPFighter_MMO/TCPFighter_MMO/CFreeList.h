@@ -1,28 +1,10 @@
-/*---------------------------------------------------------------
-
-	procademy MemoryPool.
-
-	메모리 풀 클래스 (오브젝트 풀 / 프리리스트)
-	특정 데이타(구조체,클래스,변수)를 일정량 할당 후 나눠쓴다.
-
-	- 사용법.
-
-	procademy::CMemoryPool<DATA> MemPool(300, FALSE);
-	DATA *pData = MemPool.Alloc();
-
-	pData 사용
-
-	MemPool.Free(pData);
-
-
-----------------------------------------------------------------*/
-#ifndef  __PROCADEMY_MEMORY_POOL__
-#define  __PROCADEMY_MEMORY_POOL__
+#pragma once
 #define DEFAULTPOOLSIZE 50
 #include <new.h>
 #include <Windows.h>
 
-namespace procademy
+// 락프리 메모리풀 -> 스택 구조로 되어있음
+namespace NetLib
 {
 	template <class DATA>
 	class CMemoryPool
@@ -34,20 +16,11 @@ namespace procademy
 			st_BLOCK_NODE* nextPtr;
 		};
 	public:
-		//////////////////////////////////////////////////////////////////////////
-		// 생성자, 파괴자.
-		//
-		// Parameters:	(int) 초기 블럭 개수.
-		//				(bool) Alloc 시 생성자 / Free 시 파괴자 호출 여부
-		//				(bool) malloc 시 생성자 / Free 시 파괴자 호출 여부
-		// Return:
-		//////////////////////////////////////////////////////////////////////////
 		CMemoryPool() {}
 
+		// (초기 블럭 개수, Alloc시 생성자 호출 여부, 메모리 할당시 생성자 호출 여부)
 		CMemoryPool(int iBlockNum = 0, bool bPlacementNew = false, bool bCreateNew = false)
 		{
-			//InitializeCriticalSection(&_poolCRT);
-
 			m_iCreateCount = (iBlockNum == 0) ? DEFAULTPOOLSIZE : iBlockNum;
 			m_iCapacity = iBlockNum;
 			m_iUseCount = 0;
@@ -88,15 +61,9 @@ namespace procademy
 			}
 		}
 
-		//////////////////////////////////////////////////////////////////////////
-		// 블럭 하나를 할당받는다.  
-		//
-		// Parameters: 없음.
-		// Return: (DATA *) 데이타 블럭 포인터.
-		//////////////////////////////////////////////////////////////////////////
+		// 할당
 		DATA* Alloc(void)
 		{
-			//EnterCriticalSection(&_poolCRT);
 			if (m_iUseCount == m_iCapacity)
 				Resize();
 
@@ -115,19 +82,12 @@ namespace procademy
 
 			++m_iUseCount;
 
-			//LeaveCriticalSection(&_poolCRT);
 			return data;
 		}
 
-		//////////////////////////////////////////////////////////////////////////
-		// 사용중이던 블럭을 해제한다.
-		//
-		// Parameters: (DATA *) 블럭 포인터.
-		// Return: (BOOL) TRUE, FALSE.
-		//////////////////////////////////////////////////////////////////////////
+		// 반환
 		bool Free(DATA* pData)
 		{
-			//EnterCriticalSection(&_poolCRT);
 			st_BLOCK_NODE* ptr = (st_BLOCK_NODE*)((char*)pData - 8);
 
 #ifdef __GUARDTEST__
@@ -146,25 +106,14 @@ namespace procademy
 			_pFreeNode = ptr;
 			m_iUseCount--;
 
-			//LeaveCriticalSection(&_poolCRT);
 			return true;
 		}
 
 
-		//////////////////////////////////////////////////////////////////////////
-		// 현재 확보 된 블럭 개수를 얻는다. (메모리풀 내부의 전체 개수)
-		//
-		// Parameters: 없음.
-		// Return: (int) 메모리 풀 내부 전체 개수
-		//////////////////////////////////////////////////////////////////////////
+		// 남은 노드 개수
 		int		GetCapacityCount(void) { return m_iCapacity; }
 
-		//////////////////////////////////////////////////////////////////////////
-		// 현재 사용중인 블럭 개수를 얻는다.
-		//
-		// Parameters: 없음.
-		// Return: (int) 사용중인 블럭 개수.
-		//////////////////////////////////////////////////////////////////////////
+		// 사용중인 노드 개수
 		int		GetUseCount(void) { return m_iUseCount; }
 
 
@@ -198,8 +147,5 @@ namespace procademy
 		bool m_bPlacementNew;
 		bool m_bCreateNew;
 		void* m_guardCode;
-
-		//CRITICAL_SECTION _poolCRT;
 	};
 }
-#endif

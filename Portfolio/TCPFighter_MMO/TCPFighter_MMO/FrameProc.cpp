@@ -24,16 +24,13 @@ extern int g_iLogLevel;
 extern WCHAR g_szLogBuff[1024];
 
 unordered_map<DWORD, st_CHARACTER*> m_CharacterMap;
-procademy::CMemoryPool<st_CHARACTER> _CharacterPool(dfMAX_CONNECT, false, false);
+NetLib::CMemoryPool<st_CHARACTER> _CharacterPool(dfMAX_CONNECT, false, false);
 
 DWORD dwCurrentTick;
 DWORD dwNetworkCurrentTick;
 
 void Update()
 {
-	//if (Skip())
-		//return;
-
 	//Profiler("Update");
 	_logicFrame++;
 	double oldTick = dwCurrentTick;
@@ -42,12 +39,6 @@ void Update()
 
 	DWORD dwDeltaTime = dwCurrentTick - oldTick;
 	dwNetworkCurrentTick = timeGetTime();
-
-
-	//double deltaRatio = ((double)dwDeltaTime) / (double)FRAME_TIME;
-	//short shDeltaX = (short)(deltaRatio * dfSPEED_PLAYER_X);
-	//short shDeltaY = (short)(deltaRatio * dfSPEED_PLAYER_Y);
-	//_LOG(2, L"dwDelatTime : %d # shDeltaX : %d # shDeltaY : %d # temp : %f\n", dwDeltaTime, shDeltaX, shDeltaY, ((float)dwDeltaTime) / ((float)FRAME_TIME));
 
 	st_CHARACTER* pPlayer = nullptr;
 	unordered_map<DWORD, st_CHARACTER*>::iterator it;

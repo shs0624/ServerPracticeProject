@@ -71,12 +71,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="NetworkProc.h">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="PacketProc.h">
-      <Filter>소스 파일</Filter>
-    </ClInclude>
     <ClInclude Include="Contents.h">
       <Filter>소스 파일</Filter>
     </ClInclude>
