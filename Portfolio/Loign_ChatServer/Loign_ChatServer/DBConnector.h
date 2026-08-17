@@ -138,7 +138,7 @@ namespace SHS
 				//int n = mysql_errno(NULL);
 				DebugBreak();
 			}
-			connection = mysql_real_connect(sql, "127.0.0.1", "root", "12341234!!", "accountdb", 3306, (char*)NULL, CLIENT_MULTI_STATEMENTS);
+			connection = mysql_real_connect(sql, "127.0.0.1", "root", "shs0624@@", "accountdb", 3306, (char*)NULL, CLIENT_MULTI_STATEMENTS);
 			if (connection == NULL)
 			{
 				fprintf(stderr, "Mysql connection error : %s", mysql_error(&conn));
